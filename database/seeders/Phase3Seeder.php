@@ -43,18 +43,23 @@ class Phase3Seeder extends Seeder
         ];
 
         foreach ($services as $serviceData) {
-            $service = Service::create($serviceData);
+            $service = Service::firstOrCreate(
+                ['slug' => $serviceData['slug']],
+                $serviceData
+            );
 
-            // Buat contoh katalog untuk layanan Desain dan Custom
+            // Buat contoh katalog untuk layanan Desain dan Custom (hanya jika belum ada)
             if (in_array($service->name, ['Desain', 'Custom'])) {
                 for ($i = 1; $i <= 3; $i++) {
-                    Catalog::create([
-                        'service_id'  => $service->id,
-                        'name'        => 'Contoh ' . $service->name . ' Tipe ' . $i,
-                        'description' => 'Referensi desain ' . strtolower($service->name) . ' tipe ' . $i . '. Diskusikan detail dengan admin via chat.',
-                        'image_path'  => null,
-                        'is_active'   => true,
-                    ]);
+                    $catalogName = 'Contoh ' . $service->name . ' Tipe ' . $i;
+                    Catalog::firstOrCreate(
+                        ['service_id' => $service->id, 'name' => $catalogName],
+                        [
+                            'description' => 'Referensi desain ' . strtolower($service->name) . ' tipe ' . $i . '. Diskusikan detail dengan admin via chat.',
+                            'image_path'  => null,
+                            'is_active'   => true,
+                        ]
+                    );
                 }
             }
         }
