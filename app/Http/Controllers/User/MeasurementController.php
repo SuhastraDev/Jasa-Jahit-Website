@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Measurement;
 use App\Services\CVMeasurementService;
+use App\Services\PhotoValidationService;
 use Illuminate\Http\Request;
 
 class MeasurementController extends Controller
@@ -24,14 +25,26 @@ class MeasurementController extends Controller
     /**
      * Proses analisis CV dan tampilkan hasil
      */
-    public function analyze(Request $request, CVMeasurementService $cvService)
+    public function analyze(Request $request, CVMeasurementService $cvService, PhotoValidationService $validator)
     {
         $request->validate([
-            'body_photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'ref_object' => 'required|in:a4,atm,custom',
-            'ref_width_cm' => 'required_if:ref_object,custom|nullable|numeric|min:1',
+            'body_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'ref_object'    => 'required|in:a4,atm,custom',
+            'ref_width_cm'  => 'required_if:ref_object,custom|nullable|numeric|min:1',
             'ref_height_cm' => 'required_if:ref_object,custom|nullable|numeric|min:1',
         ]);
+
+        // ── Validasi foto via Claude Vision ──────────────────────────────
+        $validation = $validator->validate($request->file('body_photo'), $request->ref_object);
+
+        if (!$validation['valid']) {
+            return back()
+                ->withInput()
+                ->with('photo_issues', $validation['issues'])
+                ->with('photo_suggestion', $validation['suggestion'])
+                ->with('error', 'Foto tidak memenuhi syarat untuk pengukuran otomatis. Silakan perbaiki dan coba lagi.');
+        }
+        // ─────────────────────────────────────────────────────────────────
 
         // Store the photo
         $photoPath = $request->file('body_photo')->store('measurements/' . auth()->id(), 'public');

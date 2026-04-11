@@ -43,6 +43,10 @@ return [
         'token' => env('FONNTE_TOKEN', ''),
     ],
 
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY', ''),
+    ],
+
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

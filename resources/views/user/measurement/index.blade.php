@@ -6,8 +6,42 @@
 
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Ukur Badan (AI)</h1>
-        <p class="text-gray-500 text-sm mt-1">Upload foto dan biarkan AI menganalisis ukuran badan Anda langsung di browser — tidak perlu server tambahan.</p>
+        <p class="text-gray-500 text-sm mt-1">Upload foto sesuai panduan — AI akan memvalidasi kelayakan foto sebelum mengukur otomatis.</p>
     </div>
+
+    {{-- ── Hasil Validasi Foto (jika ditolak AI) ── --}}
+    @if(session('photo_issues') && count(session('photo_issues')) > 0)
+    <div class="mb-6 bg-red-50 border border-red-200 rounded-2xl p-5">
+        <div class="flex items-start gap-3 mb-3">
+            <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <div class="flex-1">
+                <p class="font-bold text-red-800 mb-2">AI mendeteksi masalah pada foto Anda:</p>
+                <ul class="space-y-1.5">
+                    @foreach(session('photo_issues') as $issue)
+                    <li class="flex items-start gap-2 text-sm text-red-700">
+                        <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        {{ $issue }}
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+        @if(session('photo_suggestion'))
+        <div class="mt-3 pt-3 border-t border-red-200 flex items-start gap-2 bg-amber-50 rounded-xl p-3">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            <p class="text-sm text-amber-800"><span class="font-semibold">Saran perbaikan:</span> {{ session('photo_suggestion') }}</p>
+        </div>
+        @endif
+        <p class="text-xs text-red-500 mt-3">Pengukuran tidak dapat dilakukan. Perbaiki foto sesuai panduan di bawah, lalu coba lagi.</p>
+    </div>
+    @elseif(session('error'))
+    <div class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 text-red-700 text-sm">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        {{ session('error') }}
+    </div>
+    @endif
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-5">
