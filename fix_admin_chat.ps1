@@ -1,0 +1,1 @@
+(Get-Content resources\views\admin\chat\index.blade.php) -replace '<x-app-layout>', '@extends(''layouts.admin'')' -replace '<x-slot name="header">', '@section(''header'')' -replace '<\/x-slot>', '@endsection' -replace '<\/x-app-layout>', '@endsection' | Set-Content resources\views\admin\chat\index.blade.php -Encoding UTF8
