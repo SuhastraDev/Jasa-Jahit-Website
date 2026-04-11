@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'user' => \App\Http\Middleware\IsUser::class,
         ]);
+        $middleware->appendToGroup('web', \App\Http\Middleware\UpdateLastSeen::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

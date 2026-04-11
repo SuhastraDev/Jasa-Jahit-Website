@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Chat;
 use App\Models\Message;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,7 +13,6 @@ class ChatController extends Controller
 {
     /**
      * Tampilkan halaman obrolan admin.
-     * Sidebar berisi daftar user (chat room) diurutkan dari yang terbaru chatnya.
      */
     public function index(Request $request)
     {
@@ -27,9 +27,8 @@ class ChatController extends Controller
         $activeChat = null;
         if ($request->has('user_id')) {
             $activeChat = Chat::with('user')->where('user_id', $request->user_id)->first();
-            
+
             if ($activeChat) {
-                // Tandai pesan sebagai dibaca
                 $activeChat->messages()
                            ->where('sender_id', '!=', auth()->id())
                            ->where('is_read', false)
@@ -41,7 +40,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Ambil data pesan baru untuk user yang sedang aktif di chat room.
+     * Ambil pesan terbaru + mark as read.
      */
     public function fetchMessages(Chat $chat, Request $request)
     {
@@ -49,8 +48,7 @@ class ChatController extends Controller
 
         if ($request->has('last_id')) {
             $query->where('id', '>', $request->last_id);
-            
-            // Tandai pesan terbaru user sebagai sudah dibaca
+
             $chat->messages()
                  ->where('id', '>', $request->last_id)
                  ->where('sender_id', '!=', auth()->id())
@@ -59,20 +57,19 @@ class ChatController extends Controller
 
         $messages = $query->get();
 
-        // Cari tahu info unread global untuk admin badge / sidebar
         $globalUnread = Message::where('sender_id', '!=', auth()->id())
                                ->where('is_read', false)
                                ->count();
 
         return response()->json([
-            'success' => true,
-            'messages' => $messages,
-            'global_unread' => $globalUnread
+            'success'       => true,
+            'messages'      => $messages,
+            'global_unread' => $globalUnread,
         ]);
     }
 
     /**
-     * Kembalikan unread count per chat untuk update sidebar secara live.
+     * Unread count per chat untuk sidebar.
      */
     public function unreadCounts()
     {
@@ -80,10 +77,31 @@ class ChatController extends Controller
                             $query->where('sender_id', '!=', auth()->id())
                                   ->where('is_read', false);
                         }])
-                        ->get(['id'])
-                        ->map(fn($c) => ['chat_id' => $c->id, 'unread_count' => $c->unread_count]);
+                        ->with('user:id,last_seen_at')
+                        ->get(['id', 'user_id'])
+                        ->map(fn($c) => [
+                            'chat_id'      => $c->id,
+                            'unread_count' => $c->unread_count,
+                            'user_online'  => $c->user?->isOnline() ?? false,
+                        ]);
 
         return response()->json($counts);
+    }
+
+    /**
+     * Status online user tertentu untuk header chat admin.
+     */
+    public function userStatus(User $user)
+    {
+        if (!$user->last_seen_at) {
+            return response()->json(['online' => false, 'last_seen' => null]);
+        }
+
+        $online = $user->isOnline();
+        return response()->json([
+            'online'    => $online,
+            'last_seen' => $online ? null : $user->last_seen_at->diffForHumans(),
+        ]);
     }
 
     /**
@@ -93,37 +111,69 @@ class ChatController extends Controller
     {
         $request->validate([
             'content' => 'required_without:image|string|max:1000',
-            'image' => 'nullable|image|max:5120'
+            'image'   => 'nullable|image|max:5120',
         ]);
 
         $content = $request->input('content');
-        $type = 'text';
+        $type    = 'text';
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('chats', 'public');
+            $path    = $request->file('image')->store('chats', 'public');
             $content = $path;
-            $type = 'image';
+            $type    = 'image';
         }
 
         $message = $chat->messages()->create([
             'sender_id' => auth()->id(),
-            'type' => $type,
-            'content' => $content,
+            'type'      => $type,
+            'content'   => $content,
         ]);
 
         if ($request->hasFile('image') && $request->filled('content')) {
             $chat->messages()->create([
                 'sender_id' => auth()->id(),
-                'type' => 'text',
-                'content' => $request->input('content'),
+                'type'      => 'text',
+                'content'   => $request->input('content'),
             ]);
         }
 
         $chat->update(['last_message_at' => now()]);
 
-        return response()->json([
-            'success' => true,
-            'message' => $message->load('sender')
-        ]);
+        return response()->json(['success' => true, 'message' => $message->load('sender')]);
+    }
+
+    /**
+     * Hapus satu pesan (admin bisa hapus pesan siapa pun).
+     */
+    public function destroyMessage(Message $message)
+    {
+        if ($message->type === 'image') {
+            Storage::disk('public')->delete($message->content);
+        }
+
+        $message->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Hapus banyak pesan dalam satu chat.
+     */
+    public function destroyMessages(Request $request, Chat $chat)
+    {
+        $request->validate(['ids' => 'required|array', 'ids.*' => 'integer']);
+
+        $messages = Message::whereIn('id', $request->ids)
+            ->where('chat_id', $chat->id)
+            ->get();
+
+        foreach ($messages as $msg) {
+            if ($msg->type === 'image') {
+                Storage::disk('public')->delete($msg->content);
+            }
+            $msg->delete();
+        }
+
+        return response()->json(['success' => true, 'deleted' => $messages->count()]);
     }
 }

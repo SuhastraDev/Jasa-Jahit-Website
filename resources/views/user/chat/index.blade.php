@@ -13,48 +13,134 @@
          x-data="chatApp({{ $chat->id }}, {{ auth()->id() }})">
 
         {{-- Header --}}
-        <div class="bg-white border-b border-gray-100 px-5 py-4 flex items-center gap-3 flex-shrink-0">
-            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                ZT
+        <div class="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        ZT
+                    </div>
+                    <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white"
+                          :class="adminOnline ? 'bg-green-500' : 'bg-gray-400'"></span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-gray-800 text-sm">Admin ZrintTailor</h3>
+                    <p class="text-xs font-medium flex items-center gap-1"
+                       :class="adminOnline ? 'text-green-500' : 'text-gray-400'">
+                        <span x-text="adminOnline ? 'Online' : (adminLastSeen ? 'Terakhir dilihat ' + adminLastSeen : 'Offline')"></span>
+                    </p>
+                </div>
             </div>
-            <div>
-                <h3 class="font-bold text-gray-800 text-sm">Admin ZrintTailor</h3>
-                <p class="text-xs text-green-500 font-medium flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full inline-block"></span>
-                    Online
-                </p>
+
+            {{-- Tombol pilih / batal pilih --}}
+            <div class="flex items-center gap-2">
+                <template x-if="!selectMode">
+                    <button @click="enterSelectMode"
+                            class="text-xs text-gray-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        Pilih
+                    </button>
+                </template>
+                <template x-if="selectMode">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500" x-text="selectedIds.length + ' dipilih'"></span>
+                        <button @click="deleteSelected"
+                                x-show="selectedIds.length > 0"
+                                class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Hapus
+                        </button>
+                        <button @click="exitSelectMode"
+                                class="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                            Batal
+                        </button>
+                    </div>
+                </template>
             </div>
         </div>
 
         {{-- Area Pesan --}}
-        <div class="flex-1 overflow-y-auto p-5 bg-gray-50/50 flex flex-col gap-3" id="chatbox" x-ref="chatbox">
-            <template x-for="msg in messages" :key="msg.id">
-                <div class="flex w-full" :class="parseInt(msg.sender_id) === userId ? 'justify-end' : 'justify-start'">
+        <div class="flex-1 overflow-y-auto p-5 bg-gray-50/50 flex flex-col gap-1" id="chatbox" x-ref="chatbox">
+            <template x-for="(msg, index) in messages" :key="msg.id">
+                <div class="flex w-full group"
+                     :class="parseInt(msg.sender_id) === userId ? 'justify-end' : 'justify-start'"
+                     :style="showDateSeparator(index) ? 'margin-top: 16px' : ''">
+
+                    {{-- Date separator --}}
+                    <template x-if="showDateSeparator(index)">
+                        <div class="w-full flex justify-center mb-2 absolute" style="pointer-events:none">
+                            {{-- handled below --}}
+                        </div>
+                    </template>
+
+                    {{-- Avatar admin --}}
                     <template x-if="parseInt(msg.sender_id) !== userId">
                         <div class="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 flex-shrink-0 self-end mb-1">ZT</div>
                     </template>
 
-                    <div class="max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm relative"
-                         :class="parseInt(msg.sender_id) === userId
-                            ? 'bg-blue-600 text-white rounded-br-sm'
-                            : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'">
+                    {{-- Select checkbox --}}
+                    <template x-if="selectMode && parseInt(msg.sender_id) === userId">
+                        <div class="flex items-center mr-2 self-center">
+                            <input type="checkbox"
+                                   :checked="selectedIds.includes(msg.id)"
+                                   @change="toggleSelect(msg.id)"
+                                   class="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer">
+                        </div>
+                    </template>
 
-                        <template x-if="msg.type === 'text'">
-                            <p class="text-sm whitespace-pre-wrap leading-relaxed" x-text="msg.content"></p>
-                        </template>
+                    <div class="max-w-[72%] relative"
+                         @click="selectMode && parseInt(msg.sender_id) === userId ? toggleSelect(msg.id) : null">
 
-                        <template x-if="msg.type === 'image'">
-                            <div class="mt-1 mb-1">
-                                <img :src="'/storage/' + msg.content" class="rounded-xl max-h-52 cursor-pointer hover:opacity-90 transition-opacity" alt="Image">
+                        {{-- Bubble --}}
+                        <div class="rounded-2xl px-4 py-2.5 shadow-sm relative"
+                             :class="[
+                                parseInt(msg.sender_id) === userId
+                                    ? 'bg-blue-600 text-white rounded-br-sm'
+                                    : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm',
+                                selectMode && parseInt(msg.sender_id) === userId && selectedIds.includes(msg.id) ? 'ring-2 ring-blue-400' : ''
+                             ]">
+
+                            <template x-if="msg.type === 'text'">
+                                <p class="text-sm whitespace-pre-wrap leading-relaxed" x-text="msg.content"></p>
+                            </template>
+
+                            <template x-if="msg.type === 'image'">
+                                <div class="mt-1 mb-1">
+                                    <img :src="'/storage/' + msg.content" class="rounded-xl max-h-52 cursor-pointer hover:opacity-90 transition-opacity" alt="Image">
+                                </div>
+                            </template>
+
+                            {{-- Waktu + read receipt --}}
+                            <div class="flex items-center justify-end gap-1 mt-1">
+                                <span class="text-[10px] opacity-60" x-text="formatTime(msg.created_at)"></span>
+                                <template x-if="parseInt(msg.sender_id) === userId">
+                                    {{-- Double check = dibaca, single = terkirim --}}
+                                    <template x-if="msg.is_read">
+                                        <svg class="w-3.5 h-3.5 text-blue-200" viewBox="0 0 16 10" fill="none">
+                                            <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M5 5l3.5 3.5L15 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </template>
+                                    <template x-if="!msg.is_read">
+                                        <svg class="w-3.5 h-3.5 text-white/50" viewBox="0 0 12 10" fill="none">
+                                            <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </template>
+                                </template>
+                            </div>
+                        </div>
+
+                        {{-- Context menu (hapus) - hanya muncul di pesan sendiri saat hover --}}
+                        <template x-if="!selectMode && parseInt(msg.sender_id) === userId">
+                            <div class="absolute -left-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button @click.stop="deleteMessage(msg.id)"
+                                        class="w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-red-50 hover:border-red-200 transition-colors"
+                                        title="Hapus pesan">
+                                    <svg class="w-3 h-3 text-gray-400 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
                             </div>
                         </template>
-
-                        <div class="flex items-center justify-end gap-1 mt-1">
-                            <span class="text-[10px] opacity-60" x-text="formatTime(msg.created_at)"></span>
-                            <template x-if="parseInt(msg.sender_id) === userId">
-                                <svg class="w-3 h-3" :class="msg.is_read ? 'text-blue-200' : 'text-white/40'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                            </template>
-                        </div>
                     </div>
                 </div>
             </template>
@@ -69,7 +155,7 @@
         </div>
 
         {{-- Form Input --}}
-        <div class="bg-white border-t border-gray-100 px-4 py-3 flex-shrink-0">
+        <div class="bg-white border-t border-gray-100 px-4 py-3 flex-shrink-0" x-show="!selectMode">
             <form @submit.prevent="sendMessage" class="flex items-end gap-2">
 
                 {{-- Lampiran --}}
@@ -128,16 +214,26 @@
             filePreview: null,
             isSending: false,
             pollInterval: null,
+            statusInterval: null,
+
+            // Select mode
+            selectMode: false,
+            selectedIds: [],
+
+            // Admin status
+            adminOnline: false,
+            adminLastSeen: null,
 
             init() {
                 this.scrollToBottom();
-                this.pollInterval = setInterval(() => {
-                    this.fetchMessages();
-                }, 3000);
+                this.pollInterval = setInterval(() => this.fetchMessages(), 3000);
+                this.fetchAdminStatus();
+                this.statusInterval = setInterval(() => this.fetchAdminStatus(), 30000);
             },
 
             destroy() {
                 if (this.pollInterval) clearInterval(this.pollInterval);
+                if (this.statusInterval) clearInterval(this.statusInterval);
             },
 
             scrollToBottom() {
@@ -150,6 +246,13 @@
             formatTime(dateString) {
                 const date = new Date(dateString);
                 return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            },
+
+            showDateSeparator(index) {
+                if (index === 0) return true;
+                const prev = new Date(this.messages[index - 1].created_at).toDateString();
+                const curr = new Date(this.messages[index].created_at).toDateString();
+                return prev !== curr;
             },
 
             handleFileChange(event) {
@@ -183,6 +286,19 @@
                 } catch(e) {}
             },
 
+            async fetchAdminStatus() {
+                try {
+                    const res = await fetch('/chat/admin-status', {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.adminOnline = data.online;
+                        this.adminLastSeen = data.last_seen;
+                    }
+                } catch(e) {}
+            },
+
             async fetchMessages() {
                 const lastId = this.messages.length > 0 ? this.messages[this.messages.length - 1].id : 0;
                 try {
@@ -195,18 +311,16 @@
                             const existingIds = new Set(this.messages.map(m => m.id));
                             const newMsgs = data.messages.filter(m => !existingIds.has(m.id));
                             if (newMsgs.some(m => parseInt(m.sender_id) !== this.userId)) this.playSound();
-                            this.messages = [
-                                ...this.messages.filter(m => !data.messages.map(x=>x.id).includes(m.id)),
-                                ...data.messages
-                            ];
+                            // Merge: update existing (is_read may change) + add new
+                            const msgMap = new Map(this.messages.map(m => [m.id, m]));
+                            data.messages.forEach(m => msgMap.set(m.id, m));
+                            this.messages = Array.from(msgMap.values()).sort((a,b) => a.id - b.id);
                             const box = this.$refs.chatbox;
                             const isNearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
-                            if (isNearBottom) this.scrollToBottom();
+                            if (isNearBottom || newMsgs.length > 0) this.scrollToBottom();
                         }
                     }
-                } catch (error) {
-                    console.error('Polling error:', error);
-                }
+                } catch (error) {}
             },
 
             async sendMessage() {
@@ -228,7 +342,7 @@
                         if (data.success) {
                             this.newMessage = '';
                             this.resetFile();
-                            this.fetchMessages();
+                            await this.fetchMessages();
                             this.scrollToBottom();
                         }
                     }
@@ -237,6 +351,64 @@
                 } finally {
                     this.isSending = false;
                 }
+            },
+
+            // === Select mode ===
+            enterSelectMode() {
+                this.selectMode = true;
+                this.selectedIds = [];
+            },
+            exitSelectMode() {
+                this.selectMode = false;
+                this.selectedIds = [];
+            },
+            toggleSelect(id) {
+                if (this.selectedIds.includes(id)) {
+                    this.selectedIds = this.selectedIds.filter(x => x !== id);
+                } else {
+                    this.selectedIds.push(id);
+                }
+            },
+
+            // === Delete single message ===
+            async deleteMessage(id) {
+                if (!confirm('Hapus pesan ini?')) return;
+                try {
+                    const res = await fetch(`/chat/message/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    if (res.ok) {
+                        this.messages = this.messages.filter(m => m.id !== id);
+                    }
+                } catch(e) { alert('Gagal menghapus pesan'); }
+            },
+
+            // === Delete selected messages ===
+            async deleteSelected() {
+                if (this.selectedIds.length === 0) return;
+                if (!confirm(`Hapus ${this.selectedIds.length} pesan?`)) return;
+                try {
+                    const res = await fetch('/chat/messages', {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ ids: this.selectedIds })
+                    });
+                    if (res.ok) {
+                        const deleted = new Set(this.selectedIds);
+                        this.messages = this.messages.filter(m => !deleted.has(m.id));
+                        this.exitSelectMode();
+                    }
+                } catch(e) { alert('Gagal menghapus pesan'); }
             }
         }));
     });

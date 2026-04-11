@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Chat;
 use App\Models\Message;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,13 +13,10 @@ class ChatController extends Controller
 {
     /**
      * Tampilkan halaman obrolan untuk user yang sedang login.
-     * Secara otomatis membuat ruang obrolan jika belum ada.
      */
     public function index()
     {
         $user = auth()->user();
-
-        // 1 user hanya memiliki 1 chat room (dengan admin)
         $chat = Chat::firstOrCreate(['user_id' => $user->id]);
 
         // Tandai semua pesan dari admin sebagai dibaca
@@ -31,7 +29,7 @@ class ChatController extends Controller
     }
 
     /**
-     * URL Polling untuk mengambil pesan-pesan terbaru.
+     * Polling pesan terbaru + update read status.
      */
     public function fetchMessages(Request $request)
     {
@@ -42,8 +40,7 @@ class ChatController extends Controller
 
         if ($request->has('last_id')) {
             $query->where('id', '>', $request->last_id);
-            
-            // Auto mark as read untuk pesan baru milik admin
+
             $chat->messages()
                  ->where('id', '>', $request->last_id)
                  ->where('sender_id', '!=', $user->id)
@@ -52,14 +49,28 @@ class ChatController extends Controller
 
         $messages = $query->get();
 
-        return response()->json([
-            'success' => true,
-            'messages' => $messages
-        ]);
+        return response()->json(['success' => true, 'messages' => $messages]);
     }
 
     /**
-     * Cek jumlah pesan belum dibaca dari admin (untuk notif global).
+     * Status online admin untuk ditampilkan di header chat user.
+     */
+    public function adminStatus()
+    {
+        $admin = User::where('role', 'admin')->orderByDesc('last_seen_at')->first();
+
+        if (!$admin || !$admin->last_seen_at) {
+            return response()->json(['online' => false, 'last_seen' => null]);
+        }
+
+        $online = $admin->isOnline();
+        $lastSeen = $online ? null : $admin->last_seen_at->diffForHumans();
+
+        return response()->json(['online' => $online, 'last_seen' => $lastSeen]);
+    }
+
+    /**
+     * Unread count dari admin.
      */
     public function unreadCount()
     {
@@ -82,44 +93,80 @@ class ChatController extends Controller
     {
         $request->validate([
             'content' => 'required_without:image|string|max:1000',
-            'image' => 'nullable|image|max:5120'
+            'image'   => 'nullable|image|max:5120',
         ]);
 
         $user = auth()->user();
         $chat = Chat::where('user_id', $user->id)->firstOrFail();
 
         $content = $request->input('content');
-        $type = 'text';
+        $type    = 'text';
 
-        // Handle gambar jika ada
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('chats', 'public');
+            $path    = $request->file('image')->store('chats', 'public');
             $content = $path;
-            
-            // Jika ada teks sisipan di gambar, buat pesan teks baru setelah gambar
-            $type = 'image';
+            $type    = 'image';
         }
 
         $message = $chat->messages()->create([
             'sender_id' => $user->id,
-            'type' => $type,
-            'content' => $content,
+            'type'      => $type,
+            'content'   => $content,
         ]);
 
-        // Jika ada teks *along* with gambar, kita bikin 2 messages di database aja untuk simplifikasi
         if ($request->hasFile('image') && $request->filled('content')) {
             $chat->messages()->create([
                 'sender_id' => $user->id,
-                'type' => 'text',
-                'content' => $request->input('content'),
+                'type'      => 'text',
+                'content'   => $request->input('content'),
             ]);
         }
 
         $chat->update(['last_message_at' => now()]);
 
-        return response()->json([
-            'success' => true,
-            'message' => $message->load('sender')
-        ]);
+        return response()->json(['success' => true, 'message' => $message->load('sender')]);
+    }
+
+    /**
+     * Hapus satu pesan milik user sendiri.
+     */
+    public function destroyMessage(Message $message)
+    {
+        if ((int) $message->sender_id !== (int) auth()->id()) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        if ($message->type === 'image') {
+            Storage::disk('public')->delete($message->content);
+        }
+
+        $message->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Hapus banyak pesan milik user sendiri.
+     */
+    public function destroyMessages(Request $request)
+    {
+        $request->validate(['ids' => 'required|array', 'ids.*' => 'integer']);
+
+        $user = auth()->user();
+        $chat = Chat::where('user_id', $user->id)->firstOrFail();
+
+        $messages = Message::whereIn('id', $request->ids)
+            ->where('chat_id', $chat->id)
+            ->where('sender_id', $user->id)
+            ->get();
+
+        foreach ($messages as $msg) {
+            if ($msg->type === 'image') {
+                Storage::disk('public')->delete($msg->content);
+            }
+            $msg->delete();
+        }
+
+        return response()->json(['success' => true, 'deleted' => $messages->count()]);
     }
 }

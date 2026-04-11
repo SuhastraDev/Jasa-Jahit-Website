@@ -14,7 +14,7 @@ Platform manajemen jasa jahit online berbasis Laravel 13. Pelanggan dapat memesa
 - **Konfirmasi penerimaan barang** — pelanggan bisa konfirmasi terima atau lapor masalah
 - **Laporan masalah pengiriman** — otomatis terkirim ke chat admin
 - **Pembayaran online** — upload bukti transfer, admin verifikasi langsung
-- **Chat dengan admin** — notifikasi real-time via polling
+- **Chat dengan admin** — notifikasi real-time via polling, tanda baca (✓/✓✓), status online/offline, hapus pesan satu per satu atau multi-pilih
 - **Login/Daftar dengan Google** — via OAuth 2.0 (Laravel Socialite)
 - **Lupa password** — reset via email
 
@@ -25,7 +25,7 @@ Platform manajemen jasa jahit online berbasis Laravel 13. Pelanggan dapat memesa
 - **Input data pengiriman** — ekspedisi, no. resi, estimasi tiba
 - **Manajemen layanan & katalog** — harga, deskripsi, gambar
 - **Manajemen portofolio & testimoni**
-- **Chat dengan semua pelanggan** — sidebar badge unread
+- **Chat dengan semua pelanggan** — sidebar badge unread, status online/offline user, tanda baca ✓✓, hapus pesan
 - **Notifikasi WhatsApp** — via Fonnte API (setiap update status pesanan)
 
 ---
@@ -36,12 +36,12 @@ Platform manajemen jasa jahit online berbasis Laravel 13. Pelanggan dapat memesa
 |---|---|
 | Backend | Laravel 13.4, PHP 8.3 |
 | Frontend | Blade, Alpine.js, Tailwind CSS |
-| Realtime | Laravel Reverb (WebSocket) + Livewire 4 |
+| Realtime | HTTP Polling (3 detik) |
 | Auth | Laravel Breeze + Laravel Socialite (Google) |
 | Database | MySQL |
 | Storage | Laravel Storage (public disk) |
 | WhatsApp | Fonnte API |
-| AI/CV | Python service (endpoint eksternal) |
+| AI/CV | Google Gemini 2.0 Flash Vision (validasi foto) + Python CV service (pengukuran) |
 
 ---
 
@@ -99,7 +99,14 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 # WhatsApp via Fonnte
 FONNTE_TOKEN=your_fonnte_token
 
-# CV/AI Service
+# Pembayaran DANA
+DANA_NUMBER=08xxxxxxxxxx
+DANA_NAME=Nama Pemilik
+
+# AI Validasi Foto (Google Gemini — gratis)
+GEMINI_API_KEY=your_gemini_api_key
+
+# CV/AI Service (pengukuran badan)
 CV_SERVICE_URL=http://127.0.0.1:8000
 
 # Mail (untuk reset password)
