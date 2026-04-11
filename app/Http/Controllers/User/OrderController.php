@@ -179,7 +179,7 @@ class OrderController extends Controller
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
-        $order->load(['service', 'catalog', 'statuses.changedBy', 'latestPayment', 'shipment']);
+        $order->load(['service', 'catalog', 'measurement', 'statuses', 'latestPayment', 'shipment']);
 
         return view('user.orders.show', compact('order'));
     }
