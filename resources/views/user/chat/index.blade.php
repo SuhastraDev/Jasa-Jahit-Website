@@ -29,13 +29,13 @@
         {{-- Area Pesan --}}
         <div class="flex-1 overflow-y-auto p-5 bg-gray-50/50 flex flex-col gap-3" id="chatbox" x-ref="chatbox">
             <template x-for="msg in messages" :key="msg.id">
-                <div class="flex w-full" :class="msg.sender_id === userId ? 'justify-end' : 'justify-start'">
-                    <template x-if="msg.sender_id !== userId">
+                <div class="flex w-full" :class="parseInt(msg.sender_id) === this.userId ? 'justify-end' : 'justify-start'">
+                    <template x-if="parseInt(msg.sender_id) !== this.userId">
                         <div class="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2 flex-shrink-0 self-end mb-1">ZT</div>
                     </template>
 
                     <div class="max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm relative"
-                         :class="msg.sender_id === userId
+                         :class="parseInt(msg.sender_id) === this.userId
                             ? 'bg-blue-600 text-white rounded-br-sm'
                             : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'">
 
@@ -51,7 +51,7 @@
 
                         <div class="flex items-center justify-end gap-1 mt-1">
                             <span class="text-[10px] opacity-60" x-text="formatTime(msg.created_at)"></span>
-                            <template x-if="msg.sender_id === userId">
+                            <template x-if="parseInt(msg.sender_id) === this.userId">
                                 <svg class="w-3 h-3" :class="msg.is_read ? 'text-blue-200' : 'text-white/40'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                             </template>
                         </div>
@@ -121,7 +121,7 @@
     document.addEventListener('alpine:init', () => {
         Alpine.data('chatApp', (chatId, currentUserId) => ({
             chatId: chatId,
-            userId: currentUserId,
+            userId: parseInt(currentUserId),
             messages: window.initialMessages || [],
             newMessage: '',
             selectedFile: null,

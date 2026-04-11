@@ -175,7 +175,7 @@ class OrderController extends Controller
     public function show(Order $order)
     {
         // Pastikan user hanya bisa melihat pesanannya sendiri
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
@@ -189,7 +189,7 @@ class OrderController extends Controller
      */
     public function confirmReceipt(Order $order)
     {
-        if ($order->user_id !== auth()->id()) abort(403);
+        if ((int) $order->user_id !== (int) auth()->id()) abort(403);
         if ($order->status !== 'shipped') {
             return back()->with('error', 'Konfirmasi hanya bisa dilakukan saat status pesanan "Dikirim".');
         }
@@ -228,7 +228,7 @@ class OrderController extends Controller
      */
     public function reportIssue(Request $request, Order $order)
     {
-        if ($order->user_id !== auth()->id()) abort(403);
+        if ((int) $order->user_id !== (int) auth()->id()) abort(403);
         if ($order->status !== 'shipped') {
             return back()->with('error', 'Laporan hanya bisa dikirim saat status pesanan "Dikirim".');
         }

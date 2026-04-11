@@ -93,10 +93,10 @@
                         {{-- Area Pesan --}}
                         <div class="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50 flex flex-col gap-3" id="chatbox" x-ref="chatbox">
                             <template x-for="msg in messages" :key="msg.id">
-                                <div class="flex w-full" :class="msg.sender_id === {{ auth()->id() }} ? 'justify-end' : 'justify-start'">
+                                <div class="flex w-full" :class="parseInt(msg.sender_id) === {{ (int) auth()->id() }} ? 'justify-end' : 'justify-start'">
                                     <div class="max-w-[80%] sm:max-w-[72%]">
                                         <div class="rounded-2xl px-3.5 py-2.5 shadow-sm"
-                                             :class="msg.sender_id === {{ auth()->id() }}
+                                             :class="parseInt(msg.sender_id) === {{ (int) auth()->id() }}
                                                 ? 'bg-blue-600 text-white rounded-tr-sm'
                                                 : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'">
                                             <template x-if="msg.type === 'text'">
@@ -106,7 +106,7 @@
                                                 <img :src="'/storage/' + msg.content" class="rounded-lg max-h-48 cursor-pointer hover:opacity-90 transition-opacity" alt="Image">
                                             </template>
                                         </div>
-                                        <div class="flex items-center mt-1 gap-1" :class="msg.sender_id === {{ auth()->id() }} ? 'justify-end' : 'justify-start'">
+                                        <div class="flex items-center mt-1 gap-1" :class="parseInt(msg.sender_id) === {{ (int) auth()->id() }} ? 'justify-end' : 'justify-start'">
                                             <span class="text-[10px] text-gray-400" x-text="formatTime(msg.created_at)"></span>
                                         </div>
                                     </div>
@@ -262,7 +262,7 @@ document.addEventListener('alpine:init', () => {
                     if (data.success && data.messages.length > 0) {
                         const existingIds = new Set(this.messages.map(m => m.id));
                         const newMsgs = data.messages.filter(m => !existingIds.has(m.id));
-                        if (newMsgs.some(m => m.sender_id !== window.adminUserId)) playNotificationSound();
+                        if (newMsgs.some(m => parseInt(m.sender_id) !== parseInt(window.adminUserId))) playNotificationSound();
                         this.messages = [...this.messages, ...newMsgs];
                         const b = this.$refs.chatbox;
                         if (b.scrollHeight - b.scrollTop - b.clientHeight < 120) this.scrollToBottom();
