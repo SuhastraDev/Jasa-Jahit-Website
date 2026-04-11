@@ -58,7 +58,7 @@
         // Estimasi selesai: cari tanggal status 'confirmed', tambah estimated_days
         $confirmedStatus = $order->statuses->where('status', 'confirmed')->first();
         $estimatedDone = ($confirmedStatus && $order->service)
-            ? $confirmedStatus->created_at->addDays($order->service->estimated_days ?? 7)
+            ? $confirmedStatus->created_at->addDays((int) ($order->service->estimated_days ?? 7))
             : null;
     @endphp
 
