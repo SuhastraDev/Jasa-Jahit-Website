@@ -86,11 +86,11 @@ class OrderController extends Controller
         ]);
 
         // Kirim notifikasi WA ke user
-        if ($order->user->phone) {
+        if ($order->user?->phone) {
             try {
                 $fonnte = new FonnteService();
                 $fonnte->notifyStatusChanged(
-                    $order->user->phone,
+                    $order->user?->phone,
                     $order->order_code,
                     $order->status_label
                 );

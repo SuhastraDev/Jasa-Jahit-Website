@@ -15,7 +15,7 @@ class TestimonialController extends Controller
     public function create(Order $order)
     {
         // Pastikan pesanan milik user yang login
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403);
         }
 
@@ -41,7 +41,7 @@ class TestimonialController extends Controller
      */
     public function store(Request $request, Order $order)
     {
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403);
         }
 

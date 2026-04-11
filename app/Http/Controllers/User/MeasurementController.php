@@ -120,7 +120,7 @@ class MeasurementController extends Controller
      */
     public function destroy(Measurement $measurement)
     {
-        if ($measurement->user_id !== auth()->id()) {
+        if ((int) $measurement->user_id !== (int) auth()->id()) {
             abort(403);
         }
 

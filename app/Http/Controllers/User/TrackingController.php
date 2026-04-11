@@ -15,7 +15,7 @@ class TrackingController extends Controller
     public function show(Order $order, RajaOngkirService $rajaOngkir)
     {
         // Pastikan order milik user yang login
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403, 'Akses ditolak.');
         }
 

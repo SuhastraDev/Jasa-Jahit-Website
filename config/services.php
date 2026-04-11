@@ -39,6 +39,11 @@ return [
         'url' => env('CV_SERVICE_URL', 'http://127.0.0.1:8000'),
     ],
 
+    'dana' => [
+        'number' => env('DANA_NUMBER', ''),
+        'name'   => env('DANA_NAME', ''),
+    ],
+
     'fonnte' => [
         'token' => env('FONNTE_TOKEN', ''),
     ],

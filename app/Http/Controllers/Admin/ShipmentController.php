@@ -45,7 +45,7 @@ class ShipmentController extends Controller
                     // 3. Catat di order history
                     $order->statuses()->create([
                         'status' => 'shipped',
-                        'notes' => "Pesanan dikirim menggunakan kurir {$request->expedition} dengan resi {$request->tracking_number}.",
+                        'note' => "Pesanan dikirim menggunakan kurir {$request->expedition} dengan resi {$request->tracking_number}.",
                         'changed_by' => auth()->id(),
                     ]);
                 }

@@ -15,7 +15,7 @@ class PaymentController extends Controller
     public function create(Order $order)
     {
         // Pastikan user hanya bisa bayar pesanannya sendiri
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
@@ -37,8 +37,8 @@ class PaymentController extends Controller
                 ->with('info', 'Harga pesanan belum ditentukan oleh admin. Silakan tunggu.');
         }
 
-        $danaNumber = config('dana.number');
-        $danaName = config('dana.name');
+        $danaNumber = config('services.dana.number');
+        $danaName = config('services.dana.name');
 
         return view('user.payment.upload', compact('order', 'danaNumber', 'danaName'));
     }
@@ -48,7 +48,7 @@ class PaymentController extends Controller
      */
     public function store(Request $request, Order $order)
     {
-        if ($order->user_id !== auth()->id()) {
+        if ((int) $order->user_id !== (int) auth()->id()) {
             abort(403);
         }
 
