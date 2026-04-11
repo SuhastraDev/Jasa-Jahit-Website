@@ -151,10 +151,10 @@ Buka `http://localhost:8000`
 
 ## Akun Default (Seeder)
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | admin@zrinttailor.com | password |
-| Pelanggan | user@zrinttailor.com | password |
+| Role | Nama | Email | Password |
+|---|---|---|---|
+| Admin | Admin ZrintTailor | admin@zrinttailor.com | password123 |
+| Pelanggan | Demo Pelanggan | demo@zrinttailor.com | password123 |
 
 > Pastikan seeder dijalankan: `php artisan db:seed`
 
