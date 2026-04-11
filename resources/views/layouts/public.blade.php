@@ -4,7 +4,33 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ config('app.name', 'ZRINTTAILOR') }}</title>
+    <title>{{ config('app.name', 'ZRINTTAILOR') }} — Platform Jasa Jahit Online</title>
+
+    {{-- Favicon --}}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="shortcut icon" href="/favicon.svg">
+
+    {{-- Open Graph (WhatsApp, Facebook, Telegram, dll) --}}
+    <meta property="og:type"        content="website">
+    <meta property="og:url"         content="{{ config('app.url') }}">
+    <meta property="og:title"       content="ZRINTTAILOR — Platform Jasa Jahit Online">
+    <meta property="og:description" content="Pesan pakaian custom dengan teknologi Computer Vision AI. Ukuran presisi tanpa perlu datang, tracking real-time, notifikasi WhatsApp otomatis.">
+    <meta property="og:image"       content="{{ config('app.url') }}/og-image.svg">
+    <meta property="og:image:width"  content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale"      content="id_ID">
+    <meta property="og:site_name"   content="ZRINTTAILOR">
+
+    {{-- Twitter Card --}}
+    <meta name="twitter:card"        content="summary_large_image">
+    <meta name="twitter:title"       content="ZRINTTAILOR — Platform Jasa Jahit Online">
+    <meta name="twitter:description" content="Pesan pakaian custom dengan teknologi CV AI. Ukuran presisi, tracking real-time, notifikasi WA otomatis.">
+    <meta name="twitter:image"       content="{{ config('app.url') }}/og-image.svg">
+
+    {{-- SEO --}}
+    <meta name="description" content="ZRINTTAILOR — Platform jasa jahit online dengan teknologi Computer Vision AI. Pesan pakaian custom, ukuran otomatis via foto, tracking pesanan real-time.">
+    <meta name="theme-color" content="#1e3a5f">
+
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:300,400,500,600,700,800,900&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])

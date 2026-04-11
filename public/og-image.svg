@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="1050" cy="100" r="200" fill="#3b82f6" opacity="0.08"/>
+  <circle cx="150" cy="530" r="180" fill="#6366f1" opacity="0.08"/>
+  <circle cx="600" cy="315" r="350" fill="#1d4ed8" opacity="0.05"/>
+
+  <!-- Logo icon -->
+  <rect x="80" y="200" width="90" height="90" rx="20" fill="#1d4ed8"/>
+  <circle cx="108" cy="228" r="11" fill="none" stroke="#93c5fd" stroke-width="3"/>
+  <circle cx="108" cy="228" r="4" fill="#93c5fd"/>
+  <line x1="118" y1="228" x2="158" y2="252" stroke="#bfdbfe" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="108" cy="258" r="9" fill="none" stroke="#60a5fa" stroke-width="3"/>
+  <circle cx="108" cy="258" r="3" fill="#60a5fa"/>
+  <circle cx="128" cy="258" r="9" fill="none" stroke="#60a5fa" stroke-width="3"/>
+  <circle cx="128" cy="258" r="3" fill="#60a5fa"/>
+  <line x1="116" y1="252" x2="162" y2="218" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="116" y1="264" x2="162" y2="230" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Brand name -->
+  <text x="185" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="white" letter-spacing="-1">ZRNT</text>
+  <text x="400" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="#60a5fa" letter-spacing="-1">TAILOR</text>
+
+  <!-- Tagline -->
+  <text x="80" y="320" font-family="Arial" font-size="26" fill="#93c5fd" opacity="0.9">Platform Jasa Jahit Online — Ukuran Presisi, Pakaian Sempurna</text>
+
+  <!-- Divider -->
+  <rect x="80" y="355" width="120" height="4" rx="2" fill="url(#accent)"/>
+
+  <!-- Features -->
+  <circle cx="93" cy="410" r="6" fill="#34d399"/>
+  <text x="110" y="416" font-family="Arial" font-size="22" fill="#e2e8f0">Pengukuran otomatis via Computer Vision AI</text>
+
+  <circle cx="93" cy="455" r="6" fill="#34d399"/>
+  <text x="110" y="461" font-family="Arial" font-size="22" fill="#e2e8f0">Tracking pesanan real-time</text>
+
+  <circle cx="93" cy="500" r="6" fill="#34d399"/>
+  <text x="110" y="506" font-family="Arial" font-size="22" fill="#e2e8f0">Notifikasi WhatsApp otomatis</text>
+
+  <!-- Right decoration -->
+  <rect x="900" y="200" width="220" height="220" rx="24" fill="#1d4ed8" opacity="0.3" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="1010" y="328" font-family="Arial Black" font-size="80" fill="#3b82f6" opacity="0.4" text-anchor="middle">✂</text>
+
+  <!-- URL -->
+  <text x="1120" y="600" font-family="Arial" font-size="18" fill="#60a5fa" opacity="0.7" text-anchor="end">penjahit.indrajasasuhastra.my.id</text>
+</svg>
