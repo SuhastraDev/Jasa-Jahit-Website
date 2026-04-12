@@ -262,13 +262,8 @@
                         ? 'Upload file desain untuk pelanggan via panel di bawah. Status otomatis berubah ke selesai.'
                         : ($serviceType === 'permak' ? 'Tandai permak selesai. Selanjutnya kirim balik ke pelanggan.' : 'Pakaian sudah selesai dibuat dan siap untuk dikirim.');
                 } elseif ($order->status === 'done' && $serviceType !== 'design') {
-                    $nextStatus = 'shipped';
-                    $nextLabel = 'Tandai Sudah Dikirim';
-                    $nextColor = 'orange';
-                    $nextIcon = 'truck';
-                    $nextDesc = $serviceType === 'permak'
-                        ? 'Tandai pakaian sudah dikirim kembali ke pelanggan.'
-                        : 'Tandai bahwa pakaian sudah dikirimkan ke pelanggan.';
+                    // Tidak ada tombol aksi — input resi di panel bawah yang sekaligus mengubah status shipped
+                    $nextStatus = null;
                 } elseif ($order->status === 'shipped') {
                     $nextStatus = 'completed';
                     $nextLabel = 'Tandai Pesanan Selesai';
@@ -438,6 +433,17 @@
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                    @endif
+
+                    {{-- Status done non-design: arahan ke form resi --}}
+                    @if($order->status === 'done' && $serviceType !== 'design')
+                    <div class="flex items-start gap-3 px-4 py-3.5 bg-orange-50 rounded-xl border border-orange-200">
+                        <svg class="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h4l2.68 13.39a2 2 0 001.95 1.61h9.72a2 2 0 001.95-1.61L23 6H6"/></svg>
+                        <div>
+                            <p class="text-sm font-semibold text-orange-800">Siap Dikirim — Isi Nomor Resi</p>
+                            <p class="text-xs text-orange-600 mt-0.5">Masukkan ekspedisi dan nomor resi di panel <strong>Input Resi Pengiriman</strong> di bawah. Status otomatis berubah ke <em>Dikirim</em> setelah resi disimpan.</p>
                         </div>
                     </div>
                     @endif
@@ -664,7 +670,7 @@
                     ['status' => 'waiting_item',    'label' => 'Menunggu Barang',         'desc' => 'Barang dalam perjalanan ke workshop'],
                     ['status' => 'item_received',   'label' => 'Barang Diterima',         'desc' => 'Konfirmasi terima, mulai permak'],
                     ['status' => 'processing',      'label' => 'Sedang Dipermak',         'desc' => 'Proses pengerjaan berlangsung'],
-                    ['status' => 'done',            'label' => 'Permak Selesai',          'desc' => 'Input resi & kirim kembali'],
+                    ['status' => 'done',            'label' => 'Permak Selesai',          'desc' => 'Isi resi pengiriman → status otomatis Dikirim'],
                     ['status' => 'shipped',         'label' => 'Dikirim ke Pelanggan',    'desc' => 'Pelanggan konfirmasi terima'],
                     ['status' => 'completed',       'label' => 'Selesai',                 'desc' => 'Pesanan tuntas'],
                 ];
