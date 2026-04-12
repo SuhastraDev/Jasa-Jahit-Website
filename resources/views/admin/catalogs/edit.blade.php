@@ -111,7 +111,7 @@
                                }
                            ">
                 </div>
-                <p class="text-xs text-gray-400 mt-1.5">PNG, JPG — Maks. 2MB. Kosongkan jika tidak ingin mengganti gambar.</p>
+                <p class="text-xs text-gray-400 mt-1.5">Semua format gambar (JPG, PNG, WEBP, dll) — Maks. 10MB. Kosongkan jika tidak ingin mengganti gambar.</p>
                 @error('image')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror

@@ -28,7 +28,7 @@ class CatalogController extends Controller
             'service_id'  => 'required|exists:services,id',
             'name'        => 'required|string|max:255',
             'description' => 'required|string',
-            'image'       => 'required|image|mimes:jpeg,png,jpg,webp,gif|max:4096',
+            'image'       => 'required|image|max:10240',
             'is_active'   => 'required|in:0,1',
         ]);
 
@@ -63,7 +63,7 @@ class CatalogController extends Controller
             'service_id'  => 'required|exists:services,id',
             'name'        => 'required|string|max:255',
             'description' => 'required|string',
-            'image'       => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:4096',
+            'image'       => 'nullable|image|max:10240',
             'is_active'   => 'required|in:0,1',
         ]);
 
