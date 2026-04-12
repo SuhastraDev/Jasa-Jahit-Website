@@ -361,12 +361,39 @@
                                     @endif
                                 @endif
 
+                                @if($serviceType === 'permak' && $requiresPrice)
+                                {{-- Permak: Alamat workshop wajib diisi --}}
+                                <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-1">
+                                    <p class="text-xs text-orange-700 font-semibold flex items-center gap-1.5 mb-1">
+                                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        Pesanan Permak — Alamat Workshop Wajib Diisi
+                                    </p>
+                                    <p class="text-xs text-orange-600">Alamat ini akan ditampilkan kepada pelanggan agar mereka tahu kemana harus mengirimkan pakaian.</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Alamat Workshop / Tempat Pengerjaan <span class="text-red-500">*</span></label>
+                                    <textarea name="note" rows="3" required
+                                              class="w-full rounded-lg border-orange-300 text-sm focus:border-orange-500 focus:ring-orange-500"
+                                              placeholder="Contoh: Jl. Mawar No. 12, RT 03/RW 05, Kel. Sukamaju, Kec. Cilandak, Jakarta Selatan 12345 (WA: 0812-xxxx-xxxx)"></textarea>
+                                    <p class="text-xs text-gray-400 mt-1">Sertakan nama jalan, RT/RW, kelurahan, kecamatan, kota, dan nomor WA yang bisa dihubungi.</p>
+                                </div>
+                                @elseif($serviceType === 'design' && $requiresPrice)
+                                {{-- Design: catatan untuk pelanggan (opsional) --}}
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Catatan untuk Pelanggan <span class="text-gray-400 font-normal text-xs">(opsional)</span></label>
+                                    <textarea name="note" rows="2"
+                                              class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                              placeholder="Contoh: Desain akan kami kerjakan dalam 3 hari kerja..."></textarea>
+                                </div>
+                                @else
+                                {{-- Custom / aksi selain konfirmasi awal --}}
                                 <div>
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Catatan <span class="text-gray-400 font-normal text-xs">(opsional)</span></label>
                                     <textarea name="note" rows="2"
                                               class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                                               placeholder="Pesan untuk pelanggan..."></textarea>
                                 </div>
+                                @endif
 
                                 <div class="flex justify-end">
                                     <button type="submit"
@@ -593,8 +620,8 @@
             @endif
         </div>
 
-        {{-- Kolom Kanan: Riwayat Status --}}
-        <div class="lg:col-span-1">
+        {{-- Kolom Kanan: Riwayat Status + Panduan Alur --}}
+        <div class="lg:col-span-1 space-y-5">
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-8">
                 <h4 class="text-md font-bold text-gray-800 mb-4">Riwayat Status</h4>
 
@@ -627,6 +654,111 @@
                     </div>
                 @endif
             </div>
+
+            {{-- Panduan Alur Permak --}}
+            @if($serviceType === 'permak')
+            @php
+                $permakSteps = [
+                    ['status' => 'pending',        'label' => 'Pesanan Masuk',           'desc' => 'Admin isi alamat workshop & konfirmasi'],
+                    ['status' => 'confirmed',       'label' => 'Dikonfirmasi',            'desc' => 'Pelanggan bayar & kirim barang'],
+                    ['status' => 'waiting_item',    'label' => 'Menunggu Barang',         'desc' => 'Barang dalam perjalanan ke workshop'],
+                    ['status' => 'item_received',   'label' => 'Barang Diterima',         'desc' => 'Konfirmasi terima, mulai permak'],
+                    ['status' => 'processing',      'label' => 'Sedang Dipermak',         'desc' => 'Proses pengerjaan berlangsung'],
+                    ['status' => 'done',            'label' => 'Permak Selesai',          'desc' => 'Input resi & kirim kembali'],
+                    ['status' => 'shipped',         'label' => 'Dikirim ke Pelanggan',    'desc' => 'Pelanggan konfirmasi terima'],
+                    ['status' => 'completed',       'label' => 'Selesai',                 'desc' => 'Pesanan tuntas'],
+                ];
+                $statusOrder = ['pending','confirmed','waiting_item','item_received','processing','done','shipped','completed'];
+                $currentIdx  = array_search($order->status, $statusOrder);
+            @endphp
+            <div class="bg-white rounded-xl shadow-sm border border-orange-200 p-5">
+                <h4 class="text-sm font-bold text-orange-800 mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Panduan Alur Permak
+                </h4>
+                <div class="space-y-2">
+                    @foreach($permakSteps as $i => $step)
+                    @php
+                        $stepIdx  = array_search($step['status'], $statusOrder);
+                        $isDone   = $currentIdx !== false && $stepIdx < $currentIdx;
+                        $isCurrent= $currentIdx !== false && $stepIdx === $currentIdx;
+                    @endphp
+                    <div class="flex items-start gap-2.5">
+                        <div class="flex-shrink-0 mt-0.5">
+                            @if($isDone)
+                                <div class="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                            @elseif($isCurrent)
+                                <div class="w-5 h-5 rounded-full bg-orange-500 ring-4 ring-orange-100 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-white"></div>
+                                </div>
+                            @else
+                                <div class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold {{ $isCurrent ? 'text-orange-700' : ($isDone ? 'text-gray-600' : 'text-gray-400') }}">{{ $step['label'] }}</p>
+                            <p class="text-xs {{ $isCurrent ? 'text-orange-500' : 'text-gray-400' }}">{{ $step['desc'] }}</p>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
+            {{-- Panduan Alur Desain --}}
+            @if($serviceType === 'design')
+            @php
+                $designSteps = [
+                    ['status' => 'pending',    'label' => 'Pesanan Masuk',          'desc' => 'Admin konfirmasi & tentukan harga'],
+                    ['status' => 'confirmed',  'label' => 'Dikonfirmasi',           'desc' => 'Pelanggan melakukan pembayaran'],
+                    ['status' => 'processing', 'label' => 'Desain Dikerjakan',      'desc' => 'Tim desainer sedang mengerjakan'],
+                    ['status' => 'done',       'label' => 'Upload File Desain',     'desc' => 'Upload file & pelanggan download'],
+                    ['status' => 'completed',  'label' => 'Selesai',                'desc' => 'Pelanggan konfirmasi terima file'],
+                ];
+                $designStatusOrder = ['pending','confirmed','processing','done','completed'];
+                $currentDesignIdx  = array_search($order->status, $designStatusOrder);
+            @endphp
+            <div class="bg-white rounded-xl shadow-sm border border-purple-200 p-5">
+                <h4 class="text-sm font-bold text-purple-800 mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Panduan Alur Desain
+                </h4>
+                <div class="space-y-2">
+                    @foreach($designSteps as $i => $step)
+                    @php
+                        $dStepIdx   = array_search($step['status'], $designStatusOrder);
+                        $dIsDone    = $currentDesignIdx !== false && $dStepIdx < $currentDesignIdx;
+                        $dIsCurrent = $currentDesignIdx !== false && $dStepIdx === $currentDesignIdx;
+                    @endphp
+                    <div class="flex items-start gap-2.5">
+                        <div class="flex-shrink-0 mt-0.5">
+                            @if($dIsDone)
+                                <div class="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                            @elseif($dIsCurrent)
+                                <div class="w-5 h-5 rounded-full bg-purple-500 ring-4 ring-purple-100 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-white"></div>
+                                </div>
+                            @else
+                                <div class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold {{ $dIsCurrent ? 'text-purple-700' : ($dIsDone ? 'text-gray-600' : 'text-gray-400') }}">{{ $step['label'] }}</p>
+                            <p class="text-xs {{ $dIsCurrent ? 'text-purple-500' : 'text-gray-400' }}">{{ $step['desc'] }}</p>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
         </div>
 
     </div>
