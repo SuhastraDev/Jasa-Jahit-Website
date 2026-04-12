@@ -37,8 +37,8 @@ class PaymentController extends Controller
                 ->with('info', 'Harga pesanan belum ditentukan oleh admin. Silakan tunggu.');
         }
 
-        $danaNumber  = config('services.dana.number');
-        $danaName    = config('services.dana.name');
+        $danaNumber   = \App\Models\Setting::get('dana_number');
+        $danaName     = \App\Models\Setting::get('dana_name');
         $danaQrExists = \Illuminate\Support\Facades\Storage::disk('public')->exists('dana/qr_code.png');
 
         return view('user.payment.upload', compact('order', 'danaNumber', 'danaName', 'danaQrExists'));

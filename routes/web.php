@@ -127,6 +127,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     // === Pengaturan Admin ===
     Route::get('/admin/settings', [AdminSettingController::class, 'index'])->name('admin.settings.index');
+    Route::post('/admin/settings/dana', [AdminSettingController::class, 'saveDana'])->name('admin.settings.saveDana');
     Route::post('/admin/settings/upload-qr', [AdminSettingController::class, 'uploadQr'])->name('admin.settings.uploadQr');
     Route::delete('/admin/settings/delete-qr', [AdminSettingController::class, 'deleteQr'])->name('admin.settings.deleteQr');
 });
