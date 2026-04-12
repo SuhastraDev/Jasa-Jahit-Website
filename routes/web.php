@@ -54,8 +54,8 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::get('/chat/unread-count', [UserChatController::class, 'unreadCount'])->name('user.chat.unread');
     Route::get('/chat/admin-status', [UserChatController::class, 'adminStatus'])->name('user.chat.admin-status');
     Route::post('/chat/send', [UserChatController::class, 'store'])->name('user.chat.send');
-    Route::delete('/chat/message/{message}', [UserChatController::class, 'destroyMessage'])->name('user.chat.message.destroy');
-    Route::delete('/chat/messages', [UserChatController::class, 'destroyMessages'])->name('user.chat.messages.destroy');
+    Route::post('/chat/message/{message}/delete', [UserChatController::class, 'destroyMessage'])->name('user.chat.message.destroy');
+    Route::post('/chat/messages/delete', [UserChatController::class, 'destroyMessages'])->name('user.chat.messages.destroy');
 
     // === Testimoni User ===
     Route::get('/pesanan-saya/{order}/rating', [UserTestimonialController::class, 'create'])->name('user.testimonials.create');
@@ -116,8 +116,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('/admin/chat/user-status/{user}', [AdminChatController::class, 'userStatus'])->name('admin.chat.user-status');
     Route::get('/admin/chat/{chat}/poll', [AdminChatController::class, 'fetchMessages'])->name('admin.chat.poll');
     Route::post('/admin/chat/{chat}/send', [AdminChatController::class, 'store'])->name('admin.chat.send');
-    Route::delete('/admin/chat/message/{message}', [AdminChatController::class, 'destroyMessage'])->name('admin.chat.message.destroy');
-    Route::delete('/admin/chat/{chat}/messages', [AdminChatController::class, 'destroyMessages'])->name('admin.chat.messages.destroy');
+    Route::post('/admin/chat/message/{message}/delete', [AdminChatController::class, 'destroyMessage'])->name('admin.chat.message.destroy');
+    Route::post('/admin/chat/{chat}/messages/delete', [AdminChatController::class, 'destroyMessages'])->name('admin.chat.messages.destroy');
 });
 
 Route::middleware('auth')->group(function () {

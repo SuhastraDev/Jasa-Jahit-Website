@@ -444,8 +444,8 @@ document.addEventListener('alpine:init', () => {
         async deleteMessage(id) {
             if (!confirm('Hapus pesan ini?')) return;
             try {
-                const res = await fetch(`/admin/chat/message/${id}`, {
-                    method: 'DELETE',
+                const res = await fetch(`/admin/chat/message/${id}/delete`, {
+                    method: 'POST',
                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                 });
                 if (res.ok) this.messages = this.messages.filter(m => m.id !== id);
@@ -456,8 +456,8 @@ document.addEventListener('alpine:init', () => {
             if (!this.selectedIds.length) return;
             if (!confirm(`Hapus ${this.selectedIds.length} pesan?`)) return;
             try {
-                const res = await fetch(`/admin/chat/${this.chatId}/messages`, {
-                    method: 'DELETE',
+                const res = await fetch(`/admin/chat/${this.chatId}/messages/delete`, {
+                    method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'Content-Type': 'application/json',
@@ -479,8 +479,8 @@ document.addEventListener('alpine:init', () => {
             if (!confirm(`Hapus semua ${this.messages.length} pesan dalam percakapan ini?`)) return;
             const ids = this.messages.map(m => m.id);
             try {
-                const res = await fetch(`/admin/chat/${this.chatId}/messages`, {
-                    method: 'DELETE',
+                const res = await fetch(`/admin/chat/${this.chatId}/messages/delete`, {
+                    method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
                         'Content-Type': 'application/json',

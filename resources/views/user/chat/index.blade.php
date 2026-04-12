@@ -376,8 +376,8 @@
             async deleteMessage(id) {
                 if (!confirm('Hapus pesan ini?')) return;
                 try {
-                    const res = await fetch(`/chat/message/${id}`, {
-                        method: 'DELETE',
+                    const res = await fetch(`/chat/message/${id}/delete`, {
+                        method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'Accept': 'application/json',
@@ -395,8 +395,8 @@
                 if (this.selectedIds.length === 0) return;
                 if (!confirm(`Hapus ${this.selectedIds.length} pesan?`)) return;
                 try {
-                    const res = await fetch('/chat/messages', {
-                        method: 'DELETE',
+                    const res = await fetch('/chat/messages/delete', {
+                        method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'Content-Type': 'application/json',
@@ -419,8 +419,8 @@
                 if (myIds.length === 0) return;
                 if (!confirm(`Hapus semua ${myIds.length} pesan Anda?`)) return;
                 try {
-                    const res = await fetch('/chat/messages', {
-                        method: 'DELETE',
+                    const res = await fetch('/chat/messages/delete', {
+                        method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'Content-Type': 'application/json',
