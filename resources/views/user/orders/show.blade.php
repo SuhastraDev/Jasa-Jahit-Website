@@ -508,11 +508,19 @@
                             Sisa revisi: {{ 3 - $order->revision_count }}x
                         </span>
                     </div>
-                    <button type="button" @click="openRevisi = !openRevisi"
-                            class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-colors border-2"
-                            :class="openRevisi ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-pink-600 border-pink-300 hover:bg-pink-50'">
+                    {{-- Tombol toggle: dua elemen x-show untuk hindari :class dinamis --}}
+                    <button type="button" @click="openRevisi = true"
+                            x-show="!openRevisi"
+                            class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-colors border-2 border-pink-400 bg-white text-pink-600 hover:bg-pink-50">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        <span x-text="openRevisi ? 'Tutup Form Revisi' : 'Minta Revisi'"></span>
+                        Minta Revisi
+                    </button>
+                    <button type="button" @click="openRevisi = false"
+                            x-show="openRevisi"
+                            style="background-color:#db2777;color:#ffffff;border-color:#db2777;"
+                            class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-colors border-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        Tutup Form Revisi
                     </button>
 
                     <div x-show="openRevisi" x-collapse>
@@ -531,14 +539,11 @@
                                 <p class="text-xs text-gray-400 mt-1">Semakin spesifik catatan Anda, semakin cepat revisi selesai.</p>
                             </div>
                             <button type="submit"
-                                    class="w-full flex items-center justify-center gap-2 px-5 py-3 bg-pink-600 text-white rounded-xl font-bold text-sm hover:bg-pink-700 active:bg-pink-800 transition-colors shadow-sm"
+                                    style="background-color:#db2777;color:#ffffff;"
+                                    class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-sm"
                                     onclick="return confirm('Kirim permintaan revisi? Kuota revisi akan berkurang 1.')">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                                 Kirim Permintaan Revisi
-                            </button>
-                            <button type="button" @click="openRevisi = false"
-                                    class="w-full px-5 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                                Batal
                             </button>
                         </form>
                     </div>
@@ -556,7 +561,7 @@
             @if($serviceType === 'design' && $order->status === 'revision')
             <div class="bg-gradient-to-br from-pink-50 to-rose-50 rounded-2xl border-2 border-pink-200 shadow-sm p-6">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0" style="background-color:#ec4899;">
                         <svg class="w-5 h-5 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     </div>
                     <div>
