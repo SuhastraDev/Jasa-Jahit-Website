@@ -19,33 +19,30 @@
         {{-- Card Gradien DANA --}}
         <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 mb-5 text-white">
 
-            {{-- QR Barcode DANA --}}
+            {{-- QR DANA (hanya jika admin upload QR resmi) + Info Nomor --}}
             <div class="flex flex-col sm:flex-row items-center gap-5 mb-4">
-                {{-- QR Code --}}
-                <div class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-lg">
-                    @if(!empty($danaQrImage) && \Illuminate\Support\Facades\Storage::disk('public')->exists($danaQrImage))
-                        <img src="{{ \Illuminate\Support\Facades\Storage::url($danaQrImage) }}"
-                             class="w-32 h-32 object-contain rounded-lg" alt="QR Code DANA">
-                    @else
-                        {{-- Auto-generate QR via qrserver.com --}}
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=128x128&data={{ urlencode($danaNumber) }}&bgcolor=ffffff&color=1e40af&qzone=1"
-                             class="w-32 h-32 rounded-lg" alt="QR Code DANA" loading="lazy">
-                    @endif
-                    <p class="text-center text-[10px] text-blue-600 font-semibold mt-1.5">Scan dengan DANA</p>
+                @if(!empty($danaQrImage) && \Illuminate\Support\Facades\Storage::disk('public')->exists($danaQrImage))
+                {{-- QR resmi dari admin --}}
+                <div class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-lg text-center">
+                    <img src="{{ \Illuminate\Support\Facades\Storage::url($danaQrImage) }}"
+                         class="w-40 h-40 object-contain rounded-lg" alt="QR Code DANA">
+                    <p class="text-[10px] text-blue-600 font-semibold mt-1.5">Scan dengan aplikasi DANA</p>
                 </div>
+                @endif
 
                 {{-- Info Nomor --}}
                 <div class="flex-1 text-center sm:text-left">
                     <p class="text-blue-200 text-xs font-medium mb-1">Nomor DANA</p>
                     <p class="text-2xl sm:text-3xl font-bold tracking-widest mb-1">{{ $danaNumber }}</p>
                     <p class="text-blue-200 text-sm">a/n <strong class="text-white">{{ $danaName }}</strong></p>
-
-                    {{-- Copy button --}}
                     <button onclick="navigator.clipboard.writeText('{{ $danaNumber }}').then(()=>{ this.textContent='✓ Tersalin!'; setTimeout(()=>this.textContent='Salin Nomor',2000) })"
                             class="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                         Salin Nomor
                     </button>
+                    @if(empty($danaQrImage) || !\Illuminate\Support\Facades\Storage::disk('public')->exists($danaQrImage))
+                    <p class="text-blue-200 text-xs mt-2">Transfer manual via nomor di atas atau buka DANA → Kirim Uang</p>
+                    @endif
                 </div>
             </div>
         </div>
@@ -99,20 +96,12 @@
         <form action="{{ route('user.payment.store', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-5">
             @csrf
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jumlah Dibayar (Rp) <span class="text-red-500">*</span></label>
-                    <input type="number" name="amount" value="{{ old('amount', $order->total_price) }}"
-                           class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
-                           placeholder="Nominal transfer" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Tipe Pembayaran <span class="text-red-500">*</span></label>
-                    <select name="payment_type" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm" required>
-                        <option value="full" selected>Bayar Lunas</option>
-                        <option value="dp">DP (Uang Muka)</option>
-                    </select>
-                </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jumlah Dibayar (Rp) <span class="text-red-500">*</span></label>
+                <input type="number" name="amount" value="{{ old('amount', $order->total_price) }}"
+                       class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
+                       placeholder="Nominal transfer" required>
+                <p class="text-xs text-gray-400 mt-1">Bayar penuh sesuai total pesanan: <strong>Rp {{ number_format($order->total_price, 0, ',', '.') }}</strong></p>
             </div>
 
             {{-- Upload file bukti dengan styling warna jelas --}}

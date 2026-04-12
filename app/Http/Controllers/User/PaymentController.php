@@ -55,7 +55,6 @@ class PaymentController extends Controller
 
         $request->validate([
             'amount' => 'required|numeric|min:1000',
-            'payment_type' => 'required|in:dp,full',
             'proof_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
@@ -65,7 +64,7 @@ class PaymentController extends Controller
         Payment::create([
             'order_id' => $order->id,
             'amount' => $request->amount,
-            'payment_type' => $request->payment_type,
+            'payment_type' => 'full',
             'proof_image' => $proofPath,
             'status' => 'pending',
         ]);
