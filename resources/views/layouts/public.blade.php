@@ -50,7 +50,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/>
                         </svg>
                     </div>
-                    <span class="text-xl font-bold text-gray-900 tracking-tight">ZRNT<span class="text-blue-600">TAILOR</span></span>
+                    <span class="text-xl font-bold text-gray-900 tracking-tight">ZRINTI<span class="text-blue-600">TAILOR</span></span>
                 </a>
 
                 <!-- Desktop Nav Links -->
@@ -117,7 +117,7 @@
                         <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                             <svg style="width:18px;height:18px" class="text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
                         </div>
-                        <span class="text-white font-bold text-xl tracking-tight">ZRNT<span class="text-blue-400">TAILOR</span></span>
+                        <span class="text-white font-bold text-xl tracking-tight">ZRINTI<span class="text-blue-400">TAILOR</span></span>
                     </div>
                     <p class="text-sm leading-relaxed max-w-xs">Layanan jahit profesional yang menggabungkan keahlian penjahit berpengalaman dengan teknologi Computer Vision untuk ukuran pakaian yang selalu pas.</p>
                 </div>

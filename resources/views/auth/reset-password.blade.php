@@ -19,7 +19,7 @@
                 <div class="w-10 h-10 bg-white/15 border border-white/20 rounded-xl flex items-center justify-center">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
                 </div>
-                <span class="text-2xl font-bold text-white tracking-tight">ZRNT<span class="text-blue-300">TAILOR</span></span>
+                <span class="text-2xl font-bold text-white tracking-tight">ZRINTI<span class="text-blue-300">TAILOR</span></span>
             </a>
         </div>
         <div>
@@ -36,7 +36,7 @@
                 <div class="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
                 </div>
-                <span class="text-xl font-bold text-slate-900">ZRNT<span class="text-blue-600">TAILOR</span></span>
+                <span class="text-xl font-bold text-slate-900">ZRINTI<span class="text-blue-600">TAILOR</span></span>
             </div>
 
             <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
