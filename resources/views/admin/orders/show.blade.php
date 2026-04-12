@@ -254,13 +254,18 @@
                     $nextIcon = 'scissors';
                     $nextDesc = 'Barang sudah diterima. Tandai bahwa proses permak sudah dimulai.';
                 } elseif ($order->status === 'processing') {
-                    $nextStatus = 'done';
-                    $nextLabel = $serviceType === 'design' ? 'Upload File Desain' : ($serviceType === 'permak' ? 'Permak Selesai' : 'Selesai Dijahit');
-                    $nextColor = 'purple';
-                    $nextIcon = 'check';
-                    $nextDesc = $serviceType === 'design'
-                        ? 'Upload file desain untuk pelanggan via panel di bawah. Status otomatis berubah ke selesai.'
-                        : ($serviceType === 'permak' ? 'Tandai permak selesai. Selanjutnya kirim balik ke pelanggan.' : 'Pakaian sudah selesai dibuat dan siap untuk dikirim.');
+                    if ($serviceType === 'design') {
+                        // Tidak ada tombol aksi — form upload di bawah yang sekaligus mengubah status done
+                        $nextStatus = null;
+                    } else {
+                        $nextStatus = 'done';
+                        $nextLabel = $serviceType === 'permak' ? 'Permak Selesai' : 'Selesai Dijahit';
+                        $nextColor = 'purple';
+                        $nextIcon = 'check';
+                        $nextDesc = $serviceType === 'permak'
+                            ? 'Tandai permak selesai. Selanjutnya kirim balik ke pelanggan.'
+                            : 'Pakaian sudah selesai dibuat dan siap untuk dikirim.';
+                    }
                 } elseif ($order->status === 'done' && $serviceType !== 'design') {
                     // Tidak ada tombol aksi — input resi di panel bawah yang sekaligus mengubah status shipped
                     $nextStatus = null;
@@ -433,6 +438,17 @@
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                    @endif
+
+                    {{-- Status processing design: arahan ke form upload --}}
+                    @if($order->status === 'processing' && $serviceType === 'design')
+                    <div class="flex items-start gap-3 px-4 py-3.5 bg-purple-50 rounded-xl border border-purple-200">
+                        <svg class="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <div>
+                            <p class="text-sm font-semibold text-purple-800">Desain Selesai — Upload File</p>
+                            <p class="text-xs text-purple-600 mt-0.5">Upload file desain di panel <strong>Upload File Desain</strong> di bawah. Status otomatis berubah ke <em>Selesai</em> setelah file diunggah.</p>
                         </div>
                     </div>
                     @endif
