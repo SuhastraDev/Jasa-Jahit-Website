@@ -39,7 +39,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
                     </svg>
                 </div>
-                <span class="text-lg font-bold text-gray-800 tracking-tight">ZRINTI<span style="color:#2563eb;">TAILOR</span></span>
+                <span class="text-lg font-bold text-gray-800 tracking-tight">ZRINT<span style="color:#2563eb;">TAILOR</span></span>
             </a>
             <button @click="sidebarOpen=false" class="lg:hidden text-gray-400 hover:text-gray-600 p-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
