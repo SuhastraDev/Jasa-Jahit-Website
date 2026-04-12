@@ -249,7 +249,7 @@
                 .then(function(r) { return r.ok ? r.json() : null; })
                 .then(function(data) {
                     if (!data) return;
-                    var total = data.reduce(function(sum, item) { return sum + item.unread_count; }, 0);
+                    var total = data.reduce(function(sum, item) { return sum + (parseInt(item.unread_count) || 0); }, 0);
                     if (total > lastTotalUnread) playNotifSound();
                     lastTotalUnread = total;
                     // Update sidebar chat badge

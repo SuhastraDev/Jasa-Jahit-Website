@@ -282,27 +282,30 @@
                                 <input type="hidden" name="status" value="{{ $nextStatus }}">
 
                                 @if($requiresPrice)
-                                <div>
+                                <div x-data="rupiahInput({{ old('total_price', $order->total_price) ?: 0 }})">
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Total Harga <span class="text-red-500">*</span></label>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm text-gray-500 font-medium">Rp</span>
-                                        <input type="number" name="total_price"
-                                               value="{{ old('total_price', $order->total_price) }}"
-                                               class="flex-1 rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 @error('total_price') border-red-400 @enderror"
-                                               placeholder="Contoh: 250000" min="0">
+                                    <div class="flex items-center rounded-lg border border-gray-300 overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('total_price') border-red-400 @enderror">
+                                        <span class="px-3 py-2 bg-gray-50 text-sm text-gray-500 font-semibold border-r border-gray-300">Rp</span>
+                                        <input type="text" x-model="display" @input="onInput" @focus="onFocus" @blur="onBlur"
+                                               class="flex-1 px-3 py-2 text-sm border-0 focus:ring-0 bg-white"
+                                               placeholder="0" inputmode="numeric">
                                     </div>
+                                    <input type="hidden" name="total_price" :value="raw">
                                     @error('total_price')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                                    <p class="text-xs text-gray-400 mt-1" x-show="raw > 0" x-text="'= Rp ' + formatRupiah(raw)"></p>
                                 </div>
                                 @else
                                     @if(!$order->total_price)
-                                    <div>
+                                    <div x-data="rupiahInput(0)">
                                         <label class="block text-sm font-semibold text-gray-700 mb-1">Total Harga <span class="text-gray-400 font-normal text-xs">(opsional)</span></label>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm text-gray-500 font-medium">Rp</span>
-                                            <input type="number" name="total_price" value="{{ old('total_price') }}"
-                                                   class="flex-1 rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-                                                   placeholder="Isi jika belum ditentukan" min="0">
+                                        <div class="flex items-center rounded-lg border border-gray-300 overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                                            <span class="px-3 py-2 bg-gray-50 text-sm text-gray-500 font-semibold border-r border-gray-300">Rp</span>
+                                            <input type="text" x-model="display" @input="onInput" @focus="onFocus" @blur="onBlur"
+                                                   class="flex-1 px-3 py-2 text-sm border-0 focus:ring-0 bg-white"
+                                                   placeholder="0" inputmode="numeric">
                                         </div>
+                                        <input type="hidden" name="total_price" :value="raw">
+                                        <p class="text-xs text-gray-400 mt-1" x-show="raw > 0" x-text="'= Rp ' + formatRupiah(raw)"></p>
                                     </div>
                                     @endif
                                 @endif
@@ -474,3 +477,27 @@
     </div>
 </div>
 @endsection
+@push('scripts')
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('rupiahInput', (initialValue) => ({
+        raw: initialValue || 0,
+        display: initialValue ? new Intl.NumberFormat('id-ID').format(initialValue) : '',
+        formatRupiah(val) {
+            return new Intl.NumberFormat('id-ID').format(val);
+        },
+        onInput(e) {
+            const digits = e.target.value.replace(/\D/g, '');
+            this.raw = parseInt(digits) || 0;
+            this.display = digits ? new Intl.NumberFormat('id-ID').format(this.raw) : '';
+        },
+        onFocus() {
+            if (this.raw === 0) this.display = '';
+        },
+        onBlur() {
+            this.display = this.raw ? new Intl.NumberFormat('id-ID').format(this.raw) : '';
+        }
+    }));
+});
+</script>
+@endpush
