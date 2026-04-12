@@ -21,6 +21,8 @@
                 'green' => 'bg-green-100 text-green-700 border-green-200',
                 'red' => 'bg-red-100 text-red-700 border-red-200',
                 'gray' => 'bg-gray-100 text-gray-600 border-gray-200',
+                'cyan' => 'bg-cyan-100 text-cyan-700 border-cyan-200',
+                'teal' => 'bg-teal-100 text-teal-700 border-teal-200',
             ];
         @endphp
         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-full border {{ $colors[$order->status_color] ?? 'bg-gray-100 text-gray-600 border-gray-200' }}">
@@ -30,29 +32,37 @@
 
     {{-- Banner Langkah Selanjutnya --}}
     @php
+        $serviceType = $order->service_type;
         $bannerConfig = match($order->status) {
-            'pending'    => ['bg' => 'bg-yellow-50', 'border' => 'border-yellow-200', 'icon_bg' => 'bg-yellow-100', 'icon_color' => 'text-yellow-600', 'title_color' => 'text-yellow-800', 'text_color' => 'text-yellow-700',
-                'title' => 'Menunggu Konfirmasi Admin', 'text' => 'Pesanan Anda sedang ditinjau. Admin akan segera menentukan harga dan mengonfirmasi pesanan.',
+            'pending'       => ['bg' => 'bg-yellow-50', 'border' => 'border-yellow-200', 'icon_bg' => 'bg-yellow-100', 'icon_color' => 'text-yellow-600', 'title_color' => 'text-yellow-800', 'text_color' => 'text-yellow-700',
+                'title' => 'Menunggu Konfirmasi Admin', 'text' => 'Pesanan Anda sedang ditinjau. Admin akan segera menentukan harga dan mengonfirmasi.',
                 'icon' => 'clock'],
-            'confirmed'  => ['bg' => 'bg-blue-50', 'border' => 'border-blue-200', 'icon_bg' => 'bg-blue-100', 'icon_color' => 'text-blue-600', 'title_color' => 'text-blue-800', 'text_color' => 'text-blue-700',
-                'title' => 'Silakan Lakukan Pembayaran', 'text' => 'Pesanan dikonfirmasi! Selesaikan pembayaran agar pengerjaan bisa segera dimulai.',
+            'confirmed'     => ['bg' => 'bg-blue-50', 'border' => 'border-blue-200', 'icon_bg' => 'bg-blue-100', 'icon_color' => 'text-blue-600', 'title_color' => 'text-blue-800', 'text_color' => 'text-blue-700',
+                'title' => 'Silakan Lakukan Pembayaran', 'text' => $serviceType === 'permak' ? 'Pesanan dikonfirmasi! Selesaikan pembayaran, lalu kirim barang Anda ke kami.' : 'Pesanan dikonfirmasi! Selesaikan pembayaran agar pengerjaan bisa segera dimulai.',
                 'icon' => 'payment'],
-            'processing' => ['bg' => 'bg-indigo-50', 'border' => 'border-indigo-200', 'icon_bg' => 'bg-indigo-100', 'icon_color' => 'text-indigo-600', 'title_color' => 'text-indigo-800', 'text_color' => 'text-indigo-700',
-                'title' => 'Pakaian Sedang Dijahit', 'text' => 'Proses penjahitan sedang berlangsung. Kami akan memberitahu Anda setelah selesai.',
-                'icon' => 'scissors'],
-            'done'       => ['bg' => 'bg-purple-50', 'border' => 'border-purple-200', 'icon_bg' => 'bg-purple-100', 'icon_color' => 'text-purple-600', 'title_color' => 'text-purple-800', 'text_color' => 'text-purple-700',
-                'title' => 'Pakaian Selesai Dijahit!', 'text' => 'Pakaian Anda sudah selesai dan akan segera dikirimkan. Pantau nomor resi di sini.',
+            'waiting_item'  => ['bg' => 'bg-cyan-50', 'border' => 'border-cyan-200', 'icon_bg' => 'bg-cyan-100', 'icon_color' => 'text-cyan-600', 'title_color' => 'text-cyan-800', 'text_color' => 'text-cyan-700',
+                'title' => 'Menunggu Barang Kiriman Anda', 'text' => 'Kami menunggu barang yang Anda kirimkan. Setelah diterima, proses permak akan segera dimulai.',
+                'icon' => 'clock'],
+            'item_received' => ['bg' => 'bg-teal-50', 'border' => 'border-teal-200', 'icon_bg' => 'bg-teal-100', 'icon_color' => 'text-teal-600', 'title_color' => 'text-teal-800', 'text_color' => 'text-teal-700',
+                'title' => 'Barang Diterima!', 'text' => 'Barang Anda sudah kami terima dan akan segera diproses.',
                 'icon' => 'check'],
-            'shipped'    => ['bg' => 'bg-orange-50', 'border' => 'border-orange-200', 'icon_bg' => 'bg-orange-100', 'icon_color' => 'text-orange-600', 'title_color' => 'text-orange-800', 'text_color' => 'text-orange-700',
+            'processing'    => ['bg' => 'bg-indigo-50', 'border' => 'border-indigo-200', 'icon_bg' => 'bg-indigo-100', 'icon_color' => 'text-indigo-600', 'title_color' => 'text-indigo-800', 'text_color' => 'text-indigo-700',
+                'title' => $serviceType === 'design' ? 'Desain Sedang Dikerjakan' : 'Pakaian Sedang Diproses', 'text' => $serviceType === 'design' ? 'Tim desainer sedang mengerjakan pesanan Anda. File desain akan segera tersedia.' : 'Proses pengerjaan sedang berlangsung. Kami akan memberitahu Anda setelah selesai.',
+                'icon' => 'scissors'],
+            'done'          => ['bg' => 'bg-purple-50', 'border' => 'border-purple-200', 'icon_bg' => 'bg-purple-100', 'icon_color' => 'text-purple-600', 'title_color' => 'text-purple-800', 'text_color' => 'text-purple-700',
+                'title' => $serviceType === 'design' ? 'File Desain Siap Diunduh!' : ($serviceType === 'permak' ? 'Permak Selesai!' : 'Pakaian Selesai Dijahit!'),
+                'text'  => $serviceType === 'design' ? 'File desain Anda sudah selesai. Unduh sekarang melalui tombol di bawah.' : ($serviceType === 'permak' ? 'Pakaian Anda selesai dipermak dan akan segera dikirim kembali.' : 'Pakaian Anda sudah selesai dan akan segera dikirimkan.'),
+                'icon' => 'check'],
+            'shipped'       => ['bg' => 'bg-orange-50', 'border' => 'border-orange-200', 'icon_bg' => 'bg-orange-100', 'icon_color' => 'text-orange-600', 'title_color' => 'text-orange-800', 'text_color' => 'text-orange-700',
                 'title' => 'Pesanan Sedang Dikirim', 'text' => 'Lacak paket Anda menggunakan nomor resi di bawah.',
                 'icon' => 'truck'],
-            'completed'  => ['bg' => 'bg-green-50', 'border' => 'border-green-200', 'icon_bg' => 'bg-green-100', 'icon_color' => 'text-green-600', 'title_color' => 'text-green-800', 'text_color' => 'text-green-700',
+            'completed'     => ['bg' => 'bg-green-50', 'border' => 'border-green-200', 'icon_bg' => 'bg-green-100', 'icon_color' => 'text-green-600', 'title_color' => 'text-green-800', 'text_color' => 'text-green-700',
                 'title' => 'Pesanan Selesai!', 'text' => 'Terima kasih telah mempercayai ZRINTTAILOR. Jangan lupa beri ulasan Anda.',
                 'icon' => 'check-circle'],
-            'cancelled'  => ['bg' => 'bg-red-50', 'border' => 'border-red-200', 'icon_bg' => 'bg-red-100', 'icon_color' => 'text-red-500', 'title_color' => 'text-red-800', 'text_color' => 'text-red-600',
+            'cancelled'     => ['bg' => 'bg-red-50', 'border' => 'border-red-200', 'icon_bg' => 'bg-red-100', 'icon_color' => 'text-red-500', 'title_color' => 'text-red-800', 'text_color' => 'text-red-600',
                 'title' => 'Pesanan Dibatalkan', 'text' => 'Pesanan ini telah dibatalkan. Hubungi admin jika ada pertanyaan.',
                 'icon' => 'x-circle'],
-            default      => null,
+            default         => null,
         };
 
         // Estimasi selesai: cari tanggal status 'confirmed', tambah estimated_days
@@ -186,6 +196,151 @@
                         </button>
                     </form>
                 </div>
+            </div>
+            @endif
+
+            {{-- Permak: Form Kirim Barang (saat status confirmed & payment verified) --}}
+            @if($serviceType === 'permak' && $order->status === 'confirmed' && optional($order->latestPayment)->status === 'verified' && !$order->buyerShipment)
+            <div class="bg-white rounded-2xl border border-orange-200 shadow-sm p-6" x-data="{ submitting: false }">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900">Kirim Barang ke Kami</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">Isi informasi pengiriman barang Anda ke tukang jahit.</p>
+                    </div>
+                </div>
+
+                <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-5 text-sm text-orange-800">
+                    <strong>Alamat Kami:</strong> Silakan hubungi admin via chat untuk mendapatkan alamat pengiriman.
+                </div>
+
+                <form action="{{ route('user.buyer-shipment.store', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-4"
+                      @submit="submitting = true">
+                    @csrf
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="expedition" class="block text-sm font-semibold text-gray-700 mb-1.5">Ekspedisi <span class="text-red-500">*</span></label>
+                            <input type="text" id="expedition" name="expedition" value="{{ old('expedition') }}" required
+                                   placeholder="Contoh: JNE, J&T, SiCepat, Pos Indonesia..."
+                                   class="w-full rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm @error('expedition') border-red-400 @enderror">
+                            @error('expedition')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label for="tracking_number" class="block text-sm font-semibold text-gray-700 mb-1.5">Nomor Resi <span class="text-red-500">*</span></label>
+                            <input type="text" id="tracking_number" name="tracking_number" value="{{ old('tracking_number') }}" required
+                                   placeholder="Masukkan nomor resi..."
+                                   class="w-full rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm @error('tracking_number') border-red-400 @enderror">
+                            @error('tracking_number')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+
+                    <div x-data="{ preview: null }">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Foto Bukti Pengiriman <span class="text-red-500">*</span></label>
+                        <div class="border-2 border-dashed border-orange-200 rounded-xl p-4 hover:border-orange-400 transition-colors cursor-pointer"
+                             @click="$refs.proofImg.click()">
+                            <input type="file" name="proof_image" x-ref="proofImg" accept="image/*" required
+                                   @change="preview = URL.createObjectURL($event.target.files[0])" class="hidden">
+                            <div x-show="!preview" class="text-center py-3">
+                                <svg class="w-8 h-8 text-orange-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <p class="text-sm text-gray-500">Klik untuk upload foto struk/bukti kirim</p>
+                                <p class="text-xs text-gray-400 mt-0.5">JPG, PNG, WEBP — Maks 5MB</p>
+                            </div>
+                            <div x-show="preview" class="flex items-center gap-3">
+                                <img :src="preview" class="h-16 w-16 object-cover rounded-xl border border-orange-200 flex-shrink-0">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700">Foto dipilih</p>
+                                    <button type="button" @click.stop="preview = null; $refs.proofImg.value = ''" class="text-xs text-red-500 hover:text-red-700 mt-0.5">Hapus</button>
+                                </div>
+                            </div>
+                        </div>
+                        @error('proof_image')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <label for="ship_notes" class="block text-sm font-semibold text-gray-700 mb-1.5">Catatan <span class="text-gray-400 font-normal">(opsional)</span></label>
+                        <textarea id="ship_notes" name="notes" rows="2"
+                                  class="w-full rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm resize-none"
+                                  placeholder="Misal: barang sudah dikemas bubble wrap, ada 2 baju...">{{ old('notes') }}</textarea>
+                    </div>
+
+                    <button type="submit" :disabled="submitting"
+                            class="w-full flex items-center justify-center gap-2 px-5 py-3 bg-orange-500 text-white rounded-xl font-semibold text-sm hover:bg-orange-600 transition-colors shadow-sm disabled:opacity-60">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span x-text="submitting ? 'Menyimpan...' : 'Konfirmasi Pengiriman Barang'"></span>
+                    </button>
+                </form>
+            </div>
+            @endif
+
+            {{-- Permak: Info pengiriman sudah dikirim (status waiting_item) --}}
+            @if($serviceType === 'permak' && $order->buyerShipment)
+            <div class="bg-white rounded-2xl border border-cyan-200 shadow-sm p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900">Barang Sudah Dikirim</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">Menunggu konfirmasi penerimaan dari kami.</p>
+                    </div>
+                </div>
+                <div class="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Ekspedisi</p>
+                            <p class="font-semibold text-gray-800 uppercase">{{ $order->buyerShipment->expedition }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Nomor Resi</p>
+                            <p class="font-mono font-bold text-gray-800">{{ $order->buyerShipment->tracking_number }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Tanggal Kirim</p>
+                            <p class="font-medium text-gray-800">{{ $order->buyerShipment->shipped_at->format('d M Y, H:i') }}</p>
+                        </div>
+                        @if($order->buyerShipment->notes)
+                        <div>
+                            <p class="text-xs text-gray-400 mb-0.5">Catatan</p>
+                            <p class="text-gray-700">{{ $order->buyerShipment->notes }}</p>
+                        </div>
+                        @endif
+                    </div>
+                    @if($order->buyerShipment->proof_image)
+                    <div class="mt-3 pt-3 border-t border-cyan-200">
+                        <p class="text-xs text-gray-400 mb-1.5">Bukti Pengiriman</p>
+                        <img src="{{ Storage::url($order->buyerShipment->proof_image) }}" alt="Bukti Kirim"
+                             class="max-w-xs rounded-xl border border-cyan-200 shadow-sm">
+                    </div>
+                    @endif
+                </div>
+            </div>
+            @endif
+
+            {{-- Design: Download File (saat status done/completed & ada design_file) --}}
+            @if($serviceType === 'design' && $order->design_file && in_array($order->status, ['done', 'completed']))
+            <div class="bg-white rounded-2xl border border-purple-200 shadow-sm p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-gray-900">File Desain Siap Diunduh</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">File desain Anda sudah selesai dikerjakan.</p>
+                    </div>
+                </div>
+                @if($order->design_notes)
+                <div class="bg-purple-50 border border-purple-100 rounded-xl p-3 mb-4">
+                    <p class="text-xs text-purple-600 font-semibold mb-1">Catatan dari desainer:</p>
+                    <p class="text-sm text-purple-800">{{ $order->design_notes }}</p>
+                </div>
+                @endif
+                <a href="{{ Storage::url($order->design_file) }}" download
+                   class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold text-sm hover:bg-purple-700 transition-colors shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Unduh File Desain
+                </a>
             </div>
             @endif
 

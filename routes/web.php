@@ -14,6 +14,7 @@ use App\Http\Controllers\User\MeasurementController;
 use App\Http\Controllers\User\TrackingController;
 use App\Http\Controllers\User\ChatController as UserChatController;
 use App\Http\Controllers\User\TestimonialController as UserTestimonialController;
+use App\Http\Controllers\User\BuyerShipmentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ShipmentController as AdminShipmentController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
@@ -37,6 +38,7 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::get('/pesanan-saya/{order}/tracking', [TrackingController::class, 'show'])->name('user.tracking.show');
     Route::post('/pesanan-saya/{order}/konfirmasi-terima', [UserOrderController::class, 'confirmReceipt'])->name('user.orders.confirm');
     Route::post('/pesanan-saya/{order}/laporkan-masalah', [UserOrderController::class, 'reportIssue'])->name('user.orders.report');
+    Route::post('/pesanan-saya/{order}/kirim-barang', [BuyerShipmentController::class, 'store'])->name('user.buyer-shipment.store');
 
     // === Pembayaran User ===
     Route::get('/pesanan-saya/{order}/bayar', [UserPaymentController::class, 'create'])->name('user.payment.create');
@@ -103,6 +105,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('/admin/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');
     Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show'])->name('admin.orders.show');
     Route::patch('/admin/orders/{order}/update-status', [AdminOrderController::class, 'updateStatus'])->name('admin.orders.updateStatus');
+    Route::post('/admin/orders/{order}/confirm-item-received', [AdminOrderController::class, 'confirmItemReceived'])->name('admin.orders.confirmItemReceived');
+    Route::post('/admin/orders/{order}/upload-design', [AdminOrderController::class, 'uploadDesignFile'])->name('admin.orders.uploadDesign');
     Route::post('/admin/orders/{order}/shipments', [AdminShipmentController::class, 'store'])->name('admin.shipments.store');
 
     // === Pembayaran Admin ===

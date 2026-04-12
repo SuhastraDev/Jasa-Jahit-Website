@@ -32,20 +32,22 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:100',
-            'description' => 'required|string',
-            'base_price' => 'required|numeric|min:0',
+            'name'           => 'required|string|max:100',
+            'type'           => 'required|in:custom,design,permak',
+            'description'    => 'required|string',
+            'base_price'     => 'required|numeric|min:0',
             'estimated_days' => 'required|integer|min:1',
-            'is_active' => 'required|boolean',
+            'is_active'      => 'required|boolean',
         ]);
 
         Service::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'description' => $request->description,
-            'base_price' => $request->base_price,
+            'name'           => $request->name,
+            'type'           => $request->type,
+            'slug'           => Str::slug($request->name),
+            'description'    => $request->description,
+            'base_price'     => $request->base_price,
             'estimated_days' => $request->estimated_days,
-            'is_active' => $request->is_active,
+            'is_active'      => $request->is_active,
         ]);
 
         return redirect()->route('admin.services.index')->with('success', 'Layanan berhasil ditambahkan.');
@@ -73,17 +75,19 @@ class ServiceController extends Controller
     public function update(Request $request, Service $service)
     {
         $request->validate([
-            'name' => 'required|string|max:100',
-            'description' => 'required|string',
-            'base_price' => 'required|numeric|min:0',
+            'name'           => 'required|string|max:100',
+            'type'           => 'required|in:custom,design,permak',
+            'description'    => 'required|string',
+            'base_price'     => 'required|numeric|min:0',
             'estimated_days' => 'required|integer|min:1',
         ]);
 
         $service->update([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'description' => $request->description,
-            'base_price' => $request->base_price,
+            'name'           => $request->name,
+            'type'           => $request->type,
+            'slug'           => Str::slug($request->name),
+            'description'    => $request->description,
+            'base_price'     => $request->base_price,
             'estimated_days' => $request->estimated_days,
         ]);
 

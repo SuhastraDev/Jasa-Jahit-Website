@@ -45,6 +45,11 @@ class OrderController extends Controller
      */
     public function store(Request $request)
     {
+        // Determine service type before validation
+        $service = Service::findOrFail($request->service_id);
+        $isDesign = $service->type === 'design';
+        $isPermak = $service->type === 'permak';
+
         $request->validate([
             'service_id'        => 'required|exists:services,id',
             'clothing_type'     => 'required|string|max:100',
@@ -54,15 +59,15 @@ class OrderController extends Controller
             'catalog_id'        => 'nullable|exists:catalogs,id',
             'measurement_id'    => 'nullable|exists:measurements,id',
             'reference_image'   => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            // Alamat
-            'province'          => 'required|string|max:100',
-            'city'              => 'required|string|max:100',
-            'district'          => 'required|string|max:100',
+            // Alamat — opsional untuk desain digital
+            'province'          => $isDesign ? 'nullable|string|max:100' : 'required|string|max:100',
+            'city'              => $isDesign ? 'nullable|string|max:100' : 'required|string|max:100',
+            'district'          => $isDesign ? 'nullable|string|max:100' : 'required|string|max:100',
             'village'           => 'nullable|string|max:100',
             'postal_code'       => 'nullable|string|max:10',
             'rt'                => 'nullable|string|max:5',
             'rw'                => 'nullable|string|max:5',
-            'detail_address'    => 'required|string|max:500',
+            'detail_address'    => $isDesign ? 'nullable|string|max:500' : 'required|string|max:500',
             'recipient_phone'   => 'nullable|string|max:20',
             // Ukuran manual (opsional, untuk Custom tanpa CV)
             'manual_chest'          => 'nullable|numeric|min:1|max:300',
@@ -73,11 +78,10 @@ class OrderController extends Controller
             'manual_height'         => 'nullable|numeric|min:1|max:300',
         ]);
 
-        $service = Service::findOrFail($request->service_id);
         $measurementId = $request->measurement_id ?: null;
 
         // Layanan Custom: wajib punya ukuran badan (CV atau manual)
-        if (strtolower($service->name) === 'custom') {
+        if ($service->type === 'custom') {
             $hasCV     = !empty($request->measurement_id);
             $hasManual = !empty($request->manual_chest) && !empty($request->manual_waist);
 
@@ -179,7 +183,7 @@ class OrderController extends Controller
             abort(403, 'Anda tidak memiliki akses ke pesanan ini.');
         }
 
-        $order->load(['service', 'catalog', 'measurement', 'statuses', 'latestPayment', 'shipment']);
+        $order->load(['service', 'catalog', 'measurement', 'statuses', 'latestPayment', 'shipment', 'buyerShipment']);
 
         return view('user.orders.show', compact('order'));
     }

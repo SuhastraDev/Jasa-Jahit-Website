@@ -376,8 +376,112 @@
             @endif
         </div>
 
-            {{-- Form Input Resi Pengiriman (hanya saat status done atau shipped) --}}
-            @if(in_array($order->status, ['done', 'shipped']))
+            {{-- PERMAK: Info kiriman dari pembeli + tombol konfirmasi terima --}}
+            @if($serviceType === 'permak' && $order->buyerShipment)
+            <div class="bg-gradient-to-br from-cyan-50 to-teal-50 rounded-2xl border-2 border-cyan-200 shadow-sm p-6 mt-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-cyan-500 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-cyan-900">Kiriman Barang dari Pembeli</h4>
+                        <p class="text-xs text-cyan-600">Pembeli sudah mengirim barang untuk dipermak</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                    <div class="bg-white rounded-xl p-3 border border-cyan-100">
+                        <p class="text-xs text-cyan-400 mb-0.5">Ekspedisi</p>
+                        <p class="font-bold text-gray-800 uppercase text-sm">{{ $order->buyerShipment->expedition }}</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-3 border border-cyan-100">
+                        <p class="text-xs text-cyan-400 mb-0.5">No. Resi</p>
+                        <p class="font-mono font-bold text-gray-800 text-sm">{{ $order->buyerShipment->tracking_number }}</p>
+                    </div>
+                    <div class="bg-white rounded-xl p-3 border border-cyan-100">
+                        <p class="text-xs text-cyan-400 mb-0.5">Tgl Kirim</p>
+                        <p class="font-semibold text-gray-800 text-sm">{{ $order->buyerShipment->shipped_at->format('d M Y') }}</p>
+                    </div>
+                </div>
+                @if($order->buyerShipment->proof_image)
+                <div class="mb-4">
+                    <p class="text-xs text-cyan-600 font-semibold mb-1.5">Bukti Pengiriman:</p>
+                    <img src="{{ Storage::url($order->buyerShipment->proof_image) }}" class="max-h-40 rounded-xl border border-cyan-100 shadow-sm" alt="Bukti kirim">
+                </div>
+                @endif
+                @if($order->buyerShipment->notes)
+                <p class="text-sm text-cyan-700 bg-white rounded-xl px-3 py-2 border border-cyan-100 mb-4">{{ $order->buyerShipment->notes }}</p>
+                @endif
+                @if($order->status === 'waiting_item')
+                <form action="{{ route('admin.orders.confirmItemReceived', $order) }}" method="POST">
+                    @csrf
+                    <div class="flex items-center gap-3">
+                        <input type="text" name="note" placeholder="Catatan (opsional)" class="flex-1 rounded-xl border-cyan-200 text-sm focus:border-cyan-500 focus:ring-cyan-500">
+                        <button type="submit" class="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 transition-colors text-sm flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Konfirmasi Barang Diterima
+                        </button>
+                    </div>
+                </form>
+                @else
+                <div class="flex items-center gap-2 text-teal-700 bg-teal-50 rounded-xl px-3 py-2">
+                    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    <span class="text-sm font-semibold">Barang sudah dikonfirmasi diterima</span>
+                </div>
+                @endif
+            </div>
+            @endif
+
+            {{-- DESAIN: Upload file desain --}}
+            @if($serviceType === 'design' && in_array($order->status, ['processing', 'done', 'completed']))
+            <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl border-2 border-purple-200 shadow-sm p-6 mt-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-purple-900">Upload File Desain</h4>
+                        <p class="text-xs text-purple-600">Upload file hasil desain untuk diunduh pelanggan</p>
+                    </div>
+                </div>
+                @if($order->design_file)
+                <div class="mb-4 p-3 bg-white rounded-xl border border-purple-100 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <span class="text-sm text-gray-700 font-medium">File desain sudah diupload</span>
+                    </div>
+                    <a href="{{ Storage::url($order->design_file) }}" target="_blank" class="text-xs text-purple-600 hover:text-purple-800 font-semibold underline">Lihat File</a>
+                </div>
+                @if($order->design_notes)
+                <p class="text-sm text-purple-700 bg-white rounded-xl px-3 py-2 border border-purple-100 mb-4">{{ $order->design_notes }}</p>
+                @endif
+                @endif
+                @if(in_array($order->status, ['processing', 'done']))
+                <form action="{{ route('admin.orders.uploadDesign', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-semibold text-purple-800 mb-1.5">{{ $order->design_file ? 'Ganti File Desain' : 'Upload File Desain' }} <span class="text-red-500">*</span></label>
+                        <input type="file" name="design_file" accept=".jpg,.jpeg,.png,.webp,.pdf,.zip,.rar" required
+                               class="w-full text-sm border border-purple-200 rounded-xl px-3 py-2 bg-white focus:border-purple-500 focus:ring-purple-500">
+                        <p class="text-xs text-purple-500 mt-1">JPG, PNG, WEBP, PDF, ZIP, RAR — Maks 20MB</p>
+                        @error('design_file')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-purple-800 mb-1.5">Catatan untuk Pelanggan</label>
+                        <textarea name="design_notes" rows="2" class="w-full rounded-xl border-purple-200 text-sm focus:border-purple-500 focus:ring-purple-500" placeholder="Contoh: File desain dalam format PDF, resolusi 300dpi...">{{ old('design_notes', $order->design_notes) }}</textarea>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors text-sm flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            {{ $order->design_file ? 'Update File Desain' : 'Upload & Selesaikan' }}
+                        </button>
+                    </div>
+                </form>
+                @endif
+            </div>
+            @endif
+
+            {{-- Form Input Resi Pengiriman (custom & permak saat status done atau shipped) --}}
+            @if($serviceType !== 'design' && in_array($order->status, ['done', 'shipped']))
             <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 shadow-sm p-6 mt-6">
                 <div class="flex items-center gap-3 mb-5">
                     <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-sm">

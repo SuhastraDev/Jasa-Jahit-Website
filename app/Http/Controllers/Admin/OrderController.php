@@ -8,22 +8,18 @@ use App\Models\OrderStatus;
 use App\Services\FonnteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class OrderController extends Controller
 {
-    /**
-     * Daftar semua pesanan (dengan filter status)
-     */
     public function index(Request $request)
     {
         $query = Order::with(['user', 'service', 'latestPayment'])->latest();
 
-        // Filter berdasarkan status jika ada
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Pencarian berdasarkan kode pesanan atau nama user
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -36,35 +32,42 @@ class OrderController extends Controller
 
         $orders = $query->paginate(15)->withQueryString();
 
-        $statusOptions = ['pending', 'confirmed', 'processing', 'done', 'shipped', 'completed', 'cancelled'];
+        $statusOptions = [
+            'pending', 'confirmed', 'waiting_item', 'item_received',
+            'processing', 'done', 'shipped', 'completed', 'cancelled'
+        ];
 
         return view('admin.orders.index', compact('orders', 'statusOptions'));
     }
 
-    /**
-     * Detail pesanan admin — lihat semua data + form update
-     */
     public function show(Order $order)
     {
-        $order->load(['user', 'service', 'catalog', 'measurement', 'statuses.changedBy', 'latestPayment', 'payments', 'shipment']);
+        $order->load([
+            'user', 'service', 'catalog', 'measurement',
+            'statuses.changedBy', 'latestPayment', 'payments',
+            'shipment', 'buyerShipment'
+        ]);
 
-        $statusOptions = ['pending', 'confirmed', 'processing', 'done', 'shipped', 'completed', 'cancelled'];
+        $serviceType = $order->service_type;
 
-        return view('admin.orders.show', compact('order', 'statusOptions'));
+        // Status yang tersedia sesuai tipe layanan
+        $statusOptions = match ($serviceType) {
+            'design' => ['pending', 'confirmed', 'processing', 'done', 'completed', 'cancelled'],
+            'permak' => ['pending', 'confirmed', 'waiting_item', 'item_received', 'processing', 'done', 'shipped', 'completed', 'cancelled'],
+            default  => ['pending', 'confirmed', 'processing', 'done', 'shipped', 'completed', 'cancelled'],
+        };
+
+        return view('admin.orders.show', compact('order', 'statusOptions', 'serviceType'));
     }
 
-    /**
-     * Update status pesanan + simpan log
-     */
     public function updateStatus(Request $request, Order $order)
     {
         $request->validate([
-            'status' => 'required|in:pending,confirmed,processing,done,shipped,completed,cancelled',
-            'note' => 'nullable|string|max:500',
+            'status'      => 'required|in:pending,confirmed,waiting_item,item_received,processing,done,shipped,completed,cancelled',
+            'note'        => 'nullable|string|max:500',
             'total_price' => 'nullable|numeric|min:0',
         ]);
 
-        // Harga wajib diisi saat mengkonfirmasi pesanan
         if ($request->status === 'confirmed' && !$request->filled('total_price') && !$order->total_price) {
             return back()
                 ->withErrors(['total_price' => 'Total harga harus diisi saat mengkonfirmasi pesanan.'])
@@ -72,38 +75,108 @@ class OrderController extends Controller
         }
 
         $order->update([
-            'status' => $request->status,
+            'status'      => $request->status,
             'total_price' => $request->total_price ?? $order->total_price,
-            'notes' => $request->note ?? $order->notes,
+            'notes'       => $request->note ?? $order->notes,
         ]);
 
-        // Catat perubahan status di order_statuses
         OrderStatus::create([
-            'order_id' => $order->id,
-            'status' => $request->status,
-            'note' => $request->note,
+            'order_id'   => $order->id,
+            'status'     => $request->status,
+            'note'       => $request->note,
             'changed_by' => auth()->id(),
         ]);
 
-        // Kirim notifikasi WA ke user
-        if ($order->user?->phone) {
-            try {
-                $fonnte = new FonnteService();
-                $fonnte->notifyStatusChanged(
-                    $order->user?->phone,
-                    $order->order_code,
-                    $order->status_label
-                );
-            } catch (\Throwable $e) {
-                Log::warning('[Fonnte] Gagal kirim notifikasi status changed', [
-                    'order_code' => $order->order_code,
-                    'error'      => $e->getMessage(),
-                ]);
-            }
-        }
+        $this->sendWaNotification($order);
 
         return redirect()
             ->route('admin.orders.show', $order)
-            ->with('success', 'Status pesanan berhasil diperbarui menjadi: ' . $order->status_label);
+            ->with('success', 'Status pesanan berhasil diperbarui menjadi: ' . $order->fresh()->status_label);
+    }
+
+    /**
+     * Konfirmasi barang permak sudah diterima dari pembeli
+     */
+    public function confirmItemReceived(Request $request, Order $order)
+    {
+        if ($order->status !== 'waiting_item') {
+            return back()->with('error', 'Pesanan tidak dalam status menunggu kiriman barang.');
+        }
+
+        $request->validate(['note' => 'nullable|string|max:500']);
+
+        $order->update(['status' => 'item_received']);
+
+        OrderStatus::create([
+            'order_id'   => $order->id,
+            'status'     => 'item_received',
+            'note'       => $request->note ?: 'Barang dari pembeli sudah diterima. Siap diproses.',
+            'changed_by' => auth()->id(),
+        ]);
+
+        $this->sendWaNotification($order);
+
+        return redirect()
+            ->route('admin.orders.show', $order)
+            ->with('success', 'Konfirmasi penerimaan barang berhasil.');
+    }
+
+    /**
+     * Upload file desain untuk layanan Desain Digital
+     */
+    public function uploadDesignFile(Request $request, Order $order)
+    {
+        if ($order->service_type !== 'design') {
+            return back()->with('error', 'Fitur ini hanya untuk layanan desain.');
+        }
+
+        $request->validate([
+            'design_file'  => 'required|file|mimes:jpg,jpeg,png,webp,pdf,zip,rar|max:20480',
+            'design_notes' => 'nullable|string|max:1000',
+        ]);
+
+        // Hapus file lama jika ada
+        if ($order->design_file) {
+            Storage::disk('public')->delete($order->design_file);
+        }
+
+        $path = $request->file('design_file')->store('orders/designs', 'public');
+
+        $order->update([
+            'design_file'  => $path,
+            'design_notes' => $request->design_notes,
+            'status'       => 'done',
+        ]);
+
+        OrderStatus::create([
+            'order_id'   => $order->id,
+            'status'     => 'done',
+            'note'       => 'File desain telah diunggah dan siap diunduh oleh pelanggan.',
+            'changed_by' => auth()->id(),
+        ]);
+
+        $this->sendWaNotification($order);
+
+        return redirect()
+            ->route('admin.orders.show', $order)
+            ->with('success', 'File desain berhasil diunggah. Pelanggan dapat mengunduhnya sekarang.');
+    }
+
+    private function sendWaNotification(Order $order): void
+    {
+        if (!$order->user?->phone) return;
+        try {
+            $fonnte = new FonnteService();
+            $fonnte->notifyStatusChanged(
+                $order->user->phone,
+                $order->order_code,
+                $order->fresh()->status_label
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[Fonnte] Gagal kirim notifikasi', [
+                'order_code' => $order->order_code,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 }

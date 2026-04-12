@@ -17,6 +17,8 @@ class Order extends Model
         'color',
         'material',
         'reference_image',
+        'design_file',
+        'design_notes',
         'address',
         'province',
         'city',
@@ -56,43 +58,48 @@ class Order extends Model
     public function getStatusColorAttribute(): string
     {
         return match ($this->status) {
-            'pending' => 'yellow',
-            'confirmed' => 'blue',
-            'processing' => 'indigo',
-            'done' => 'purple',
-            'shipped' => 'orange',
-            'completed' => 'green',
-            'cancelled' => 'red',
-            default => 'gray',
+            'pending'       => 'yellow',
+            'confirmed'     => 'blue',
+            'waiting_item'  => 'cyan',
+            'item_received' => 'teal',
+            'processing'    => 'indigo',
+            'done'          => 'purple',
+            'shipped'       => 'orange',
+            'completed'     => 'green',
+            'cancelled'     => 'red',
+            default         => 'gray',
         };
     }
 
-    /**
-     * Get status label in Bahasa Indonesia
-     */
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'pending'    => 'Menunggu Konfirmasi',
-            'confirmed'  => 'Dikonfirmasi',
-            'processing' => 'Sedang Diproses',
-            'done'       => $this->getDoneLabel(),
-            'shipped'    => 'Dikirim',
-            'completed'  => 'Selesai',
-            'cancelled'  => 'Dibatalkan',
-            default      => $this->status,
+            'pending'       => 'Menunggu Konfirmasi',
+            'confirmed'     => 'Dikonfirmasi',
+            'waiting_item'  => 'Menunggu Kiriman Barang',
+            'item_received' => 'Barang Diterima',
+            'processing'    => 'Sedang Diproses',
+            'done'          => $this->getDoneLabel(),
+            'shipped'       => 'Dikirim',
+            'completed'     => 'Selesai',
+            'cancelled'     => 'Dibatalkan',
+            default         => $this->status,
         };
     }
 
-    /**
-     * Label status "done" berbeda per layanan:
-     * - Permak → "Selesai Dijahit"
-     * - Custom / lainnya → "Selesai Dibuat"
-     */
     public function getDoneLabel(): string
     {
-        $svc = strtolower($this->service?->name ?? '');
-        return str_contains($svc, 'permak') ? 'Selesai Dijahit' : 'Selesai Dibuat';
+        $type = $this->service?->type ?? '';
+        $name = strtolower($this->service?->name ?? '');
+        if ($type === 'permak' || str_contains($name, 'permak')) return 'Selesai Dijahit';
+        if ($type === 'design') return 'Desain Selesai';
+        return 'Selesai Dibuat';
+    }
+
+    /** Tipe layanan shortcut */
+    public function getServiceTypeAttribute(): string
+    {
+        return $this->service?->type ?? 'custom';
     }
 
     // ── Relationships ──
@@ -135,5 +142,10 @@ class Order extends Model
     public function shipment()
     {
         return $this->hasOne(Shipment::class);
+    }
+
+    public function buyerShipment()
+    {
+        return $this->hasOne(BuyerShipment::class);
     }
 }
