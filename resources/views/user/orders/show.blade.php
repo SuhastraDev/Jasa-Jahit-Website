@@ -202,20 +202,72 @@
             {{-- Permak: Form Kirim Barang (saat status confirmed & payment verified) --}}
             @if($serviceType === 'permak' && $order->status === 'confirmed' && optional($order->latestPayment)->status === 'verified' && !$order->buyerShipment)
             <div class="bg-white rounded-2xl border border-orange-200 shadow-sm p-6" x-data="{ submitting: false }">
-                <div class="flex items-center gap-3 mb-4">
+                {{-- Header --}}
+                <div class="flex items-center gap-3 mb-5">
                     <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                         <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     </div>
                     <div>
-                        <h2 class="font-bold text-gray-900">Kirim Barang ke Kami</h2>
-                        <p class="text-sm text-gray-500 mt-0.5">Isi informasi pengiriman barang Anda ke tukang jahit.</p>
+                        <h2 class="font-bold text-gray-900">Kirim Pakaian ke Kami</h2>
+                        <p class="text-sm text-gray-500 mt-0.5">Ikuti langkah berikut untuk mengirim pakaian Anda.</p>
                     </div>
                 </div>
 
-                <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-5 text-sm text-orange-800">
-                    <strong>Alamat Kami:</strong> Silakan hubungi admin via chat untuk mendapatkan alamat pengiriman.
+                {{-- Step Guide Visual --}}
+                <div class="flex items-center gap-0 mb-6">
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1 shadow-sm">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Pembayaran</p>
+                        <p class="text-xs text-green-600">Terverifikasi</p>
+                    </div>
+                    <div class="h-0.5 flex-1 bg-orange-300 mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-orange-500 ring-4 ring-orange-100 flex items-center justify-center mb-1 shadow-sm">
+                            <span class="text-white text-xs font-bold">2</span>
+                        </div>
+                        <p class="text-xs font-semibold text-orange-700">Kirim Pakaian</p>
+                        <p class="text-xs text-orange-500">Sekarang</p>
+                    </div>
+                    <div class="h-0.5 flex-1 bg-gray-200 mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mb-1">
+                            <span class="text-gray-400 text-xs font-bold">3</span>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-400">Menunggu</p>
+                        <p class="text-xs text-gray-400">Konfirmasi</p>
+                    </div>
                 </div>
 
+                {{-- Kotak Alamat Tujuan --}}
+                @if($order->notes)
+                <div class="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 mb-5">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-8 h-8 bg-orange-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-orange-800 uppercase tracking-wide">Alamat Pengiriman Pakaian</p>
+                            <p class="text-xs text-orange-600">Kirimkan pakaian Anda ke alamat berikut</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl border border-orange-200 px-4 py-3 mt-2">
+                        <p class="text-sm text-gray-800 font-medium leading-relaxed">{{ $order->notes }}</p>
+                    </div>
+                    <p class="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Setelah kirim, isi form di bawah dengan nomor resi Anda.
+                    </p>
+                </div>
+                @else
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5 flex items-center gap-3">
+                    <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    <p class="text-sm text-gray-600">Hubungi admin via <a href="{{ route('user.chat.index') }}" class="text-blue-600 font-semibold hover:underline">chat</a> untuk mendapatkan alamat pengiriman.</p>
+                </div>
+                @endif
+
+                {{-- Form Pengiriman --}}
                 <form action="{{ route('user.buyer-shipment.store', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-4"
                       @submit="submitting = true">
                     @csrf
@@ -223,7 +275,7 @@
                         <div>
                             <label for="expedition" class="block text-sm font-semibold text-gray-700 mb-1.5">Ekspedisi <span class="text-red-500">*</span></label>
                             <input type="text" id="expedition" name="expedition" value="{{ old('expedition') }}" required
-                                   placeholder="Contoh: JNE, J&T, SiCepat, Pos Indonesia..."
+                                   placeholder="Contoh: JNE, J&T, SiCepat..."
                                    class="w-full rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm @error('expedition') border-red-400 @enderror">
                             @error('expedition')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
@@ -262,7 +314,7 @@
                         <label for="ship_notes" class="block text-sm font-semibold text-gray-700 mb-1.5">Catatan <span class="text-gray-400 font-normal">(opsional)</span></label>
                         <textarea id="ship_notes" name="notes" rows="2"
                                   class="w-full rounded-xl border-gray-200 focus:border-orange-500 focus:ring-orange-500 text-sm resize-none"
-                                  placeholder="Misal: barang sudah dikemas bubble wrap, ada 2 baju...">{{ old('notes') }}</textarea>
+                                  placeholder="Misal: sudah dikemas bubble wrap, ada 2 baju...">{{ old('notes') }}</textarea>
                     </div>
 
                     <button type="submit" :disabled="submitting"
@@ -274,18 +326,59 @@
             </div>
             @endif
 
-            {{-- Permak: Info pengiriman sudah dikirim (status waiting_item) --}}
+            {{-- Permak: Info pengiriman sudah dikirim --}}
             @if($serviceType === 'permak' && $order->buyerShipment)
             <div class="bg-white rounded-2xl border border-cyan-200 shadow-sm p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {{-- Step guide --}}
+                <div class="flex items-center gap-0 mb-5">
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Pembayaran</p>
+                        <p class="text-xs text-green-600">Verified</p>
+                    </div>
+                    <div class="h-0.5 flex-1 bg-green-300 mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Barang Dikirim</p>
+                        <p class="text-xs text-green-600">Selesai</p>
+                    </div>
+                    <div class="h-0.5 flex-1 {{ in_array($order->status, ['item_received','processing','done','shipped','completed']) ? 'bg-green-300' : 'bg-cyan-200' }} mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        @if(in_array($order->status, ['item_received','processing','done','shipped','completed']))
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Diterima</p>
+                        <p class="text-xs text-green-600">Workshop</p>
+                        @else
+                        <div class="w-8 h-8 rounded-full bg-cyan-400 ring-4 ring-cyan-100 flex items-center justify-center mb-1">
+                            <span class="text-white text-xs font-bold">3</span>
+                        </div>
+                        <p class="text-xs font-semibold text-cyan-700">Menunggu</p>
+                        <p class="text-xs text-cyan-500">Konfirmasi</p>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 mb-4">
+                    <div class="w-9 h-9 bg-cyan-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-900">Barang Sudah Dikirim</h2>
-                        <p class="text-sm text-gray-500 mt-0.5">Menunggu konfirmasi penerimaan dari kami.</p>
+                        <p class="text-sm text-gray-500">
+                            @if($order->status === 'waiting_item') Kami sedang menunggu paket Anda tiba.
+                            @elseif($order->status === 'item_received') Barang Anda sudah kami terima!
+                            @else Barang sudah diterima dan sedang diproses.
+                            @endif
+                        </p>
                     </div>
                 </div>
+
                 <div class="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
                     <div class="grid grid-cols-2 gap-3 text-sm">
                         <div>
@@ -318,28 +411,109 @@
             </div>
             @endif
 
-            {{-- Design: Download File (saat status done/completed & ada design_file) --}}
-            @if($serviceType === 'design' && $order->design_file && in_array($order->status, ['done', 'completed']))
-            <div class="bg-white rounded-2xl border border-purple-200 shadow-sm p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            {{-- Design: Menunggu file / sedang dikerjakan --}}
+            @if($serviceType === 'design' && in_array($order->status, ['confirmed', 'processing']) && !$order->design_file)
+            <div class="bg-white rounded-2xl border border-purple-100 shadow-sm p-6">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                        @if($order->status === 'processing')
+                            <svg class="w-6 h-6 text-purple-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        @else
+                            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        @endif
                     </div>
                     <div>
-                        <h2 class="font-bold text-gray-900">File Desain Siap Diunduh</h2>
-                        <p class="text-sm text-gray-500 mt-0.5">File desain Anda sudah selesai dikerjakan.</p>
+                        <p class="font-bold text-gray-800">
+                            {{ $order->status === 'processing' ? 'Desain Sedang Dikerjakan...' : 'Menunggu Pengerjaan Desain' }}
+                        </p>
+                        <p class="text-sm text-gray-500 mt-0.5">
+                            {{ $order->status === 'processing' ? 'Tim desainer kami sedang mengerjakan pesanan Anda. File akan tersedia setelah selesai.' : 'Proses pengerjaan desain akan dimulai segera setelah pembayaran terverifikasi.' }}
+                        </p>
                     </div>
                 </div>
+            </div>
+            @endif
+
+            {{-- Design: File siap diunduh (done) --}}
+            @if($serviceType === 'design' && $order->design_file && $order->status === 'done')
+            <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl border-2 border-purple-300 shadow-sm p-6">
+                {{-- Step guide --}}
+                <div class="flex items-center gap-0 mb-6">
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Pembayaran</p>
+                        <p class="text-xs text-green-600">Verified</p>
+                    </div>
+                    <div class="h-0.5 flex-1 bg-green-300 mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mb-1">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <p class="text-xs font-semibold text-green-700">Desain</p>
+                        <p class="text-xs text-green-600">Selesai</p>
+                    </div>
+                    <div class="h-0.5 flex-1 bg-purple-300 mb-5"></div>
+                    <div class="flex flex-col items-center text-center flex-1">
+                        <div class="w-8 h-8 rounded-full bg-purple-500 ring-4 ring-purple-100 flex items-center justify-center mb-1">
+                            <span class="text-white text-xs font-bold">3</span>
+                        </div>
+                        <p class="text-xs font-semibold text-purple-700">Konfirmasi</p>
+                        <p class="text-xs text-purple-500">Sekarang</p>
+                    </div>
+                </div>
+
+                <div class="text-center mb-5">
+                    <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <h2 class="font-bold text-gray-900 text-lg">File Desain Siap Diunduh!</h2>
+                    <p class="text-sm text-gray-500 mt-1">Unduh file Anda, lalu konfirmasi bahwa file sudah diterima.</p>
+                </div>
+
                 @if($order->design_notes)
-                <div class="bg-purple-50 border border-purple-100 rounded-xl p-3 mb-4">
+                <div class="bg-white border border-purple-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-purple-600 font-semibold mb-1">Catatan dari desainer:</p>
-                    <p class="text-sm text-purple-800">{{ $order->design_notes }}</p>
+                    <p class="text-sm text-gray-700">{{ $order->design_notes }}</p>
                 </div>
                 @endif
+
+                {{-- Tombol Download --}}
                 <a href="{{ Storage::url($order->design_file) }}" download
-                   class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold text-sm hover:bg-purple-700 transition-colors shadow-sm">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                   class="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-colors shadow-sm mb-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Unduh File Desain
+                </a>
+
+                {{-- Tombol Konfirmasi Terima --}}
+                <form action="{{ route('user.orders.confirm', $order) }}" method="POST"
+                      onsubmit="return confirm('Konfirmasi bahwa file desain sudah Anda terima dan sesuai?')">
+                    @csrf
+                    <button type="submit"
+                            class="w-full flex items-center justify-center gap-2 px-6 py-3 border-2 border-purple-400 text-purple-700 bg-white rounded-xl font-semibold text-sm hover:bg-purple-50 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        File Sudah Diterima — Selesaikan Pesanan
+                    </button>
+                </form>
+                <p class="text-xs text-center text-gray-400 mt-2">Klik tombol di atas setelah Anda mengunduh dan file sudah sesuai.</p>
+            </div>
+            @endif
+
+            {{-- Design: File sudah dikonfirmasi (completed) --}}
+            @if($serviceType === 'design' && $order->status === 'completed' && $order->design_file)
+            <div class="bg-white rounded-2xl border border-green-200 shadow-sm p-5 flex items-center gap-4">
+                <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div class="flex-1">
+                    <p class="font-semibold text-gray-800">File desain sudah diterima</p>
+                    <p class="text-xs text-gray-500 mt-0.5">Anda masih bisa mengunduh ulang file kapan saja.</p>
+                </div>
+                <a href="{{ Storage::url($order->design_file) }}" download
+                   class="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 border border-purple-200 text-purple-600 rounded-xl text-xs font-semibold hover:bg-purple-50 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Unduh Ulang
                 </a>
             </div>
             @endif
@@ -357,12 +531,17 @@
                 </div>
                 @endif
 
+                @if($order->address && $serviceType !== 'design')
                 <div class="mt-4 pt-4 border-t border-gray-50">
-                    <p class="text-xs text-gray-400 font-medium mb-1">Alamat Pengiriman</p>
+                    <p class="text-xs text-gray-400 font-medium mb-1">
+                        {{ $serviceType === 'permak' ? 'Alamat Pengiriman Balik' : 'Alamat Pengiriman' }}
+                    </p>
                     <p class="text-sm text-gray-700">{{ $order->address }}</p>
                 </div>
+                @endif
 
-                @if($order->notes)
+                {{-- Notes: hanya tampilkan untuk non-permak (permak: notes = alamat workshop, sudah tampil di panel kirim barang) --}}
+                @if($order->notes && $serviceType !== 'permak')
                 <div class="mt-4 pt-4 border-t border-gray-50">
                     <p class="text-xs text-gray-400 font-medium mb-1">Catatan dari Admin</p>
                     <div class="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">

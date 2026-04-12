@@ -194,20 +194,30 @@ class OrderController extends Controller
     public function confirmReceipt(Order $order)
     {
         if ((int) $order->user_id !== (int) auth()->id()) abort(403);
-        if ($order->status !== 'shipped') {
-            return back()->with('error', 'Konfirmasi hanya bisa dilakukan saat status pesanan "Dikirim".');
+
+        $serviceType = $order->service_type;
+
+        // Design: konfirmasi file diterima saat status 'done'
+        // Custom/Permak: konfirmasi barang diterima saat status 'shipped'
+        $validStatus = $serviceType === 'design' ? 'done' : 'shipped';
+
+        if ($order->status !== $validStatus) {
+            return back()->with('error', 'Konfirmasi tidak bisa dilakukan pada status pesanan ini.');
         }
+
+        $isDesign = $serviceType === 'design';
 
         $order->update(['status' => 'completed']);
 
         OrderStatus::create([
             'order_id'   => $order->id,
             'status'     => 'completed',
-            'note'       => 'Pelanggan mengkonfirmasi sudah menerima pesanan.',
+            'note'       => $isDesign
+                ? 'Pelanggan mengkonfirmasi file desain sudah diterima.'
+                : 'Pelanggan mengkonfirmasi sudah menerima pesanan.',
             'changed_by' => auth()->id(),
         ]);
 
-        // Notifikasi ke chat
         $chat = Chat::firstOrCreate(
             ['user_id' => auth()->id()],
             ['last_message_at' => now()]
@@ -216,7 +226,9 @@ class OrderController extends Controller
         $chat->messages()->create([
             'sender_id' => auth()->id(),
             'type'      => 'text',
-            'content'   => "✅ Saya sudah menerima pesanan #{$order->order_code} ({$order->clothing_type}). Terima kasih!",
+            'content'   => $isDesign
+                ? "✅ Saya sudah menerima file desain pesanan #{$order->order_code}. Terima kasih!"
+                : "✅ Saya sudah menerima pesanan #{$order->order_code} ({$order->clothing_type}). Terima kasih!",
             'is_read'   => false,
         ]);
 
@@ -224,7 +236,9 @@ class OrderController extends Controller
 
         return redirect()
             ->route('user.orders.show', $order)
-            ->with('success', 'Terima kasih! Pesanan dinyatakan selesai. Jangan lupa berikan ulasan.');
+            ->with('success', $isDesign
+                ? 'File desain dikonfirmasi diterima. Pesanan selesai!'
+                : 'Terima kasih! Pesanan dinyatakan selesai. Jangan lupa berikan ulasan.');
     }
 
     /**
