@@ -497,7 +497,7 @@
             @if($serviceType === 'permak' && $order->buyerShipment)
             <div class="bg-gradient-to-br from-cyan-50 to-teal-50 rounded-2xl border-2 border-cyan-200 shadow-sm p-6 mt-6">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 bg-cyan-500 rounded-xl flex items-center justify-center shadow-sm">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style="background-color:#06b6d4;">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
                     </div>
                     <div>
@@ -552,7 +552,7 @@
             @if($serviceType === 'design' && in_array($order->status, ['processing', 'revision', 'done', 'completed']))
             <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl border-2 border-purple-200 shadow-sm p-6 mt-6">
                 <div class="flex items-center gap-3 mb-5">
-                    <div class="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shadow-sm">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style="background-color:#a855f7;">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     </div>
                     <div>
@@ -613,7 +613,7 @@
             @if($serviceType !== 'design' && in_array($order->status, ['done', 'shipped']))
             <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 shadow-sm p-6 mt-6">
                 <div class="flex items-center gap-3 mb-5">
-                    <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-sm">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style="background-color:#f97316;">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     </div>
                     <div>
