@@ -266,6 +266,9 @@
                             ? 'Tandai permak selesai. Selanjutnya kirim balik ke pelanggan.'
                             : 'Pakaian sudah selesai dibuat dan siap untuk dikirim.';
                     }
+                } elseif ($order->status === 'revision') {
+                    // Tidak ada tombol aksi — form upload di bawah yang sekaligus mengubah status done
+                    $nextStatus = null;
                 } elseif ($order->status === 'done' && $serviceType !== 'design') {
                     // Tidak ada tombol aksi — input resi di panel bawah yang sekaligus mengubah status shipped
                     $nextStatus = null;
@@ -442,6 +445,20 @@
                     </div>
                     @endif
 
+                    {{-- Status revision: arahan ke form upload ulang --}}
+                    @if($order->status === 'revision')
+                    <div class="flex items-start gap-3 px-4 py-3.5 bg-pink-50 rounded-xl border border-pink-200">
+                        <svg class="w-5 h-5 text-pink-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <div>
+                            <p class="text-sm font-semibold text-pink-800">Pelanggan Minta Revisi ke-{{ $order->revision_count }} / 3</p>
+                            @if($order->revision_note)
+                            <p class="text-xs text-pink-700 mt-1 bg-white rounded-lg px-2 py-1.5 border border-pink-100">"{{ $order->revision_note }}"</p>
+                            @endif
+                            <p class="text-xs text-pink-500 mt-1">Upload file revisi di panel <strong>Upload File Desain</strong> di bawah.</p>
+                        </div>
+                    </div>
+                    @endif
+
                     {{-- Status processing design: arahan ke form upload --}}
                     @if($order->status === 'processing' && $serviceType === 'design')
                     <div class="flex items-start gap-3 px-4 py-3.5 bg-purple-50 rounded-xl border border-purple-200">
@@ -532,15 +549,27 @@
             @endif
 
             {{-- DESAIN: Upload file desain --}}
-            @if($serviceType === 'design' && in_array($order->status, ['processing', 'done', 'completed']))
+            @if($serviceType === 'design' && in_array($order->status, ['processing', 'revision', 'done', 'completed']))
             <div class="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl border-2 border-purple-200 shadow-sm p-6 mt-6">
                 <div class="flex items-center gap-3 mb-5">
                     <div class="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shadow-sm">
                         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     </div>
                     <div>
-                        <h4 class="font-bold text-purple-900">Upload File Desain</h4>
-                        <p class="text-xs text-purple-600">Upload file hasil desain untuk diunduh pelanggan</p>
+                        <h4 class="font-bold text-purple-900">
+                            @if($order->status === 'revision')
+                                Upload Revisi ke-{{ $order->revision_count }} / 3
+                            @else
+                                Upload File Desain
+                            @endif
+                        </h4>
+                        <p class="text-xs text-purple-600">
+                            @if($order->status === 'revision')
+                                Pelanggan meminta revisi — upload file yang sudah diperbaiki
+                            @else
+                                Upload file hasil desain untuk diunduh pelanggan
+                            @endif
+                        </p>
                     </div>
                 </div>
                 @if($order->design_file)
@@ -555,7 +584,7 @@
                 <p class="text-sm text-purple-700 bg-white rounded-xl px-3 py-2 border border-purple-100 mb-4">{{ $order->design_notes }}</p>
                 @endif
                 @endif
-                @if(in_array($order->status, ['processing', 'done']))
+                @if(in_array($order->status, ['processing', 'revision', 'done']))
                 <form action="{{ route('admin.orders.uploadDesign', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
                     @csrf
                     <div>
@@ -738,10 +767,11 @@
                     ['status' => 'pending',    'label' => 'Pesanan Masuk',          'desc' => 'Admin konfirmasi & tentukan harga'],
                     ['status' => 'confirmed',  'label' => 'Dikonfirmasi',           'desc' => 'Pelanggan melakukan pembayaran'],
                     ['status' => 'processing', 'label' => 'Desain Dikerjakan',      'desc' => 'Tim desainer sedang mengerjakan'],
-                    ['status' => 'done',       'label' => 'Upload File Desain',     'desc' => 'Upload file & pelanggan download'],
+                    ['status' => 'done',       'label' => 'File Diunggah',          'desc' => 'Pelanggan unduh & bisa minta revisi (maks 3x)'],
+                    ['status' => 'revision',   'label' => 'Revisi (' . $order->revision_count . '/3)', 'desc' => 'Upload file revisi di panel bawah'],
                     ['status' => 'completed',  'label' => 'Selesai',                'desc' => 'Pelanggan konfirmasi terima file'],
                 ];
-                $designStatusOrder = ['pending','confirmed','processing','done','completed'];
+                $designStatusOrder = ['pending','confirmed','processing','done','revision','completed'];
                 $currentDesignIdx  = array_search($order->status, $designStatusOrder);
             @endphp
             <div class="bg-white rounded-xl shadow-sm border border-purple-200 p-5">

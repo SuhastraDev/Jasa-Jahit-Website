@@ -39,6 +39,7 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::post('/pesanan-saya/{order}/konfirmasi-terima', [UserOrderController::class, 'confirmReceipt'])->name('user.orders.confirm');
     Route::post('/pesanan-saya/{order}/laporkan-masalah', [UserOrderController::class, 'reportIssue'])->name('user.orders.report');
     Route::post('/pesanan-saya/{order}/kirim-barang', [BuyerShipmentController::class, 'store'])->name('user.buyer-shipment.store');
+    Route::post('/pesanan-saya/{order}/minta-revisi', [UserOrderController::class, 'requestRevision'])->name('user.orders.requestRevision');
 
     // === Pembayaran User ===
     Route::get('/pesanan-saya/{order}/bayar', [UserPaymentController::class, 'create'])->name('user.payment.create');

@@ -131,6 +131,9 @@ class OrderController extends Controller
         if ($order->service_type !== 'design') {
             return back()->with('error', 'Fitur ini hanya untuk layanan desain.');
         }
+        if (!in_array($order->status, ['processing', 'revision'])) {
+            return back()->with('error', 'Upload file hanya bisa dilakukan saat status sedang diproses atau revisi.');
+        }
 
         $request->validate([
             'design_file'  => 'required|file|mimes:jpg,jpeg,png,webp,pdf,zip,rar|max:20480',
@@ -144,6 +147,8 @@ class OrderController extends Controller
 
         $path = $request->file('design_file')->store('orders/designs', 'public');
 
+        $isRevision = $order->status === 'revision';
+
         $order->update([
             'design_file'  => $path,
             'design_notes' => $request->design_notes,
@@ -153,7 +158,9 @@ class OrderController extends Controller
         OrderStatus::create([
             'order_id'   => $order->id,
             'status'     => 'done',
-            'note'       => 'File desain telah diunggah dan siap diunduh oleh pelanggan.',
+            'note'       => $isRevision
+                ? "File revisi ke-{$order->revision_count} telah diunggah dan siap diunduh oleh pelanggan."
+                : 'File desain telah diunggah dan siap diunduh oleh pelanggan.',
             'changed_by' => auth()->id(),
         ]);
 
@@ -161,7 +168,9 @@ class OrderController extends Controller
 
         return redirect()
             ->route('admin.orders.show', $order)
-            ->with('success', 'File desain berhasil diunggah. Pelanggan dapat mengunduhnya sekarang.');
+            ->with('success', $isRevision
+                ? "File revisi ke-{$order->revision_count} berhasil diunggah."
+                : 'File desain berhasil diunggah. Pelanggan dapat mengunduhnya sekarang.');
     }
 
     private function sendWaNotification(Order $order): void

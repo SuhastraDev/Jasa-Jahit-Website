@@ -242,6 +242,60 @@ class OrderController extends Controller
     }
 
     /**
+     * User meminta revisi desain (maks 3 kali)
+     */
+    public function requestRevision(Request $request, Order $order)
+    {
+        if ((int) $order->user_id !== (int) auth()->id()) abort(403);
+        if ($order->service_type !== 'design') {
+            return back()->with('error', 'Fitur revisi hanya untuk layanan desain.');
+        }
+        if ($order->status !== 'done') {
+            return back()->with('error', 'Permintaan revisi hanya bisa dilakukan saat file desain sudah diunggah.');
+        }
+        if ($order->revision_count >= 3) {
+            return back()->with('error', 'Batas revisi sudah tercapai (maksimal 3 kali).');
+        }
+
+        $request->validate([
+            'revision_note' => 'required|string|max:500',
+        ]);
+
+        $newCount = $order->revision_count + 1;
+
+        $order->update([
+            'status'        => 'revision',
+            'revision_count' => $newCount,
+            'revision_note' => $request->revision_note,
+        ]);
+
+        OrderStatus::create([
+            'order_id'   => $order->id,
+            'status'     => 'revision',
+            'note'       => "Pelanggan meminta revisi ke-{$newCount}: {$request->revision_note}",
+            'changed_by' => auth()->id(),
+        ]);
+
+        $chat = Chat::firstOrCreate(
+            ['user_id' => auth()->id()],
+            ['last_message_at' => now()]
+        );
+
+        $chat->messages()->create([
+            'sender_id' => auth()->id(),
+            'type'      => 'text',
+            'content'   => "🔄 *Permintaan Revisi Desain (ke-{$newCount}/3)*\nPesanan: #{$order->order_code}\n\n{$request->revision_note}",
+            'is_read'   => false,
+        ]);
+
+        $chat->update(['last_message_at' => now()]);
+
+        return redirect()
+            ->route('user.orders.show', $order)
+            ->with('success', "Permintaan revisi ke-{$newCount} berhasil dikirim. Admin akan segera mengunggah revisi.");
+    }
+
+    /**
      * User melaporkan masalah pengiriman (barang tidak diterima)
      */
     public function reportIssue(Request $request, Order $order)
