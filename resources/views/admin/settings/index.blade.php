@@ -72,7 +72,7 @@
                 <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-4">
                     <div class="bg-white rounded-xl p-2 shadow-sm border border-blue-100 flex-shrink-0">
                         <img src="{{ asset('storage/dana/qr_code.png') }}?v={{ filemtime(storage_path('app/public/dana/qr_code.png')) }}"
-                             class="w-28 h-28 object-contain rounded-lg" alt="QR DANA aktif">
+                             class="w-20 h-20 object-contain rounded-lg" alt="QR DANA aktif">
                     </div>
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
@@ -110,8 +110,8 @@
                              :class="preview ? 'border-green-400 bg-green-50' : ''">
                             <template x-if="preview">
                                 <div class="space-y-2">
-                                    <img :src="preview" class="w-32 h-32 object-contain mx-auto rounded-xl border border-gray-200 shadow-sm">
-                                    <p class="text-sm font-semibold text-green-700" x-text="fileName"></p>
+                                    <img :src="preview" class="w-24 h-24 object-contain mx-auto rounded-lg border border-gray-200 shadow-sm">
+                                    <p class="text-xs font-semibold text-green-700" x-text="fileName"></p>
                                     <p class="text-xs text-gray-400">Klik untuk ganti</p>
                                 </div>
                             </template>
