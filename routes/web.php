@@ -18,6 +18,7 @@ use App\Http\Controllers\User\BuyerShipmentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ShipmentController as AdminShipmentController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
+use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -123,6 +124,11 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::post('/admin/chat/{chat}/send', [AdminChatController::class, 'store'])->name('admin.chat.send');
     Route::post('/admin/chat/message/{message}/delete', [AdminChatController::class, 'destroyMessage'])->name('admin.chat.message.destroy');
     Route::post('/admin/chat/{chat}/messages/delete', [AdminChatController::class, 'destroyMessages'])->name('admin.chat.messages.destroy');
+
+    // === Pengaturan Admin ===
+    Route::get('/admin/settings', [AdminSettingController::class, 'index'])->name('admin.settings.index');
+    Route::post('/admin/settings/upload-qr', [AdminSettingController::class, 'uploadQr'])->name('admin.settings.uploadQr');
+    Route::delete('/admin/settings/delete-qr', [AdminSettingController::class, 'deleteQr'])->name('admin.settings.deleteQr');
 });
 
 Route::middleware('auth')->group(function () {

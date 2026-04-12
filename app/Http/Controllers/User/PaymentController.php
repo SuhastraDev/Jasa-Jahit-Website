@@ -39,9 +39,9 @@ class PaymentController extends Controller
 
         $danaNumber  = config('services.dana.number');
         $danaName    = config('services.dana.name');
-        $danaQrImage = config('services.dana.qr_image'); // path relatif ke storage/public
+        $danaQrExists = \Illuminate\Support\Facades\Storage::disk('public')->exists('dana/qr_code.png');
 
-        return view('user.payment.upload', compact('order', 'danaNumber', 'danaName', 'danaQrImage'));
+        return view('user.payment.upload', compact('order', 'danaNumber', 'danaName', 'danaQrExists'));
     }
 
     /**
