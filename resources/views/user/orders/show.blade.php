@@ -86,7 +86,7 @@
                 <p class="text-xs mt-1.5 font-semibold {{ $bannerConfig['title_color'] }}">
                     Estimasi selesai: {{ $estimatedDone->format('d F Y') }}
                     <span class="font-normal {{ $bannerConfig['text_color'] }}">
-                        ({{ $estimatedDone->isFuture() ? 'sekitar ' . now()->diffInDays($estimatedDone) . ' hari lagi' : 'sudah melewati estimasi' }})
+                        ({{ $estimatedDone->isFuture() ? 'sekitar ' . (int) now()->diffInDays($estimatedDone) . ' hari lagi' : 'sudah melewati estimasi' }})
                     </span>
                 </p>
             @endif

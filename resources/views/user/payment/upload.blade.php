@@ -16,21 +16,41 @@
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
         <h2 class="font-bold text-gray-900 mb-4">Transfer ke DANA</h2>
 
+        {{-- Card Gradien DANA --}}
         <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 mb-5 text-white">
-            <div class="flex items-center gap-4 mb-4">
-                <div class="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
+
+            {{-- QR Barcode DANA --}}
+            <div class="flex flex-col sm:flex-row items-center gap-5 mb-4">
+                {{-- QR Code --}}
+                <div class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-lg">
+                    @if(!empty($danaQrImage) && \Illuminate\Support\Facades\Storage::disk('public')->exists($danaQrImage))
+                        <img src="{{ \Illuminate\Support\Facades\Storage::url($danaQrImage) }}"
+                             class="w-32 h-32 object-contain rounded-lg" alt="QR Code DANA">
+                    @else
+                        {{-- Auto-generate QR via qrserver.com --}}
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=128x128&data={{ urlencode($danaNumber) }}&bgcolor=ffffff&color=1e40af&qzone=1"
+                             class="w-32 h-32 rounded-lg" alt="QR Code DANA" loading="lazy">
+                    @endif
+                    <p class="text-center text-[10px] text-blue-600 font-semibold mt-1.5">Scan dengan DANA</p>
                 </div>
-                <div>
-                    <p class="text-blue-200 text-xs font-medium mb-0.5">Nomor DANA</p>
-                    <p class="text-2xl font-bold tracking-wider">{{ $danaNumber }}</p>
+
+                {{-- Info Nomor --}}
+                <div class="flex-1 text-center sm:text-left">
+                    <p class="text-blue-200 text-xs font-medium mb-1">Nomor DANA</p>
+                    <p class="text-2xl sm:text-3xl font-bold tracking-widest mb-1">{{ $danaNumber }}</p>
+                    <p class="text-blue-200 text-sm">a/n <strong class="text-white">{{ $danaName }}</strong></p>
+
+                    {{-- Copy button --}}
+                    <button onclick="navigator.clipboard.writeText('{{ $danaNumber }}').then(()=>{ this.textContent='✓ Tersalin!'; setTimeout(()=>this.textContent='Salin Nomor',2000) })"
+                            class="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        Salin Nomor
+                    </button>
                 </div>
             </div>
-            <p class="text-blue-200 text-sm">a/n <strong class="text-white">{{ $danaName }}</strong></p>
         </div>
 
+        {{-- Total & Kode --}}
         <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4 mb-5">
             <div>
                 <p class="text-xs text-gray-400 mb-0.5">Total yang harus dibayar</p>
@@ -42,6 +62,7 @@
             </div>
         </div>
 
+        {{-- Petunjuk --}}
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <div class="flex items-start gap-3">
                 <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -51,7 +72,8 @@
                     <p class="font-semibold mb-2">Petunjuk Pembayaran:</p>
                     <ol class="list-decimal list-inside space-y-1 text-amber-700 text-xs">
                         <li>Buka aplikasi DANA di HP Anda</li>
-                        <li>Transfer ke nomor di atas sesuai nominal</li>
+                        <li>Tap <strong>Kirim Uang</strong> → masukkan nomor atau scan QR</li>
+                        <li>Masukkan nominal sesuai total pesanan</li>
                         <li>Screenshot bukti transfer</li>
                         <li>Upload bukti di form di bawah ini</li>
                     </ol>
@@ -60,7 +82,7 @@
         </div>
     </div>
 
-    {{-- Form Upload --}}
+    {{-- Form Upload Bukti --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <h2 class="font-bold text-gray-900 mb-5">Form Upload Bukti</h2>
 
@@ -93,14 +115,41 @@
                 </div>
             </div>
 
-            <div x-data="{ preview: null }" class="relative">
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Foto Bukti Transfer <span class="text-red-500">*</span></label>
-                <input type="file" name="proof_image" accept="image/*" required
-                    @change="preview = URL.createObjectURL($event.target.files[0])"
-                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
-                <p class="text-xs text-gray-400 mt-1">Format JPG, PNG, WEBP. Maks 2MB.</p>
-                <div x-show="preview" class="mt-3">
-                    <img :src="preview" class="max-h-40 rounded-xl border border-gray-200 shadow-sm" alt="Preview bukti">
+            {{-- Upload file bukti dengan styling warna jelas --}}
+            <div x-data="{ preview: null, fileName: '' }">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Foto Bukti Transfer <span class="text-red-500">*</span></label>
+                <div class="relative border-2 border-dashed border-blue-300 bg-blue-50 rounded-2xl p-6 text-center hover:border-blue-500 hover:bg-blue-100/50 transition-all cursor-pointer"
+                     @click="$refs.proofInput.click()"
+                     :class="preview ? 'border-green-400 bg-green-50' : 'border-blue-300 bg-blue-50'">
+
+                    <template x-if="preview">
+                        <div class="space-y-3">
+                            <img :src="preview" class="max-h-48 mx-auto rounded-xl shadow-sm border border-gray-200">
+                            <div class="flex items-center justify-center gap-2 text-green-700">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                <span class="text-sm font-semibold" x-text="fileName"></span>
+                            </div>
+                            <p class="text-xs text-blue-600 font-medium">Klik untuk ganti foto</p>
+                        </div>
+                    </template>
+
+                    <template x-if="!preview">
+                        <div class="space-y-3">
+                            <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto">
+                                <svg class="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-blue-700">Klik untuk upload screenshot transfer</p>
+                                <p class="text-xs text-blue-500 mt-0.5">JPG, PNG, WEBP — Maks 2MB</p>
+                            </div>
+                        </div>
+                    </template>
+
+                    <input type="file" x-ref="proofInput" name="proof_image" accept="image/*" required class="hidden"
+                           @change="
+                               const f = $event.target.files[0];
+                               if(f){ fileName = f.name; preview = URL.createObjectURL(f); }
+                           ">
                 </div>
             </div>
 

@@ -40,8 +40,9 @@ return [
     ],
 
     'dana' => [
-        'number' => env('DANA_NUMBER', ''),
-        'name'   => env('DANA_NAME', ''),
+        'number'   => env('DANA_NUMBER', ''),
+        'name'     => env('DANA_NAME', ''),
+        'qr_image' => env('DANA_QR_IMAGE', ''), // path ke file QR di storage/public, kosong = auto-generate
     ],
 
     'fonnte' => [

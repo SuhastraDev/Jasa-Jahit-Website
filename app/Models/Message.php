@@ -14,11 +14,21 @@ class Message extends Model
         'is_read',
     ];
 
+    protected $appends = ['formatted_time'];
+
     protected function casts(): array
     {
         return [
             'is_read' => 'boolean',
         ];
+    }
+
+    /**
+     * Waktu sudah diformat di server agar tidak tergantung timezone JS.
+     */
+    public function getFormattedTimeAttribute(): string
+    {
+        return $this->created_at->timezone(config('app.timezone', 'Asia/Jakarta'))->format('H:i');
     }
 
     public function chat()

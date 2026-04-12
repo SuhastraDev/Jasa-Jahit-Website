@@ -25,7 +25,14 @@ class ChatController extends Controller
              ->where('is_read', false)
              ->update(['is_read' => true]);
 
-        return view('user.chat.index', compact('chat'));
+        // Status admin untuk render awal (hindari flicker "Offline")
+        $admin          = User::where('role', 'admin')->orderByDesc('last_seen_at')->first();
+        $adminOnline    = $admin?->isOnline() ?? false;
+        $adminLastSeen  = (!$adminOnline && $admin?->last_seen_at)
+                            ? $admin->last_seen_at->diffForHumans()
+                            : null;
+
+        return view('user.chat.index', compact('chat', 'adminOnline', 'adminLastSeen'));
     }
 
     /**

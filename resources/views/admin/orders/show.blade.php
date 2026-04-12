@@ -375,25 +375,28 @@
 
             {{-- Form Input Resi Pengiriman (hanya saat status done atau shipped) --}}
             @if(in_array($order->status, ['done', 'shipped']))
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center">
-                        <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 shadow-sm p-6 mt-6">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-sm">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     </div>
                     <div>
-                        <h4 class="text-md font-bold text-gray-800">Input Resi Pengiriman</h4>
-                        <p class="text-xs text-gray-400">Pakaian selesai dijahit — masukkan nomor resi ekspedisi.</p>
+                        <h4 class="text-md font-bold text-orange-900">Input Resi Pengiriman</h4>
+                        <p class="text-xs text-orange-600">Pakaian selesai dijahit — masukkan nomor resi ekspedisi.</p>
                     </div>
                 </div>
 
                 @if($order->shipment)
-                    <div class="mb-4 p-4 border border-blue-100 bg-blue-50 rounded-lg">
-                        <p class="text-sm text-blue-800 font-medium">Resi sudah diinput.</p>
-                        <ul class="text-sm text-blue-700 mt-1 space-y-0.5">
-                            <li>Ekspedisi: <span class="font-bold uppercase">{{ $order->shipment->expedition }}</span></li>
-                            <li>Tgl Kirim: {{ $order->shipment->shipped_at->format('d M Y, H:i') }}</li>
-                            <li>No. Resi: <span class="font-mono bg-white px-2 py-0.5 rounded border border-blue-100">{{ $order->shipment->tracking_number }}</span></li>
-                        </ul>
+                    <div class="mb-5 p-4 border border-blue-200 bg-blue-50 rounded-xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            <p class="text-sm text-blue-800 font-semibold">Resi sudah diinput</p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-blue-700">
+                            <div><span class="text-xs text-blue-400 block">Ekspedisi</span><span class="font-bold uppercase">{{ $order->shipment->expedition }}</span></div>
+                            <div><span class="text-xs text-blue-400 block">Tgl Kirim</span>{{ $order->shipment->shipped_at->format('d M Y, H:i') }}</div>
+                            <div><span class="text-xs text-blue-400 block">No. Resi</span><span class="font-mono bg-white px-2 py-0.5 rounded border border-blue-100 text-xs">{{ $order->shipment->tracking_number }}</span></div>
+                        </div>
                     </div>
                 @endif
 
@@ -401,8 +404,8 @@
                     @csrf
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Pilih Ekspedisi</label>
-                            <select name="expedition" class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                            <label class="block text-sm font-semibold text-orange-800 mb-1.5">Pilih Ekspedisi</label>
+                            <select name="expedition" class="w-full rounded-xl border-orange-200 bg-white text-sm focus:border-orange-500 focus:ring-orange-500">
                                 <option value="jne" {{ optional($order->shipment)->expedition === 'jne' ? 'selected' : '' }}>JNE</option>
                                 <option value="pos" {{ optional($order->shipment)->expedition === 'pos' ? 'selected' : '' }}>POS Indonesia</option>
                                 <option value="tiki" {{ optional($order->shipment)->expedition === 'tiki' ? 'selected' : '' }}>TIKI</option>
@@ -411,17 +414,20 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nomor Resi</label>
+                            <label class="block text-sm font-semibold text-orange-800 mb-1.5">Nomor Resi</label>
                             <input type="text" name="tracking_number" value="{{ optional($order->shipment)->tracking_number }}" required
-                                   class="w-full rounded-lg border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 font-mono"
+                                   class="w-full rounded-xl border-orange-200 bg-white text-sm focus:border-orange-500 focus:ring-orange-500 font-mono"
                                    placeholder="Contoh: 1234567890">
                         </div>
                     </div>
 
                     <div class="flex justify-end">
                         <button type="submit"
-                                class="px-6 py-2.5 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors">
-                            {{ $order->shipment ? 'Update Resi' : 'Simpan Resi & Kirim' }}
+                                class="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-colors shadow-sm">
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                                {{ $order->shipment ? 'Update Resi' : 'Simpan Resi & Kirim' }}
+                            </span>
                         </button>
                     </div>
                 </form>

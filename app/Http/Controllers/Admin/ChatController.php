@@ -24,7 +24,10 @@ class ChatController extends Controller
                      ->orderByDesc('last_message_at')
                      ->get();
 
-        $activeChat = null;
+        $activeChat    = null;
+        $activeUserOnline   = false;
+        $activeUserLastSeen = null;
+
         if ($request->has('user_id')) {
             $activeChat = Chat::with('user')->where('user_id', $request->user_id)->first();
 
@@ -33,10 +36,15 @@ class ChatController extends Controller
                            ->where('sender_id', '!=', auth()->id())
                            ->where('is_read', false)
                            ->update(['is_read' => true]);
+
+                $activeUserOnline   = $activeChat->user->isOnline();
+                $activeUserLastSeen = (!$activeUserOnline && $activeChat->user->last_seen_at)
+                                        ? $activeChat->user->last_seen_at->diffForHumans()
+                                        : null;
             }
         }
 
-        return view('admin.chat.index', compact('chats', 'activeChat'));
+        return view('admin.chat.index', compact('chats', 'activeChat', 'activeUserOnline', 'activeUserLastSeen'));
     }
 
     /**

@@ -73,15 +73,26 @@ class Order extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'pending' => 'Menunggu Konfirmasi',
-            'confirmed' => 'Dikonfirmasi',
+            'pending'    => 'Menunggu Konfirmasi',
+            'confirmed'  => 'Dikonfirmasi',
             'processing' => 'Sedang Diproses',
-            'done' => 'Selesai Dibuat',
-            'shipped' => 'Dikirim',
-            'completed' => 'Selesai',
-            'cancelled' => 'Dibatalkan',
-            default => $this->status,
+            'done'       => $this->getDoneLabel(),
+            'shipped'    => 'Dikirim',
+            'completed'  => 'Selesai',
+            'cancelled'  => 'Dibatalkan',
+            default      => $this->status,
         };
+    }
+
+    /**
+     * Label status "done" berbeda per layanan:
+     * - Permak → "Selesai Dijahit"
+     * - Custom / lainnya → "Selesai Dibuat"
+     */
+    public function getDoneLabel(): string
+    {
+        $svc = strtolower($this->service?->name ?? '');
+        return str_contains($svc, 'permak') ? 'Selesai Dijahit' : 'Selesai Dibuat';
     }
 
     // ── Relationships ──

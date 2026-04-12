@@ -10,7 +10,7 @@
 
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col"
          style="height: calc(100vh - 220px); min-height: 480px; max-height: 700px;"
-         x-data="chatApp({{ $chat->id }}, {{ auth()->id() }})">
+         x-data="chatApp({{ $chat->id }}, {{ auth()->id() }}, {{ $adminOnline ? 'true' : 'false' }}, {{ $adminLastSeen ? json_encode($adminLastSeen) : 'null' }})">
 
         {{-- Header --}}
         <div class="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between flex-shrink-0">
@@ -34,11 +34,18 @@
             {{-- Tombol pilih / batal pilih --}}
             <div class="flex items-center gap-2">
                 <template x-if="!selectMode">
-                    <button @click="enterSelectMode"
-                            class="text-xs text-gray-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        Pilih
-                    </button>
+                    <div class="flex items-center gap-1.5">
+                        <button @click="enterSelectMode"
+                                class="text-xs text-gray-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Pilih
+                        </button>
+                        <button @click="deleteAllMyMessages" x-show="messages.filter(m => parseInt(m.sender_id) === userId).length > 0"
+                                class="text-xs text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Hapus Semua
+                        </button>
+                    </div>
                 </template>
                 <template x-if="selectMode">
                     <div class="flex items-center gap-2">
@@ -111,7 +118,7 @@
 
                             {{-- Waktu + read receipt --}}
                             <div class="flex items-center justify-end gap-1 mt-1">
-                                <span class="text-[10px] opacity-60" x-text="formatTime(msg.created_at)"></span>
+                                <span class="text-[10px] opacity-60" x-text="msg.formatted_time"></span>
                                 <template x-if="parseInt(msg.sender_id) === userId">
                                     {{-- Double check = dibaca, single = terkirim --}}
                                     <template x-if="msg.is_read">
@@ -205,7 +212,7 @@
 </script>
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('chatApp', (chatId, currentUserId) => ({
+        Alpine.data('chatApp', (chatId, currentUserId, initAdminOnline, initAdminLastSeen) => ({
             chatId: chatId,
             userId: parseInt(currentUserId),
             messages: window.initialMessages || [],
@@ -220,15 +227,15 @@
             selectMode: false,
             selectedIds: [],
 
-            // Admin status
-            adminOnline: false,
-            adminLastSeen: null,
+            // Admin status — seeded from PHP for no flicker
+            adminOnline: initAdminOnline,
+            adminLastSeen: initAdminLastSeen,
 
             init() {
                 this.scrollToBottom();
                 this.pollInterval = setInterval(() => this.fetchMessages(), 3000);
                 this.fetchAdminStatus();
-                this.statusInterval = setInterval(() => this.fetchAdminStatus(), 30000);
+                this.statusInterval = setInterval(() => this.fetchAdminStatus(), 15000);
             },
 
             destroy() {
@@ -241,11 +248,6 @@
                     const box = this.$refs.chatbox;
                     if (box) box.scrollTop = box.scrollHeight;
                 }, 50);
-            },
-
-            formatTime(dateString) {
-                const date = new Date(dateString);
-                return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
             },
 
             showDateSeparator(index) {
@@ -407,6 +409,28 @@
                         const deleted = new Set(this.selectedIds);
                         this.messages = this.messages.filter(m => !deleted.has(m.id));
                         this.exitSelectMode();
+                    }
+                } catch(e) { alert('Gagal menghapus pesan'); }
+            },
+
+            // === Hapus semua pesan milik sendiri ===
+            async deleteAllMyMessages() {
+                const myIds = this.messages.filter(m => parseInt(m.sender_id) === this.userId).map(m => m.id);
+                if (myIds.length === 0) return;
+                if (!confirm(`Hapus semua ${myIds.length} pesan Anda?`)) return;
+                try {
+                    const res = await fetch('/chat/messages', {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ ids: myIds })
+                    });
+                    if (res.ok) {
+                        this.messages = this.messages.filter(m => parseInt(m.sender_id) !== this.userId);
                     }
                 } catch(e) { alert('Gagal menghapus pesan'); }
             }

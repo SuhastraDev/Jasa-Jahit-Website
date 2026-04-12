@@ -37,10 +37,11 @@ class PaymentController extends Controller
                 ->with('info', 'Harga pesanan belum ditentukan oleh admin. Silakan tunggu.');
         }
 
-        $danaNumber = config('services.dana.number');
-        $danaName = config('services.dana.name');
+        $danaNumber  = config('services.dana.number');
+        $danaName    = config('services.dana.name');
+        $danaQrImage = config('services.dana.qr_image'); // path relatif ke storage/public
 
-        return view('user.payment.upload', compact('order', 'danaNumber', 'danaName'));
+        return view('user.payment.upload', compact('order', 'danaNumber', 'danaName', 'danaQrImage'));
     }
 
     /**

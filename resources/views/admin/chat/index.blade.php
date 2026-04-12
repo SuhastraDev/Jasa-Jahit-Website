@@ -15,6 +15,13 @@
                 <div class="p-4 border-b border-gray-200 bg-white flex-shrink-0">
                     <h3 class="font-bold text-gray-800">Pesan Pelanggan</h3>
                     <p class="text-xs text-gray-400 mt-0.5">Pilih pelanggan untuk membalas</p>
+                    {{-- Search Filter --}}
+                    <div class="mt-3 relative">
+                        <input type="text" id="chat-search" placeholder="Cari nama pelanggan..."
+                               class="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 bg-gray-50"
+                               oninput="filterChats(this.value)">
+                        <svg class="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
                 </div>
 
                 <div class="flex-1 overflow-y-auto" id="chat-list-container">
@@ -65,7 +72,7 @@
                         {{ $activeChat ? 'flex flex-1' : 'hidden md:flex md:flex-1' }}">
 
                 @if($activeChat)
-                    <div class="flex flex-col h-full" x-data="adminChat({{ $activeChat->id }})">
+                    <div class="flex flex-col h-full" x-data="adminChat({{ $activeChat->id }}, {{ $activeUserOnline ? 'true' : 'false' }}, {{ $activeUserLastSeen ? json_encode($activeUserLastSeen) : 'null' }})">
 
                         {{-- Header --}}
                         <div class="px-4 sm:px-6 py-3.5 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm z-10 flex-shrink-0">
@@ -91,11 +98,18 @@
                             {{-- Tombol pilih / hapus --}}
                             <div class="flex items-center gap-2 flex-shrink-0">
                                 <template x-if="!selectMode">
-                                    <button @click="enterSelectMode"
-                                            class="text-xs text-gray-500 hover:text-blue-600 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                                        Pilih
-                                    </button>
+                                    <div class="flex items-center gap-1.5">
+                                        <button @click="enterSelectMode"
+                                                class="text-xs text-gray-500 hover:text-blue-600 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                            Pilih
+                                        </button>
+                                        <button @click="deleteAllMessages" x-show="messages.length > 0"
+                                                class="text-xs text-red-400 hover:text-red-600 px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            Hapus Semua
+                                        </button>
+                                    </div>
                                 </template>
                                 <template x-if="selectMode">
                                     <div class="flex items-center gap-2">
@@ -149,7 +163,7 @@
                                             {{-- Waktu + read receipt --}}
                                             <div class="flex items-center mt-1 gap-1"
                                                  :class="parseInt(msg.sender_id) === {{ (int) auth()->id() }} ? 'justify-end' : 'justify-start'">
-                                                <span class="text-[10px] opacity-60" x-text="formatTime(msg.created_at)"></span>
+                                                <span class="text-[10px] opacity-60" x-text="msg.formatted_time"></span>
                                                 <template x-if="parseInt(msg.sender_id) === {{ (int) auth()->id() }}">
                                                     <template x-if="msg.is_read">
                                                         <svg class="w-3.5 h-3.5 text-blue-200" viewBox="0 0 16 10" fill="none">
@@ -252,6 +266,14 @@
 @endif
 
 <script>
+function filterChats(query) {
+    const q = query.toLowerCase().trim();
+    document.querySelectorAll('#chat-list-container a[data-chat-id]').forEach(el => {
+        const name = el.querySelector('.font-semibold')?.textContent?.toLowerCase() || '';
+        el.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+}
+
 function playNotificationSound() {
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -292,10 +314,15 @@ function updateSidebarUnread() {
                 }
             } else if (badge) { badge.remove(); }
 
-            // Update online dot in sidebar
-            const link = document.querySelector(`a[data-user-id="${item.user_id ?? ''}"]`);
-            // Note: user_id not in item — update via data-user-id would need extra mapping
-            // Online dots handled by separate data attribute lookup below
+            // Update online dot in sidebar using chat_id → link → dot
+            const chatLink = document.querySelector(`a[data-chat-id="${item.chat_id}"]`);
+            if (chatLink) {
+                const dot = chatLink.querySelector('.online-dot');
+                if (dot) {
+                    dot.className = dot.className.replace(/bg-green-500|bg-gray-300/g, '');
+                    dot.classList.add(item.user_online ? 'bg-green-500' : 'bg-gray-300');
+                }
+            }
         });
     }).catch(() => {});
 }
@@ -303,7 +330,7 @@ function updateSidebarUnread() {
 setInterval(updateSidebarUnread, 5000);
 
 document.addEventListener('alpine:init', () => {
-    Alpine.data('adminChat', (chatId) => ({
+    Alpine.data('adminChat', (chatId, initUserOnline, initUserLastSeen) => ({
         chatId,
         messages: window.initialMessages || [],
         newMessage: '',
@@ -317,16 +344,16 @@ document.addEventListener('alpine:init', () => {
         selectMode: false,
         selectedIds: [],
 
-        // User status
-        userOnline: false,
-        userLastSeen: null,
+        // User status — seeded from PHP for no flicker
+        userOnline: initUserOnline,
+        userLastSeen: initUserLastSeen,
 
         init() {
             this.scrollToBottom();
             this.pollInterval = setInterval(() => this.fetchMessages(), 3000);
             if (window.activeUserId) {
                 this.fetchUserStatus();
-                this.statusInterval = setInterval(() => this.fetchUserStatus(), 30000);
+                this.statusInterval = setInterval(() => this.fetchUserStatus(), 15000);
             }
         },
 
@@ -337,10 +364,6 @@ document.addEventListener('alpine:init', () => {
 
         scrollToBottom() {
             setTimeout(() => { const b = this.$refs.chatbox; if (b) b.scrollTop = b.scrollHeight; }, 50);
-        },
-
-        formatTime(d) {
-            return new Date(d).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
         },
 
         handleFileChange(e) {
@@ -448,6 +471,25 @@ document.addEventListener('alpine:init', () => {
                     this.messages = this.messages.filter(m => !deleted.has(m.id));
                     this.exitSelectMode();
                 }
+            } catch(e) { alert('Gagal menghapus pesan'); }
+        },
+
+        async deleteAllMessages() {
+            if (!this.messages.length) return;
+            if (!confirm(`Hapus semua ${this.messages.length} pesan dalam percakapan ini?`)) return;
+            const ids = this.messages.map(m => m.id);
+            try {
+                const res = await fetch(`/admin/chat/${this.chatId}/messages`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ ids })
+                });
+                if (res.ok) { this.messages = []; }
             } catch(e) { alert('Gagal menghapus pesan'); }
         }
     }));
