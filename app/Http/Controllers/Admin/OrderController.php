@@ -65,10 +65,12 @@ class OrderController extends Controller
         $request->validate([
             'status'      => 'required|in:pending,confirmed,waiting_item,item_received,processing,done,shipped,completed,cancelled',
             'note'        => 'nullable|string|max:500',
-            'total_price' => 'nullable|numeric|min:0',
+            'total_price' => 'nullable|numeric|min:1',
         ]);
 
-        if ($request->status === 'confirmed' && !$request->filled('total_price') && !$order->total_price) {
+        $price = $request->total_price ? (int) $request->total_price : null;
+
+        if ($request->status === 'confirmed' && !$price && !$order->total_price) {
             return back()
                 ->withErrors(['total_price' => 'Total harga harus diisi saat mengkonfirmasi pesanan.'])
                 ->withInput();
@@ -76,7 +78,7 @@ class OrderController extends Controller
 
         $order->update([
             'status'      => $request->status,
-            'total_price' => $request->total_price ?? $order->total_price,
+            'total_price' => $price ?? $order->total_price,
             'notes'       => $request->note ?? $order->notes,
         ]);
 

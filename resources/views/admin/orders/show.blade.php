@@ -34,10 +34,17 @@
                         <dt class="text-gray-500">No. HP</dt>
                         <dd class="text-gray-900">{{ $order->user->phone ?? '-' }}</dd>
                     </div>
+                    @if($order->address)
                     <div>
                         <dt class="text-gray-500">Alamat Pengiriman</dt>
                         <dd class="text-gray-900">{{ $order->address }}</dd>
                     </div>
+                    @elseif($serviceType === 'design')
+                    <div>
+                        <dt class="text-gray-500">Pengiriman</dt>
+                        <dd class="text-purple-600 font-medium text-sm">File digital — tidak ada pengiriman fisik</dd>
+                    </div>
+                    @endif
                     <div>
                         <dt class="text-gray-500">No. HP untuk Kurir</dt>
                         <dd class="font-semibold text-gray-900 flex items-center gap-2">
@@ -87,7 +94,17 @@
                     </div>
                     <div>
                         <dt class="text-gray-500">Jenis Layanan</dt>
-                        <dd class="text-gray-900">{{ $order->service->name }}</dd>
+                        <dd class="flex items-center gap-2 flex-wrap">
+                            <span class="text-gray-900 font-medium">{{ $order->service->name }}</span>
+                            @php
+                                $typeBadge = match($serviceType) {
+                                    'design' => ['bg-purple-100 text-purple-700', 'Desain Digital'],
+                                    'permak' => ['bg-orange-100 text-orange-700', 'Permak'],
+                                    default  => ['bg-blue-100 text-blue-700', 'Jahit Custom'],
+                                };
+                            @endphp
+                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $typeBadge[0] }}">{{ $typeBadge[1] }}</span>
+                        </dd>
                     </div>
                     @if($order->catalog)
                     <div>
@@ -207,20 +224,51 @@
                     $nextLabel = 'Konfirmasi Pesanan';
                     $nextColor = 'blue';
                     $nextIcon = 'check-circle';
-                    $nextDesc = 'Pesanan akan dikonfirmasi dan pelanggan bisa melakukan pembayaran.';
+                    $nextDesc = match($serviceType) {
+                        'design'  => 'Konfirmasi pesanan desain. Pelanggan akan membayar, lalu Anda mengerjakan file desainnya.',
+                        'permak'  => 'Konfirmasi pesanan permak. Setelah pelanggan bayar, mereka akan mengirim pakaian ke Anda.',
+                        default   => 'Konfirmasi pesanan dan tentukan harga. Pelanggan bisa langsung melakukan pembayaran.',
+                    };
                     $requiresPrice = true;
                 } elseif ($order->status === 'confirmed') {
+                    // Permak: tunggu dulu barang dari pembeli
+                    if ($serviceType === 'permak') {
+                        $nextStatus = 'processing';
+                        $nextLabel = 'Mulai Permak';
+                        $nextColor = 'indigo';
+                        $nextIcon = 'scissors';
+                        $nextDesc = 'Tandai bahwa proses permak sudah dimulai (barang sudah Anda terima & dikerjakan).';
+                    } else {
+                        $nextStatus = 'processing';
+                        $nextLabel = 'Mulai Pengerjaan';
+                        $nextColor = 'indigo';
+                        $nextIcon = 'scissors';
+                        $nextDesc = $serviceType === 'design'
+                            ? 'Tandai bahwa desain sedang dikerjakan.'
+                            : 'Tandai bahwa proses penjahitan sudah dimulai.';
+                    }
+                } elseif ($order->status === 'item_received') {
                     $nextStatus = 'processing';
-                    $nextLabel = 'Mulai Pengerjaan';
+                    $nextLabel = 'Mulai Permak';
                     $nextColor = 'indigo';
                     $nextIcon = 'scissors';
-                    $nextDesc = 'Tandai bahwa proses penjahitan sudah dimulai.';
+                    $nextDesc = 'Barang sudah diterima. Tandai bahwa proses permak sudah dimulai.';
                 } elseif ($order->status === 'processing') {
                     $nextStatus = 'done';
-                    $nextLabel = 'Selesai Dijahit';
+                    $nextLabel = $serviceType === 'design' ? 'Upload File Desain' : ($serviceType === 'permak' ? 'Permak Selesai' : 'Selesai Dijahit');
                     $nextColor = 'purple';
                     $nextIcon = 'check';
-                    $nextDesc = 'Pakaian sudah selesai dibuat dan siap untuk dikirim.';
+                    $nextDesc = $serviceType === 'design'
+                        ? 'Upload file desain untuk pelanggan via panel di bawah. Status otomatis berubah ke selesai.'
+                        : ($serviceType === 'permak' ? 'Tandai permak selesai. Selanjutnya kirim balik ke pelanggan.' : 'Pakaian sudah selesai dibuat dan siap untuk dikirim.');
+                } elseif ($order->status === 'done' && $serviceType !== 'design') {
+                    $nextStatus = 'shipped';
+                    $nextLabel = 'Tandai Sudah Dikirim';
+                    $nextColor = 'orange';
+                    $nextIcon = 'truck';
+                    $nextDesc = $serviceType === 'permak'
+                        ? 'Tandai pakaian sudah dikirim kembali ke pelanggan.'
+                        : 'Tandai bahwa pakaian sudah dikirimkan ke pelanggan.';
                 } elseif ($order->status === 'shipped') {
                     $nextStatus = 'completed';
                     $nextLabel = 'Tandai Pesanan Selesai';
@@ -258,6 +306,7 @@
                                     'indigo' => 'bg-indigo-600 hover:bg-indigo-700 text-white',
                                     'purple' => 'bg-purple-600 hover:bg-purple-700 text-white',
                                     'green'  => 'bg-green-600 hover:bg-green-700 text-white',
+                                    'orange' => 'bg-orange-500 hover:bg-orange-600 text-white',
                                 ];
                             @endphp
                             class="w-full flex items-center justify-between px-5 py-3 rounded-xl font-semibold text-sm transition-colors {{ $btnColors[$nextColor] ?? 'bg-blue-600 hover:bg-blue-700 text-white' }}">
@@ -266,6 +315,8 @@
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 @elseif($nextIcon === 'scissors')
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
+                                @elseif($nextIcon === 'truck')
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h4l2.68 13.39a2 2 0 001.95 1.61h9.72a2 2 0 001.95-1.61L23 6H6"/></svg>
                                 @else
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                 @endif
