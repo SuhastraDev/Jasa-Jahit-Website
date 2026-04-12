@@ -32,6 +32,8 @@ class Order extends Model
         'status',
         'total_price',
         'notes',
+        'revision_count',
+        'revision_note',
     ];
 
     /**

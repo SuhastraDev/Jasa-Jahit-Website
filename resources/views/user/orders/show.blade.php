@@ -499,43 +499,56 @@
                 <p class="text-xs text-center text-gray-400 mt-2">File sudah sesuai? Klik tombol di atas.</p>
 
                 {{-- Tombol Minta Revisi --}}
-                @if($order->revision_count < 3)
-                <div class="mt-3 border-t border-purple-100 pt-3" x-data="{ openRevisi: false }">
+                <div class="mt-4 pt-4 border-t border-purple-100" x-data="{ openRevisi: false }">
+                    @if($order->revision_count < 3)
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs text-gray-500">File belum sesuai?</p>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full
+                            {{ $order->revision_count === 0 ? 'bg-green-100 text-green-700' : ($order->revision_count === 2 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700') }}">
+                            Sisa revisi: {{ 3 - $order->revision_count }}x
+                        </span>
+                    </div>
                     <button type="button" @click="openRevisi = !openRevisi"
-                            class="w-full flex items-center justify-center gap-2 px-6 py-2.5 border border-pink-300 text-pink-600 bg-pink-50 rounded-xl font-semibold text-sm hover:bg-pink-100 transition-colors">
+                            class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-colors border-2"
+                            :class="openRevisi ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-pink-600 border-pink-300 hover:bg-pink-50'">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Minta Revisi (sisa {{ 3 - $order->revision_count }}x)
+                        <span x-text="openRevisi ? 'Tutup Form Revisi' : 'Minta Revisi'"></span>
                     </button>
-                    <div x-show="openRevisi" x-collapse class="mt-3">
-                        <form action="{{ route('user.orders.requestRevision', $order) }}" method="POST" class="space-y-3">
+
+                    <div x-show="openRevisi" x-collapse>
+                        <form action="{{ route('user.orders.requestRevision', $order) }}" method="POST" class="mt-3 space-y-3">
                             @csrf
-                            <div class="bg-pink-50 border border-pink-200 rounded-xl p-3">
-                                <p class="text-xs text-pink-700 font-semibold mb-1">Apa yang perlu direvisi?</p>
-                                <p class="text-xs text-pink-500">Jelaskan secara spesifik agar admin bisa memperbaikinya dengan tepat.</p>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+                                    Apa yang perlu direvisi? <span class="text-red-500">*</span>
+                                </label>
+                                <textarea name="revision_note" rows="4" required
+                                          class="w-full rounded-xl border border-gray-300 text-sm focus:border-pink-400 focus:ring-2 focus:ring-pink-200 resize-none px-4 py-3"
+                                          placeholder="Jelaskan secara spesifik, contoh: Warna terlalu gelap, mohon diganti ke biru muda. Logo di dada kiri perlu diperbesar 20%.">{{ old('revision_note') }}</textarea>
+                                @error('revision_note')
+                                    <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                                @enderror
+                                <p class="text-xs text-gray-400 mt-1">Semakin spesifik catatan Anda, semakin cepat revisi selesai.</p>
                             </div>
-                            <textarea name="revision_note" rows="3" required
-                                      class="w-full rounded-xl border-pink-200 text-sm focus:border-pink-400 focus:ring-pink-400 resize-none"
-                                      placeholder="Contoh: Warna baju terlalu gelap, mohon diganti ke warna biru muda. Logo di dada kiri perlu diperbesar 20%."></textarea>
-                            @error('revision_note')
-                                <p class="text-xs text-red-500">{{ $message }}</p>
-                            @enderror
-                            <div class="flex gap-2">
-                                <button type="submit"
-                                        class="flex-1 px-4 py-2.5 bg-pink-600 text-white rounded-xl font-semibold text-sm hover:bg-pink-700 transition-colors"
-                                        onclick="return confirm('Kirim permintaan revisi? Sisa revisi akan berkurang 1.')">
-                                    Kirim Permintaan Revisi
-                                </button>
-                                <button type="button" @click="openRevisi = false"
-                                        class="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                                    Batal
-                                </button>
-                            </div>
+                            <button type="submit"
+                                    class="w-full flex items-center justify-center gap-2 px-5 py-3 bg-pink-600 text-white rounded-xl font-bold text-sm hover:bg-pink-700 active:bg-pink-800 transition-colors shadow-sm"
+                                    onclick="return confirm('Kirim permintaan revisi? Kuota revisi akan berkurang 1.')">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                                Kirim Permintaan Revisi
+                            </button>
+                            <button type="button" @click="openRevisi = false"
+                                    class="w-full px-5 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+                                Batal
+                            </button>
                         </form>
                     </div>
+                    @else
+                    <div class="flex items-center gap-2 px-4 py-3 bg-red-50 rounded-xl border border-red-200">
+                        <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <p class="text-xs text-red-600 font-medium">Batas 3 revisi tercapai. Konfirmasi file atau hubungi admin via chat.</p>
+                    </div>
+                    @endif
                 </div>
-                @else
-                <p class="text-xs text-center text-red-400 mt-3">Batas revisi sudah tercapai (3/3). Silakan konfirmasi atau hubungi admin via chat.</p>
-                @endif
             </div>
             @endif
 
