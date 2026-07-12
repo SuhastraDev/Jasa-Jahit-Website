@@ -32,26 +32,6 @@
         catalogs: {{ Js::from($catalogs) }},
         sizeMethod: '{{ old('measurement_id') ? 'cv' : (old('manual_chest') ? 'manual' : 'cv') }}',
         selectedMeasurementId: '{{ old('measurement_id', $measurements->first()?->id ?? '') }}',
-        selectedStdSize: '',
-        stdSizes: {
-            'S':    { chest: 88,  waist: 72, hips: 90,  shoulder_width: 41, arm_length: 57, height: 160 },
-            'M':    { chest: 92,  waist: 76, hips: 94,  shoulder_width: 43, arm_length: 58, height: 165 },
-            'L':    { chest: 96,  waist: 80, hips: 98,  shoulder_width: 45, arm_length: 59, height: 168 },
-            'XL':   { chest: 100, waist: 84, hips: 102, shoulder_width: 47, arm_length: 60, height: 170 },
-            'XXL':  { chest: 104, waist: 88, hips: 106, shoulder_width: 49, arm_length: 61, height: 173 },
-            'XXXL': { chest: 108, waist: 92, hips: 110, shoulder_width: 51, arm_length: 62, height: 175 },
-        },
-        applyStdSize(size) {
-            this.selectedStdSize = size;
-            const s = this.stdSizes[size];
-            if (!s) return;
-            this.$nextTick(() => {
-                ['chest','waist','hips','shoulder_width','arm_length','height'].forEach(f => {
-                    const el = document.getElementById('manual_' + f);
-                    if (el) { el.value = s[f]; el.dispatchEvent(new Event('input')); }
-                });
-            });
-        },
 
         filteredCatalogs() {
             if (!this.selectedService) return [];
@@ -181,7 +161,7 @@
                         <div class="sm:col-span-2">
                             <label for="clothing_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Jenis Pakaian <span class="text-red-500">*</span></label>
                             <div class="flex flex-wrap gap-2 mb-2">
-                                @foreach(['Kemeja', 'Gaun', 'Blazer', 'Celana', 'Rok', 'Batik', 'Kebaya', 'Jas', 'Gamis', 'Lainnya'] as $type)
+                                @foreach(['Kemeja', 'Baju Dinas', 'Baju Sekolah', 'Baju Koko', 'Kebaya', 'Gamis', 'Celana Kain', 'Rok Kain'] as $type)
                                 <button type="button"
                                         @click="$el.closest('.sm\\:col-span-2').querySelector('#clothing_type').value = '{{ $type }}'; $el.closest('.flex').querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-600','text-white','border-blue-600')); $el.classList.add('bg-blue-600','text-white','border-blue-600');"
                                         class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors {{ old('clothing_type') === $type ? 'bg-blue-600 text-white border-blue-600' : '' }}">
@@ -192,7 +172,7 @@
                             <input type="text" name="clothing_type" id="clothing_type"
                                    value="{{ old('clothing_type') }}"
                                    class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm @error('clothing_type') border-red-400 @enderror"
-                                   placeholder="Atau ketik manual, contoh: Baju Koko, Dress Pesta...">
+                                   placeholder="Contoh: Baju Koko, Kebaya, Celana Kain...">
                             @error('clothing_type')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 
@@ -227,7 +207,7 @@
                                    class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
                                    placeholder="Misal: Katun, Linen, Silk, Brokat...">
                             <div class="flex flex-wrap gap-1.5 mt-2">
-                                @foreach(['Katun','Linen','Silk','Sifon','Brokat','Jersey','Denim','Polyester'] as $mat)
+                                @foreach(['Katun','Linen','Silk','Sifon','Brokat','Jersey','Wool','Polyester'] as $mat)
                                 <button type="button"
                                         @click="document.getElementById('material').value = '{{ $mat }}'"
                                         class="px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
@@ -363,33 +343,9 @@
                         {{-- Opsi Manual --}}
                         <div x-show="sizeMethod === 'manual'" x-transition x-cloak>
 
-                            {{-- Pilihan Ukuran Standar --}}
-                            <div class="mb-4">
-                                <p class="text-xs font-semibold text-gray-600 mb-2">Pilih Ukuran Standar <span class="text-gray-400 font-normal">(opsional — otomatis isi cm, bisa diedit)</span></p>
-                                <div class="flex flex-wrap gap-2">
-                                    @foreach(['S','M','L','XL','XXL','XXXL'] as $sz)
-                                    <button type="button"
-                                            @click="applyStdSize('{{ $sz }}')"
-                                            :class="selectedStdSize === '{{ $sz }}'
-                                                ? 'bg-purple-600 text-white border-purple-600 ring-2 ring-purple-300'
-                                                : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400 hover:text-purple-700'"
-                                            class="px-4 py-1.5 rounded-lg border text-sm font-bold transition-all">
-                                        {{ $sz }}
-                                    </button>
-                                    @endforeach
-                                    <button type="button"
-                                            @click="selectedStdSize = ''; ['manual_chest','manual_waist','manual_hips','manual_shoulder_width','manual_arm_length','manual_height'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; })"
-                                            x-show="selectedStdSize !== ''"
-                                            class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-400 hover:text-red-500 hover:border-red-300 transition-all">
-                                        Reset
-                                    </button>
-                                </div>
-                                <p class="text-[11px] text-gray-400 mt-1.5">Ukuran standar Indonesia. Nilai cm bisa Anda ubah sesuai kebutuhan.</p>
-                            </div>
-
                             <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2.5">
                                 <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-                                <p class="text-xs text-amber-800">Nilai di bawah otomatis terisi dari pilihan ukuran di atas. Anda bisa ubah manual jika perlu. Dada & Pinggang wajib diisi.</p>
+                                <p class="text-xs text-amber-800">Masukkan ukuran badan dalam sentimeter. Sistem tidak memakai ukuran standar S/M/L/XL untuk layanan custom.</p>
                             </div>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 @foreach([
@@ -406,7 +362,6 @@
                                     </label>
                                     <div class="flex items-center gap-1.5">
                                         <input type="number" step="0.5" name="{{ $name }}" id="{{ $name }}" value="{{ old($name) }}"
-                                               @input="if(selectedStdSize && $el.value != stdSizes[selectedStdSize]?.{{ $key }}) selectedStdSize = ''"
                                                class="flex-1 min-w-0 bg-white rounded-lg border-gray-200 text-sm font-semibold focus:border-purple-500 focus:ring-purple-500"
                                                placeholder="0">
                                         <span class="text-xs text-gray-400 flex-shrink-0">{{ $unit }}</span>

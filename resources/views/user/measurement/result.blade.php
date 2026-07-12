@@ -12,40 +12,32 @@
         <p class="text-gray-500 text-sm mt-1">Periksa dan edit nilai ukuran sebelum menyimpan.</p>
     </div>
 
-    {{-- Size Badge + Confidence --}}
+    {{-- Measurement summary + confidence --}}
     @php
         $isGood = $confidence >= 0.7;
         $chestVal = floatval($data['chest'] ?? 0);
-        if ($chestVal <= 88) $sizeLabel = 'S';
-        elseif ($chestVal <= 96) $sizeLabel = 'M';
-        elseif ($chestVal <= 104) $sizeLabel = 'L';
-        elseif ($chestVal <= 112) $sizeLabel = 'XL';
-        elseif ($chestVal <= 120) $sizeLabel = 'XXL';
-        else $sizeLabel = 'XXXL';
+        $waistVal = floatval($data['waist'] ?? 0);
+        $hipsVal = floatval($data['hips'] ?? 0);
     @endphp
 
-    {{-- Ukuran Baju --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 flex items-center justify-between">
-        <div>
-            <p class="text-sm font-semibold text-gray-700">Estimasi Ukuran Baju</p>
-            <p class="text-xs text-gray-400 mt-0.5">Berdasarkan lingkar dada {{ number_format($chestVal, 1) }} cm</p>
-        </div>
-        <div class="text-center bg-blue-50 rounded-2xl px-6 py-2 border border-blue-100">
-            <div class="text-4xl font-black text-blue-600">{{ $sizeLabel }}</div>
-        </div>
-    </div>
-
-    {{-- Panduan Ukuran --}}
-    <div class="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6">
-        <p class="text-xs font-semibold text-gray-500 mb-2">Panduan Ukuran (lingkar dada)</p>
-        <div class="flex flex-wrap gap-2">
-            @foreach(['S' => '≤88', 'M' => '89–96', 'L' => '97–104', 'XL' => '105–112', 'XXL' => '113–120', 'XXXL' => '>120'] as $sz => $range)
-            <div class="bg-white rounded-xl px-3 py-1.5 text-center border {{ $sz === $sizeLabel ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200' }}">
-                <div class="text-sm font-black {{ $sz === $sizeLabel ? 'text-blue-600' : 'text-gray-500' }}">{{ $sz }}</div>
-                <div class="text-[10px] text-gray-400">{{ $range }}cm</div>
+    {{-- Ringkasan ukuran pokok --}}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+        <p class="text-sm font-semibold text-gray-700 mb-3">Ringkasan Ukuran Pokok</p>
+        <div class="grid grid-cols-3 gap-3">
+            <div class="bg-blue-50 rounded-xl border border-blue-100 p-3 text-center">
+                <p class="text-[11px] text-blue-500 font-semibold mb-1">Dada</p>
+                <p class="text-xl font-black text-blue-700">{{ number_format($chestVal, 1) }}<span class="text-xs font-semibold"> cm</span></p>
             </div>
-            @endforeach
+            <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-3 text-center">
+                <p class="text-[11px] text-emerald-500 font-semibold mb-1">Pinggang</p>
+                <p class="text-xl font-black text-emerald-700">{{ number_format($waistVal, 1) }}<span class="text-xs font-semibold"> cm</span></p>
+            </div>
+            <div class="bg-violet-50 rounded-xl border border-violet-100 p-3 text-center">
+                <p class="text-[11px] text-violet-500 font-semibold mb-1">Pinggul</p>
+                <p class="text-xl font-black text-violet-700">{{ number_format($hipsVal, 1) }}<span class="text-xs font-semibold"> cm</span></p>
+            </div>
         </div>
+        <p class="text-xs text-gray-400 mt-3">Sistem menyimpan hasil estimasi ukuran badan dalam sentimeter untuk kebutuhan pola pokok jahit custom, bukan ukuran standar S/M/L/XL.</p>
     </div>
 
     {{-- Confidence badge --}}

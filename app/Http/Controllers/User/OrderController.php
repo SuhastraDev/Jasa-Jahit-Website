@@ -12,6 +12,7 @@ use App\Models\Service;
 use App\Models\Catalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
@@ -49,12 +50,22 @@ class OrderController extends Controller
         $service = Service::findOrFail($request->service_id);
         $isDesign = $service->type === 'design';
         $isPermak = $service->type === 'permak';
+        $allowedClothingTypes = [
+            'Kemeja',
+            'Baju Dinas',
+            'Baju Sekolah',
+            'Baju Koko',
+            'Kebaya',
+            'Gamis',
+            'Celana Kain',
+            'Rok Kain',
+        ];
 
         $request->validate([
             'service_id'        => 'required|exists:services,id',
-            'clothing_type'     => 'required|string|max:100',
+            'clothing_type'     => ['required', 'string', 'max:100', Rule::in($allowedClothingTypes)],
             'color'             => 'nullable|string|max:100',
-            'material'          => 'nullable|string|max:100',
+            'material'          => ['nullable', 'string', 'max:100', 'not_regex:/\b(denim|jeans|jean)\b/i'],
             'description'       => 'nullable|string|max:1000',
             'catalog_id'        => 'nullable|exists:catalogs,id',
             'measurement_id'    => 'nullable|exists:measurements,id',
