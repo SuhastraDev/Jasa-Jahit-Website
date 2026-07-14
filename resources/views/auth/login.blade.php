@@ -128,6 +128,48 @@
                 </div>
             @endif
 
+            <div class="mb-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                        <p class="text-sm font-bold text-blue-950">Akun demo untuk uji coba</p>
+                        <p class="text-xs text-blue-700 mt-0.5">Klik salah satu akun untuk mengisi form login otomatis.</p>
+                    </div>
+                    <span class="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-blue-700 border border-blue-100">Demo</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button type="button"
+                        onclick="document.getElementById('email').value='admin@zrinttailor.com'; document.getElementById('password').value='password123'; document.getElementById('email').dispatchEvent(new Event('input', { bubbles: true }));"
+                        class="group text-left rounded-xl border border-white bg-white p-3 shadow-sm hover:border-blue-200 hover:shadow-md transition-all">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5.121 17.804A8.96 8.96 0 0112 15c2.21 0 4.236.8 5.803 2.129M15 11a3 3 0 11-6 0 3 3 0 016 0zm4-7H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-gray-900">Admin</p>
+                                <p class="text-xs text-gray-500 truncate">admin@zrinttailor.com</p>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-[11px] font-semibold text-blue-700">Password: password123</p>
+                    </button>
+
+                    <button type="button"
+                        onclick="document.getElementById('email').value='demo@zrinttailor.com'; document.getElementById('password').value='password123'; document.getElementById('email').dispatchEvent(new Event('input', { bubbles: true }));"
+                        class="group text-left rounded-xl border border-white bg-white p-3 shadow-sm hover:border-blue-200 hover:shadow-md transition-all">
+                        <div class="flex items-center gap-3">
+                            <div class="h-10 w-10 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M16 11c1.657 0 3-1.567 3-3.5S17.657 4 16 4s-3 1.567-3 3.5S14.343 11 16 11zM8 11c1.657 0 3-1.567 3-3.5S9.657 4 8 4 5 5.567 5 7.5 6.343 11 8 11zm0 2c-2.667 0-5 1.333-5 3v2h10v-2c0-1.667-2.333-3-5-3zm8 0c-.516 0-1.015.05-1.482.145A4.228 4.228 0 0116 16v2h5v-2c0-1.667-2.333-3-5-3z"/></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-gray-900">Pelanggan</p>
+                                <p class="text-xs text-gray-500 truncate">demo@zrinttailor.com</p>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-[11px] font-semibold text-blue-700">Password: password123</p>
+                    </button>
+                </div>
+            </div>
+
             <form method="POST" action="{{ route('login') }}" class="space-y-5">
                 @csrf
 

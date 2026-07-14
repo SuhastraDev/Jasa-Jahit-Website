@@ -17,7 +17,7 @@ Yang diuji:
 
 - Login pelanggan demo.
 - Akses halaman ukur badan berbasis Computer Vision.
-- Form upload foto full body dan benda referensi.
+- Form upload foto depan, samping, belakang, dan marker kalibrasi.
 - Pengiriman form ukur badan ke endpoint backend analisis.
 - Halaman buat pesanan.
 - Pilihan jenis pakaian sesuai proposal.
@@ -52,7 +52,7 @@ Seeder tersebut memakai `firstOrCreate`, sehingga aman dijalankan ulang untuk me
 | TC-01 | Login sebagai pelanggan demo | User berhasil masuk dan diarahkan ke halaman user, bukan tetap di login | PASS |
 | TC-02 | Buka halaman `ukur-badan` | Halaman dapat diakses setelah login | PASS |
 | TC-03 | Cek form ukur badan | Form mengarah ke `ukur-badan/analisis`, metode `POST`, dan `multipart/form-data` | PASS |
-| TC-04 | Cek input ukur badan | Ada input `body_photo`, `ref_object`, `ref_width_cm`, dan `ref_height_cm` | PASS |
+| TC-04 | Cek input ukur badan | Ada input `front_photo`, `side_photo`, `back_photo`, `ref_object`, `ref_width_cm`, dan `ref_height_cm` | PASS |
 | TC-05 | Cek implementasi lama di ukur badan | Tidak ada `@mediapipe`, `runPose()`, `selectedStdSize`, `stdSizes`, `applyStdSize`, atau kartu `Estimasi Ukuran Baju` | PASS |
 | TC-06 | Buka halaman `pesan` | Halaman dapat diakses setelah login | PASS |
 | TC-07 | Cek pilihan jenis pakaian | Tersedia `Kemeja`, `Baju Dinas`, `Baju Sekolah`, `Baju Koko`, `Kebaya`, `Gamis`, `Celana Kain`, dan `Rok Kain` | PASS |
@@ -111,8 +111,8 @@ Hasil browser automation:
 
 Fitur ukur badan sudah lebih sesuai proposal karena:
 
-- Pengukuran dimulai dari upload satu foto full body.
-- Form memakai benda referensi sebagai dasar konversi skala.
+- Pengukuran dimulai dari upload foto depan, samping, dan belakang.
+- Form memakai marker kalibrasi berdiri sendiri sebagai dasar konversi skala.
 - Analisis diarahkan ke backend melalui endpoint `user.measurement.analyze`.
 - UI tidak lagi menghitung ukuran dengan MediaPipe langsung di browser.
 - UI tidak lagi menampilkan estimasi ukuran baju S/M/L/XL sebagai hasil utama.
@@ -126,7 +126,7 @@ Fitur pemesanan sudah lebih sesuai proposal karena:
 
 ## Gap Untuk Tugas Akhir
 
-Masih perlu ditambahkan modul atau minimal halaman/laporan evaluasi akurasi jika ingin sangat kuat untuk sidang:
+Modul evaluasi akurasi sudah tersedia melalui command `php artisan measurement:evaluate {csv}`. Dataset pengujian tetap perlu dikumpulkan agar metrik sidang dapat dihitung:
 
 1. Simpan ukuran manual penjahit sebagai ground truth.
 2. Bandingkan hasil CV dengan ground truth per atribut ukuran.

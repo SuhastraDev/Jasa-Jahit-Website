@@ -123,6 +123,7 @@ class OrderController extends Controller
                     'height'         => $request->manual_height ?? 0,
                     'ref_object'     => 'manual',
                     'ref_size'       => null,
+                    'measurement_method' => 'manual',
                     'is_edited'      => true,
                 ]);
                 $measurementId = $newMeasurement->id;

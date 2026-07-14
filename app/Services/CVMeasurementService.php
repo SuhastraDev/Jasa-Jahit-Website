@@ -15,23 +15,26 @@ class CVMeasurementService
     }
 
     /**
-     * Send body photo to FastAPI for measurement analysis.
-     *
-     * @param UploadedFile $photo Body photo file
-     * @param string $refObject Reference object type (a4, atm, custom)
-     * @param float|null $refWidthCm Custom ref width in cm
-     * @param float|null $refHeightCm Custom ref height in cm
-     * @return array Response from FastAPI
+     * Send front, side, and back photos to FastAPI for multi-view analysis.
      */
-    public function measure(UploadedFile $photo, string $refObject, ?float $refWidthCm = null, ?float $refHeightCm = null): array
+    public function measure(
+        UploadedFile $frontPhoto,
+        UploadedFile $sidePhoto,
+        UploadedFile $backPhoto,
+        string $refObject,
+        ?float $refWidthCm = null,
+        ?float $refHeightCm = null
+    ): array
     {
         try {
             $request = Http::timeout(60)
-                ->attach('body_photo', $photo->getContent(), $photo->getClientOriginalName());
+                ->attach('front_photo', $frontPhoto->getContent(), $frontPhoto->getClientOriginalName())
+                ->attach('side_photo', $sidePhoto->getContent(), $sidePhoto->getClientOriginalName())
+                ->attach('back_photo', $backPhoto->getContent(), $backPhoto->getClientOriginalName());
 
             $formData = ['ref_object' => $refObject];
 
-            if ($refObject === 'custom') {
+            if ($refObject === 'custom' || $refWidthCm || $refHeightCm) {
                 $formData['ref_width_cm'] = $refWidthCm;
                 $formData['ref_height_cm'] = $refHeightCm;
             }

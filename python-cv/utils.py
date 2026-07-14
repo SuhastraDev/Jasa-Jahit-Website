@@ -22,7 +22,7 @@ def get_reference_dimensions(ref_object, ref_width_cm=None, ref_height_cm=None):
     Get real-world dimensions of reference object in cm.
     Returns (width_cm, height_cm)
     """
-    if ref_object == "a4":
+    if ref_object in ("a4", "aruco_a4", "checkerboard_a4"):
         return (21.0, 29.7)
     elif ref_object == "atm":
         return (8.56, 5.4)
