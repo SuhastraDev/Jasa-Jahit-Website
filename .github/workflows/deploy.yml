@@ -34,7 +34,7 @@ jobs:
             cd "${{ secrets.AWS_APP_DIR }}"
 
             if [ -n "$(git status --porcelain)" ]; then
-              git stash push -u -m "auto-deploy-before-pull-$(date +%Y%m%d%H%M%S)"
+              git stash push -m "auto-deploy-before-pull-$(date +%Y%m%d%H%M%S)"
             fi
             git pull --ff-only origin main
             mkdir -p storage/logs bootstrap/cache public/build
@@ -56,4 +56,5 @@ jobs:
             sudo chmod -R ug+rwX storage bootstrap/cache public/build
             sudo systemctl reload php8.4-fpm
             sudo systemctl reload nginx
+            sudo systemctl restart zrinttailor-cv || true
           EOF
