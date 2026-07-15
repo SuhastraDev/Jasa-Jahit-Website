@@ -31,8 +31,8 @@
   <line x1="116" y1="264" x2="162" y2="230" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round"/>
 
   <!-- Brand name -->
-  <text x="185" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="white" letter-spacing="-1">ZRNT</text>
-  <text x="400" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="#60a5fa" letter-spacing="-1">TAILOR</text>
+  <text x="185" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="white" letter-spacing="-1">ZRINT</text>
+  <text x="445" y="263" font-family="Arial Black, Arial" font-size="72" font-weight="900" fill="#60a5fa" letter-spacing="-1">TAILOR</text>
 
   <!-- Tagline -->
   <text x="80" y="320" font-family="Arial" font-size="26" fill="#93c5fd" opacity="0.9">Platform Jasa Jahit Online — Ukuran Presisi, Pakaian Sempurna</text>
@@ -55,5 +55,5 @@
   <text x="1010" y="328" font-family="Arial Black" font-size="80" fill="#3b82f6" opacity="0.4" text-anchor="middle">✂</text>
 
   <!-- URL -->
-  <text x="1120" y="600" font-family="Arial" font-size="18" fill="#60a5fa" opacity="0.7" text-anchor="end">penjahit.indrajasasuhastra.my.id</text>
+  <text x="1120" y="600" font-family="Arial" font-size="18" fill="#60a5fa" opacity="0.7" text-anchor="end">zrinttailor online tailoring system</text>
 </svg>
