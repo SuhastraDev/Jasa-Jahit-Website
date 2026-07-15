@@ -34,6 +34,10 @@ jobs:
             cd "${{ secrets.AWS_APP_DIR }}"
 
             git pull origin main
+            mkdir -p storage/logs bootstrap/cache public/build
+            sudo chown -R ubuntu:www-data storage bootstrap/cache public/build
+            sudo chmod -R ug+rwX storage bootstrap/cache public/build
+
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
             npm ci
             npm run build
@@ -45,8 +49,8 @@ jobs:
             php artisan route:cache
             php artisan view:cache
 
-            sudo chown -R www-data:www-data storage bootstrap/cache public/build
-            sudo chmod -R 775 storage bootstrap/cache
+            sudo chown -R ubuntu:www-data storage bootstrap/cache public/build
+            sudo chmod -R ug+rwX storage bootstrap/cache public/build
             sudo systemctl reload php8.4-fpm
             sudo systemctl reload nginx
           EOF
