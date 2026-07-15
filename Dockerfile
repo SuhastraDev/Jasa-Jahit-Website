@@ -1,6 +1,6 @@
 FROM composer:2 AS composer-bin
 
-FROM php:8.3-cli-bookworm AS vendor
+FROM php:8.4-cli-bookworm AS vendor
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ COPY public ./public
 COPY vite.config.js postcss.config.js tailwind.config.js ./
 RUN npm run build
 
-FROM php:8.3-apache-bookworm
+FROM php:8.4-apache-bookworm
 
 WORKDIR /var/www/html
 
