@@ -33,7 +33,10 @@ jobs:
             set -e
             cd "${{ secrets.AWS_APP_DIR }}"
 
-            git pull origin main
+            if [ -n "$(git status --porcelain)" ]; then
+              git stash push -u -m "auto-deploy-before-pull-$(date +%Y%m%d%H%M%S)"
+            fi
+            git pull --ff-only origin main
             mkdir -p storage/logs bootstrap/cache public/build
             sudo chown -R ubuntu:www-data storage bootstrap/cache public/build
             sudo chmod -R ug+rwX storage bootstrap/cache public/build
