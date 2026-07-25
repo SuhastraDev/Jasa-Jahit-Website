@@ -42,6 +42,38 @@
     <div class="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{{ session('success') }}</div>
     @endif
 
+    @if($errors->any())
+    <div class="mb-6 bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="flex items-start gap-3 p-4 bg-red-50 border-b border-red-100">
+            <div class="mt-0.5 h-8 w-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-black">!</div>
+            <div>
+                <p class="font-bold text-red-900">Upload belum bisa diproses</p>
+                <p class="text-sm text-red-700 mt-1">Periksa kembali ukuran dan format foto yang dipilih.</p>
+            </div>
+        </div>
+        <ul class="p-4 space-y-2">
+            @foreach($errors->all() as $message)
+            <li class="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{{ $message }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+
+    <div x-show="Object.keys(uploadErrors).length > 0" x-cloak class="mb-6 bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden">
+        <div class="flex items-start gap-3 p-4 bg-red-50 border-b border-red-100">
+            <div class="mt-0.5 h-8 w-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-black">!</div>
+            <div>
+                <p class="font-bold text-red-900">File foto terlalu besar</p>
+                <p class="text-sm text-red-700 mt-1">Maksimal 5MB per foto. Pilih foto yang lebih kecil atau kompres dulu sebelum upload.</p>
+            </div>
+        </div>
+        <ul class="p-4 space-y-2">
+            <template x-for="message in Object.values(uploadErrors)" :key="message">
+                <li class="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-3 py-2" x-text="message"></li>
+            </template>
+        </ul>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-5">
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
@@ -235,7 +267,7 @@
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <h2 class="font-bold text-gray-900 mb-5">Analisis Ukuran dengan Computer Vision</h2>
 
-                <form action="{{ route('user.measurement.analyze') }}" method="POST" enctype="multipart/form-data" class="space-y-5" @submit="startAnalysis()">
+                <form action="{{ route('user.measurement.analyze') }}" method="POST" enctype="multipart/form-data" class="space-y-5" @submit="handleSubmit($event)">
                     @csrf
 
                     <div>
@@ -384,6 +416,9 @@
             cameraFacing: 'environment',
             stream: null,
             isAnalyzing: false,
+            maxFileSizeMb: 5,
+            maxTotalSizeMb: 15,
+            uploadErrors: {},
             previews: { front: null, side: null, back: null },
             processSteps: [
                 'Mengecek kualitas tiga foto',
@@ -411,7 +446,15 @@
                     await this.startCamera();
                 }
             },
-            startAnalysis() {
+            handleSubmit(event) {
+                this.validateSelectedFiles();
+                if (Object.keys(this.uploadErrors).length > 0) {
+                    event.preventDefault();
+                    this.isAnalyzing = false;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+
                 this.isAnalyzing = true;
                 this.stopCamera();
             },
@@ -490,11 +533,59 @@
                 const file = event.target.files[0];
                 if (!file) {
                     this.previews[pose] = null;
+                    delete this.uploadErrors[pose];
+                    this.uploadErrors = { ...this.uploadErrors };
+                    return;
+                }
+
+                delete this.uploadErrors[pose];
+                if (!file.type.startsWith('image/')) {
+                    this.uploadErrors[pose] = `${this.poseLabel(pose)} harus berupa file gambar.`;
+                } else if (file.size > this.maxFileSizeMb * 1024 * 1024) {
+                    this.uploadErrors[pose] = `${this.poseLabel(pose)} terlalu besar (${this.formatMb(file.size)}MB). Maksimal ${this.maxFileSizeMb}MB per foto.`;
+                }
+                this.uploadErrors = { ...this.uploadErrors };
+
+                if (this.uploadErrors[pose]) {
+                    event.target.value = '';
+                    if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
+                    this.previews[pose] = null;
                     return;
                 }
 
                 if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                 this.previews[pose] = URL.createObjectURL(file);
+                this.validateSelectedFiles();
+            },
+            validateSelectedFiles() {
+                const nextErrors = {};
+                let totalSize = 0;
+
+                this.poseList.forEach((pose) => {
+                    const input = this.$refs[`${pose.key}Input`];
+                    const file = input?.files?.[0];
+                    if (!file) return;
+
+                    totalSize += file.size;
+                    if (!file.type.startsWith('image/')) {
+                        nextErrors[pose.key] = `${pose.label} harus berupa file gambar.`;
+                    } else if (file.size > this.maxFileSizeMb * 1024 * 1024) {
+                        nextErrors[pose.key] = `${pose.label} terlalu besar (${this.formatMb(file.size)}MB). Maksimal ${this.maxFileSizeMb}MB per foto.`;
+                    }
+                });
+
+                if (totalSize > this.maxTotalSizeMb * 1024 * 1024) {
+                    nextErrors.total = `Total ukuran 3 foto terlalu besar (${this.formatMb(totalSize)}MB). Maksimal sekitar ${this.maxTotalSizeMb}MB untuk sekali analisis.`;
+                }
+
+                this.uploadErrors = nextErrors;
+                return Object.keys(this.uploadErrors).length === 0;
+            },
+            poseLabel(pose) {
+                return this.poseList.find((item) => item.key === pose)?.label || 'Foto';
+            },
+            formatMb(bytes) {
+                return (bytes / 1024 / 1024).toFixed(1);
             },
         };
     }

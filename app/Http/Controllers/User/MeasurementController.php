@@ -63,6 +63,16 @@ class MeasurementController extends Controller
             'ref_object'    => 'required|in:aruco_a4,checkerboard_a4,a4,ktp,custom',
             'ref_width_cm'  => 'required_if:ref_object,custom|nullable|numeric|min:1',
             'ref_height_cm' => 'required_if:ref_object,custom|nullable|numeric|min:1',
+        ], [
+            'front_photo.max' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
+            'side_photo.max' => 'Foto samping terlalu besar. Maksimal 5MB per foto.',
+            'back_photo.max' => 'Foto belakang terlalu besar. Maksimal 5MB per foto.',
+            'front_photo.image' => 'Foto depan harus berupa file gambar.',
+            'side_photo.image' => 'Foto samping harus berupa file gambar.',
+            'back_photo.image' => 'Foto belakang harus berupa file gambar.',
+            'front_photo.mimes' => 'Foto depan harus berformat JPG, JPEG, PNG, atau WEBP.',
+            'side_photo.mimes' => 'Foto samping harus berformat JPG, JPEG, PNG, atau WEBP.',
+            'back_photo.mimes' => 'Foto belakang harus berformat JPG, JPEG, PNG, atau WEBP.',
         ]);
 
         [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(

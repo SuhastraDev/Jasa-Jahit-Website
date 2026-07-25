@@ -28,6 +28,26 @@ class MeasurementMultiviewTest extends TestCase
         $response->assertSessionHasErrors(['side_photo', 'back_photo']);
     }
 
+    public function test_measurement_analysis_shows_clear_error_when_photo_is_too_large(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldNotReceive('measure');
+        });
+
+        $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
+            'front_photo' => UploadedFile::fake()->image('front.jpg')->size(6000),
+            'side_photo' => UploadedFile::fake()->image('side.jpg'),
+            'back_photo' => UploadedFile::fake()->image('back.jpg'),
+            'ref_object' => 'a4',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'front_photo' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
+        ]);
+    }
+
     public function test_user_can_save_complete_multiview_measurement_result(): void
     {
         Storage::fake('public');
