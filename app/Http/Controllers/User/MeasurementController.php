@@ -59,6 +59,7 @@ class MeasurementController extends Controller
             'side_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'back_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'ref_object'    => 'required|in:a4,ktp',
+            'reference_mode' => 'required|in:fixed,handheld',
             'ref_width_cm'  => 'nullable|numeric|min:1',
             'ref_height_cm' => 'nullable|numeric|min:1',
         ], [
@@ -73,6 +74,12 @@ class MeasurementController extends Controller
             'back_photo.mimes' => 'Foto belakang harus berformat JPG, JPEG, PNG, atau WEBP.',
         ]);
 
+        if ($request->ref_object === 'ktp' && $request->reference_mode === 'handheld') {
+            return back()
+                ->withInput()
+                ->withErrors(['reference_mode' => 'Mode praktis hanya tersedia untuk A4. KTP harus ditempel atau disandarkan.']);
+        }
+
         [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
             $request->ref_object,
             $request->ref_width_cm,
@@ -80,9 +87,9 @@ class MeasurementController extends Controller
         );
 
         $validations = [
-            'front_photo' => $validator->validate($request->file('front_photo'), $request->ref_object, 'front'),
-            'side_photo' => $validator->validate($request->file('side_photo'), $request->ref_object, 'side'),
-            'back_photo' => $validator->validate($request->file('back_photo'), $request->ref_object, 'back'),
+            'front_photo' => $validator->validate($request->file('front_photo'), $request->ref_object, 'front', $request->reference_mode),
+            'side_photo' => $validator->validate($request->file('side_photo'), $request->ref_object, 'side', $request->reference_mode),
+            'back_photo' => $validator->validate($request->file('back_photo'), $request->ref_object, 'back', $request->reference_mode),
         ];
 
         $photoIssues = [];
@@ -119,6 +126,7 @@ class MeasurementController extends Controller
             $request->ref_object,
             $refWidthCm,
             $refHeightCm,
+            $request->reference_mode,
         );
 
         if (!$result['success']) {
@@ -127,15 +135,30 @@ class MeasurementController extends Controller
                 ->with('error', $result['error']);
         }
 
+        $confidence = (float) ($result['confidence'] ?? 0);
+        $qualityScore = (float) ($result['quality_score'] ?? 0);
+        $perFieldConfidence = $result['per_field_confidence'] ?? [];
+        if ($request->reference_mode === 'handheld') {
+            $confidence = max(0, round($confidence * 0.9, 4));
+            $qualityScore = max(0, round($qualityScore * 0.95, 4));
+            foreach ($perFieldConfidence as $field => $fieldConfidence) {
+                $perFieldConfidence[$field] = max(0, round((float) $fieldConfidence * 0.9, 4));
+            }
+            $result['confidence'] = $confidence;
+            $result['quality_score'] = $qualityScore;
+            $result['per_field_confidence'] = $perFieldConfidence;
+            $result['reference_mode_adjustment'] = 'Confidence dikurangi untuk mode praktis karena A4 dipegang tangan.';
+        }
+
         $data = $result['data'];
         $refSize = $refWidthCm && $refHeightCm ? "{$refWidthCm}x{$refHeightCm}cm" : null;
 
         return view('user.measurement.result', [
             'data' => $data,
-            'confidence' => $result['confidence'] ?? 0,
-            'qualityScore' => $result['quality_score'] ?? 0,
+            'confidence' => $confidence,
+            'qualityScore' => $qualityScore,
             'refDetected' => $result['ref_detected'] ?? false,
-            'perFieldConfidence' => $result['per_field_confidence'] ?? [],
+            'perFieldConfidence' => $perFieldConfidence,
             'rawCvJson' => $result,
             'frontPhotoPath' => $frontPhotoPath,
             'sidePhotoPath' => $sidePhotoPath,
@@ -144,6 +167,7 @@ class MeasurementController extends Controller
             'refSize' => $refSize,
             'refWidthCm' => $refWidthCm,
             'refHeightCm' => $refHeightCm,
+            'referenceMode' => $request->reference_mode,
         ]);
     }
 
@@ -160,6 +184,7 @@ class MeasurementController extends Controller
             'ref_size' => 'nullable|string',
             'ref_width_cm' => 'nullable|numeric|min:0',
             'ref_height_cm' => 'nullable|numeric|min:0',
+            'reference_mode' => 'nullable|in:fixed,handheld',
             'confidence_score' => 'nullable|numeric|min:0|max:1',
             'quality_score' => 'nullable|numeric|min:0|max:1',
             'raw_cv_json' => 'nullable|string',
@@ -200,6 +225,7 @@ class MeasurementController extends Controller
             'ref_size' => $validated['ref_size'] ?? null,
             'ref_width_cm' => $validated['ref_width_cm'] ?? null,
             'ref_height_cm' => $validated['ref_height_cm'] ?? null,
+            'reference_mode' => $validated['reference_mode'] ?? 'fixed',
             'measurement_method' => 'multiview_cv',
             'confidence_score' => $validated['confidence_score'] ?? null,
             'quality_score' => $validated['quality_score'] ?? null,

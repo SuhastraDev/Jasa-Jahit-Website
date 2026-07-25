@@ -35,6 +35,7 @@ class Measurement extends Model
         'ref_size',
         'ref_width_cm',
         'ref_height_cm',
+        'reference_mode',
         'measurement_method',
         'confidence_score',
         'quality_score',
@@ -98,6 +99,15 @@ class Measurement extends Model
             'custom' => 'Custom (' . $this->ref_size . ')',
             'manual' => 'Input Manual',
             default => $this->ref_object ?? 'Manual',
+        };
+    }
+
+    public function getReferenceModeLabelAttribute(): string
+    {
+        return match ($this->reference_mode) {
+            'handheld' => 'Mode Praktis',
+            'fixed' => 'Mode Akurat',
+            default => 'Mode Akurat',
         };
     }
 

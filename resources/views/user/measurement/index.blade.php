@@ -152,6 +152,21 @@
                             </div>
                         </div>
 
+                        <div class="rounded-xl border border-gray-100 bg-white p-4">
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <p class="text-sm font-bold text-gray-900">Status kamera</p>
+                                <span class="text-[11px] font-bold px-2 py-1 rounded-full" :class="liveReport.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="liveReport.ready ? 'Frame siap' : 'Ikuti panduan frame'"></span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <template x-for="item in liveReport.checks" :key="item.label">
+                                    <div class="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs" :class="item.ok ? 'border-green-100 bg-green-50 text-green-800' : 'border-amber-100 bg-amber-50 text-amber-800'">
+                                        <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? '✓' : '!'"></span>
+                                        <span x-text="item.label"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <button type="button" @click="startCamera()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">
                                 Aktifkan Kamera
@@ -240,10 +255,36 @@
 
                     <div>
                         <label for="ref_object" class="block text-sm font-semibold text-gray-700 mb-1.5">Benda Patokan Ukuran <span class="text-red-500">*</span></label>
-                        <select name="ref_object" id="ref_object" x-model="refObject" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm">
+                        <select name="ref_object" id="ref_object" x-model="refObject" @change="syncReferenceMode()" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm">
                             <option value="a4">Kertas A4 polos - 21,0 x 29,7 cm</option>
                             <option value="ktp">KTP - 8,56 x 5,398 cm</option>
                         </select>
+                    </div>
+
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <div class="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                                <p class="text-sm font-bold text-gray-900">Mode Patokan</p>
+                                <p class="text-xs text-gray-500 mt-0.5">Pilih cara benda patokan diletakkan saat foto diambil.</p>
+                            </div>
+                            <span x-show="refObject === 'ktp'" class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">KTP wajib ditempel</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="cursor-pointer rounded-xl border p-4 transition-colors" :class="referenceMode === 'fixed' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'">
+                                <input type="radio" name="reference_mode" value="fixed" x-model="referenceMode" class="sr-only">
+                                <span class="block text-sm font-black text-gray-900">Mode Akurat</span>
+                                <span class="block text-xs text-gray-500 mt-1 leading-relaxed">A4/KTP ditempel atau disandarkan. Direkomendasikan untuk hasil lebih stabil.</span>
+                            </label>
+                            <label class="rounded-xl border p-4 transition-colors" :class="refObject === 'ktp' ? 'border-gray-100 bg-gray-100 opacity-60 cursor-not-allowed' : (referenceMode === 'handheld' ? 'border-amber-500 bg-amber-50 cursor-pointer' : 'border-gray-200 bg-white hover:bg-gray-50 cursor-pointer')">
+                                <input type="radio" name="reference_mode" value="handheld" x-model="referenceMode" :disabled="refObject === 'ktp'" class="sr-only">
+                                <span class="block text-sm font-black text-gray-900">Mode Praktis</span>
+                                <span class="block text-xs text-gray-500 mt-1 leading-relaxed">A4 boleh dipegang di samping tubuh. Confidence akan diturunkan.</span>
+                            </label>
+                        </div>
+                        @error('reference_mode')
+                        <p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p>
+                        @enderror
                     </div>
 
                     <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
@@ -274,6 +315,21 @@
                             @enderror
                             <div x-show="previews.{{ $key }}" class="mt-3">
                                 <img :src="previews.{{ $key }}" class="h-48 w-full rounded-lg border border-gray-200 object-contain bg-gray-50" alt="Preview {{ $label }}">
+                            </div>
+                            <div x-show="detectionReports.{{ $key }}" x-cloak class="mt-3 rounded-xl border border-gray-100 bg-white p-3">
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                    <p class="text-xs font-black text-gray-800">Deteksi visual</p>
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" :class="detectionReports.{{ $key }}?.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="detectionReports.{{ $key }}?.ready ? 'Siap dianalisis' : 'Perlu dicek'"></span>
+                                </div>
+                                <canvas x-ref="{{ $key }}DetectionCanvas" class="w-full rounded-lg border border-gray-100 bg-slate-50"></canvas>
+                                <ul class="mt-3 space-y-1.5">
+                                    <template x-for="item in detectionReports.{{ $key }}?.checks || []" :key="item.label">
+                                        <li class="flex items-start gap-2 text-xs">
+                                            <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? '✓' : '!'"></span>
+                                            <span class="text-gray-600" x-text="item.label"></span>
+                                        </li>
+                                    </template>
+                                </ul>
                             </div>
                         </div>
                         @endforeach
@@ -306,6 +362,7 @@
                                 <div>
                                     <p class="text-xs font-semibold text-gray-500">{{ $m->created_at->format('d M Y, H:i') }}</p>
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->measurement_method_label }} - {{ $m->ref_object_label }}</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">{{ $m->reference_mode_label }}</p>
                                     @if($m->confidence_score)
                                     <p class="text-xs text-blue-600 mt-1">Confidence {{ round((float) $m->confidence_score * 100) }}%</p>
                                     @endif
@@ -370,17 +427,26 @@
     function measurementCapture() {
         return {
             refObject: '{{ old('ref_object', 'a4') }}',
+            referenceMode: '{{ old('reference_mode', 'fixed') }}',
             activePose: 'front',
             cameraReady: false,
             cameraError: '',
             cameraFacing: 'environment',
             stream: null,
+            detectionTimer: null,
             isAnalyzing: false,
             maxFileSizeMb: 5,
             maxTotalSizeMb: 15,
             uploadErrors: {},
             totalUploadError: '',
             previews: { front: null, side: null, back: null },
+            detectionReports: { front: null, side: null, back: null },
+            liveReport: {
+                ready: false,
+                checks: [
+                    { label: 'Aktifkan kamera untuk mulai deteksi.', ok: false },
+                ],
+            },
             processSteps: [
                 'Mengecek kualitas tiga foto',
                 'Mendeteksi benda patokan ukuran',
@@ -396,7 +462,13 @@
                 return this.poseList.find((pose) => pose.key === this.activePose)?.label || 'Foto Depan';
             },
             init() {
+                this.syncReferenceMode();
                 window.addEventListener('beforeunload', () => this.stopCamera());
+            },
+            syncReferenceMode() {
+                if (this.refObject === 'ktp' && this.referenceMode === 'handheld') {
+                    this.referenceMode = 'fixed';
+                }
             },
             setPose(pose) {
                 this.activePose = pose;
@@ -438,6 +510,7 @@
                     this.$refs.video.srcObject = this.stream;
                     await this.$refs.video.play();
                     this.cameraReady = true;
+                    this.startLiveDetection();
                 } catch (error) {
                     try {
                         this.stream = await navigator.mediaDevices.getUserMedia({
@@ -451,6 +524,7 @@
                         await this.$refs.video.play();
                         this.cameraReady = true;
                         this.cameraError = '';
+                        this.startLiveDetection();
                     } catch (fallbackError) {
                         this.cameraReady = false;
                         this.cameraError = this.cameraFacing === 'environment'
@@ -460,11 +534,29 @@
                 }
             },
             stopCamera() {
+                if (this.detectionTimer) {
+                    clearInterval(this.detectionTimer);
+                    this.detectionTimer = null;
+                }
                 if (this.stream) {
                     this.stream.getTracks().forEach((track) => track.stop());
                     this.stream = null;
                 }
                 this.cameraReady = false;
+            },
+            startLiveDetection() {
+                if (this.detectionTimer) clearInterval(this.detectionTimer);
+                this.detectionTimer = setInterval(() => {
+                    if (!this.cameraReady || !this.$refs.video?.videoWidth) return;
+
+                    const video = this.$refs.video;
+                    const canvas = this.$refs.canvas;
+                    canvas.width = 320;
+                    canvas.height = Math.max(1, Math.round(320 * (video.videoHeight / video.videoWidth)));
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    this.liveReport = this.buildDetectionReport(ctx, canvas.width, canvas.height, this.activePose, false);
+                }, 900);
             },
             async capturePose(pose) {
                 if (!this.cameraReady || !this.$refs.video.videoWidth) return;
@@ -518,6 +610,7 @@
                 if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                 this.previews[pose] = URL.createObjectURL(file);
                 this.validateSelectedFiles();
+                this.analyzePreview(file, pose);
             },
             validateSelectedFiles() {
                 const nextErrors = {};
@@ -550,6 +643,130 @@
             },
             formatMb(bytes) {
                 return (bytes / 1024 / 1024).toFixed(1);
+            },
+            analyzePreview(file, pose) {
+                const image = new Image();
+                image.onload = () => {
+                    const canvas = this.$refs[`${pose}DetectionCanvas`];
+                    if (!canvas) return;
+
+                    const maxWidth = 520;
+                    const scale = Math.min(1, maxWidth / image.width);
+                    canvas.width = Math.max(1, Math.round(image.width * scale));
+                    canvas.height = Math.max(1, Math.round(image.height * scale));
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+                    const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true);
+                    this.drawDetectionOverlay(ctx, canvas.width, canvas.height, report);
+                    this.detectionReports[pose] = report;
+                    this.detectionReports = { ...this.detectionReports };
+                    URL.revokeObjectURL(image.src);
+                };
+                image.src = URL.createObjectURL(file);
+            },
+            buildDetectionReport(ctx, width, height, pose, includeOverlay) {
+                const imageData = ctx.getImageData(0, 0, width, height).data;
+                let luminance = 0;
+                let brightCount = 0;
+                let contrastCount = 0;
+                let refMinX = width;
+                let refMinY = height;
+                let refMaxX = 0;
+                let refMaxY = 0;
+                let centerActivity = 0;
+                const centerLeft = width * 0.24;
+                const centerRight = width * 0.76;
+
+                for (let y = 0; y < height; y += 2) {
+                    for (let x = 0; x < width; x += 2) {
+                        const index = (y * width + x) * 4;
+                        const r = imageData[index];
+                        const g = imageData[index + 1];
+                        const b = imageData[index + 2];
+                        const l = (r + g + b) / 3;
+                        luminance += l;
+                        if (l > 205 && Math.abs(r - g) < 35 && Math.abs(g - b) < 35) {
+                            brightCount++;
+                            if (x < width * 0.35 || x > width * 0.65) {
+                                refMinX = Math.min(refMinX, x);
+                                refMinY = Math.min(refMinY, y);
+                                refMaxX = Math.max(refMaxX, x);
+                                refMaxY = Math.max(refMaxY, y);
+                            }
+                        }
+                        if (x > centerLeft && x < centerRight && l < 185) {
+                            centerActivity++;
+                        }
+                        if (l < 55 || l > 210) {
+                            contrastCount++;
+                        }
+                    }
+                }
+
+                const sampleCount = Math.ceil(width / 2) * Math.ceil(height / 2);
+                const avgLight = luminance / Math.max(1, sampleCount);
+                const refDetected = refMaxX > refMinX && refMaxY > refMinY;
+                const refBox = refDetected ? {
+                    x: refMinX,
+                    y: refMinY,
+                    w: refMaxX - refMinX,
+                    h: refMaxY - refMinY,
+                } : null;
+                const refRatio = refBox ? refBox.h / Math.max(1, refBox.w) : 0;
+                const refRatioOk = this.refObject === 'ktp'
+                    ? refRatio > 0.45 && refRatio < 1.9
+                    : refRatio > 1.05 && refRatio < 1.75;
+                const refSizeOk = refBox ? (refBox.w * refBox.h) > (width * height * 0.012) : false;
+                const lightOk = avgLight > 65 && avgLight < 220;
+                const bodyOk = centerActivity > sampleCount * 0.045;
+                const fullBodyFraming = height >= width * 0.65;
+                const contrastOk = contrastCount > sampleCount * 0.08;
+                const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
+
+                const checks = [
+                    { label: bodyOk ? 'Area tubuh terdeteksi di tengah frame.' : 'Posisikan tubuh penuh di tengah frame.', ok: bodyOk },
+                    { label: fullBodyFraming ? 'Frame cukup untuk tubuh penuh.' : 'Mundur sedikit agar kepala sampai kaki masuk.', ok: fullBodyFraming },
+                    { label: refDetected && refSizeOk ? `${this.refObject.toUpperCase()} terlihat di sisi tubuh.` : `${this.refObject.toUpperCase()} belum terlihat jelas di sisi tubuh.`, ok: refDetected && refSizeOk },
+                    { label: refRatioOk ? 'Benda patokan tampak tegak dan proporsional.' : 'Benda patokan terlalu miring atau bentuknya belum terbaca.', ok: refRatioOk },
+                    { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
+                    { label: sideWarningOk ? 'Mode patokan sesuai pose.' : 'Foto samping mode praktis perlu dicek ulang agar tangan/A4 tidak menutup siluet.', ok: sideWarningOk },
+                ];
+
+                return {
+                    ready: checks.filter((item) => item.ok).length >= 4,
+                    checks,
+                    refBox,
+                    bodyBox: {
+                        x: width * 0.25,
+                        y: height * 0.08,
+                        w: width * 0.36,
+                        h: height * 0.84,
+                    },
+                    includeOverlay,
+                };
+            },
+            drawDetectionOverlay(ctx, width, height, report) {
+                ctx.save();
+                ctx.lineWidth = Math.max(2, width * 0.006);
+                ctx.strokeStyle = report.ready ? '#16a34a' : '#f59e0b';
+                ctx.setLineDash([10, 7]);
+                ctx.strokeRect(report.bodyBox.x, report.bodyBox.y, report.bodyBox.w, report.bodyBox.h);
+                ctx.setLineDash([]);
+
+                if (report.refBox) {
+                    ctx.strokeStyle = report.checks[3]?.ok ? '#0284c7' : '#ef4444';
+                    ctx.strokeRect(report.refBox.x, report.refBox.y, report.refBox.w, report.refBox.h);
+                    ctx.fillStyle = report.checks[3]?.ok ? '#0284c7' : '#ef4444';
+                    ctx.fillRect(report.refBox.x, Math.max(0, report.refBox.y - 22), 76, 22);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillText(this.refObject.toUpperCase(), report.refBox.x + 8, Math.max(16, report.refBox.y - 7));
+                } else {
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.strokeRect(width * 0.68, height * 0.14, width * 0.18, height * 0.55);
+                }
+                ctx.restore();
             },
         };
     }

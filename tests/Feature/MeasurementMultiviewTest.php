@@ -41,10 +41,32 @@ class MeasurementMultiviewTest extends TestCase
             'side_photo' => UploadedFile::fake()->image('side.jpg'),
             'back_photo' => UploadedFile::fake()->image('back.jpg'),
             'ref_object' => 'a4',
+            'reference_mode' => 'fixed',
         ]);
 
         $response->assertSessionHasErrors([
             'front_photo' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
+        ]);
+    }
+
+    public function test_handheld_reference_mode_is_rejected_for_ktp(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldNotReceive('measure');
+        });
+
+        $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
+            'front_photo' => UploadedFile::fake()->image('front.jpg'),
+            'side_photo' => UploadedFile::fake()->image('side.jpg'),
+            'back_photo' => UploadedFile::fake()->image('back.jpg'),
+            'ref_object' => 'ktp',
+            'reference_mode' => 'handheld',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'reference_mode' => 'Mode praktis hanya tersedia untuk A4. KTP harus ditempel atau disandarkan.',
         ]);
     }
 
@@ -89,6 +111,7 @@ class MeasurementMultiviewTest extends TestCase
             'side_photo' => UploadedFile::fake()->image('side.jpg'),
             'back_photo' => UploadedFile::fake()->image('back.jpg'),
             'ref_object' => 'a4',
+            'reference_mode' => 'fixed',
         ]);
 
         $analysis->assertOk();
@@ -99,6 +122,7 @@ class MeasurementMultiviewTest extends TestCase
             'side_photo_path' => 'measurements/1/side.jpg',
             'back_photo_path' => 'measurements/1/back.jpg',
             'ref_object' => 'a4',
+            'reference_mode' => 'fixed',
             'confidence_score' => 0.86,
             'quality_score' => 0.82,
             'raw_cv_json' => json_encode(['success' => true]),
@@ -146,6 +170,7 @@ class MeasurementMultiviewTest extends TestCase
         $this->assertDatabaseHas('measurements', [
             'user_id' => $user->id,
             'measurement_method' => 'multiview_cv',
+            'reference_mode' => 'fixed',
             'chest' => 93.0,
             'thigh' => 55.5,
         ]);
@@ -177,6 +202,7 @@ class MeasurementMultiviewTest extends TestCase
                     'ktp',
                     8.56,
                     5.398,
+                    'fixed',
                 )
                 ->andReturn([
                     'success' => true,
@@ -213,6 +239,7 @@ class MeasurementMultiviewTest extends TestCase
             'side_photo' => UploadedFile::fake()->image('side.jpg'),
             'back_photo' => UploadedFile::fake()->image('back.jpg'),
             'ref_object' => 'ktp',
+            'reference_mode' => 'fixed',
         ]);
 
         $response->assertOk();
@@ -220,5 +247,74 @@ class MeasurementMultiviewTest extends TestCase
         $response->assertViewHas('refWidthCm', 8.56);
         $response->assertViewHas('refHeightCm', 5.398);
         $response->assertViewHas('refSize', '8.56x5.398cm');
+    }
+
+    public function test_handheld_a4_reference_mode_lowers_confidence_and_is_passed_to_cv(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(PhotoValidationService::class, function ($mock): void {
+            $mock->shouldReceive('validate')->times(3)->andReturn([
+                'valid' => true,
+                'issues' => [],
+                'suggestion' => '',
+            ]);
+        });
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('measure')
+                ->once()
+                ->with(
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    'a4',
+                    21.0,
+                    29.7,
+                    'handheld',
+                )
+                ->andReturn([
+                    'success' => true,
+                    'confidence' => 0.8,
+                    'quality_score' => 0.8,
+                    'ref_detected' => true,
+                    'per_field_confidence' => ['chest' => 0.8],
+                    'data' => [
+                        'neck' => 38,
+                        'chest' => 92,
+                        'waist' => 78,
+                        'hips' => 96,
+                        'shoulder_width' => 44,
+                        'shirt_length' => 68,
+                        'arm_length' => 57,
+                        'upper_arm' => 31,
+                        'wrist' => 17,
+                        'height' => 170,
+                        'pants_waist' => 78,
+                        'pants_hips' => 96,
+                        'thigh' => 55,
+                        'knee' => 38,
+                        'calf' => 36,
+                        'ankle' => 22,
+                        'inseam' => 76,
+                        'outseam' => 98,
+                        'rise' => 22,
+                    ],
+                ]);
+        });
+
+        $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
+            'front_photo' => UploadedFile::fake()->image('front.jpg'),
+            'side_photo' => UploadedFile::fake()->image('side.jpg'),
+            'back_photo' => UploadedFile::fake()->image('back.jpg'),
+            'ref_object' => 'a4',
+            'reference_mode' => 'handheld',
+        ]);
+
+        $response->assertOk();
+        $response->assertViewHas('referenceMode', 'handheld');
+        $response->assertViewHas('confidence', 0.72);
+        $response->assertViewHas('qualityScore', 0.76);
     }
 }

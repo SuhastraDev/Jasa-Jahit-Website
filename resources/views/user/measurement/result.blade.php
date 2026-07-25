@@ -38,7 +38,7 @@
         ];
     @endphp
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="rounded-xl border p-4 {{ $isGood ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200' }}">
             <p class="text-xs font-semibold {{ $isGood ? 'text-green-700' : 'text-amber-700' }}">Confidence</p>
             <p class="text-2xl font-black {{ $isGood ? 'text-green-800' : 'text-amber-800' }}">{{ $confidencePct }}%</p>
@@ -50,6 +50,13 @@
         <div class="rounded-xl border {{ $refDetected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50' }} p-4">
             <p class="text-xs font-semibold {{ $refDetected ? 'text-green-700' : 'text-red-700' }}">Marker</p>
             <p class="text-sm font-bold {{ $refDetected ? 'text-green-800' : 'text-red-800' }}">{{ $refDetected ? 'Terdeteksi pada semua foto' : 'Tidak lengkap' }}</p>
+        </div>
+        <div class="rounded-xl border {{ ($referenceMode ?? 'fixed') === 'handheld' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50' }} p-4">
+            <p class="text-xs font-semibold {{ ($referenceMode ?? 'fixed') === 'handheld' ? 'text-amber-700' : 'text-slate-600' }}">Mode Patokan</p>
+            <p class="text-sm font-bold {{ ($referenceMode ?? 'fixed') === 'handheld' ? 'text-amber-800' : 'text-slate-800' }}">{{ ($referenceMode ?? 'fixed') === 'handheld' ? 'Praktis - A4 dipegang' : 'Akurat - ditempel/disandarkan' }}</p>
+            @if(($referenceMode ?? 'fixed') === 'handheld')
+            <p class="text-[11px] text-amber-700 mt-1">Confidence dikurangi karena posisi tangan dapat memengaruhi siluet.</p>
+            @endif
         </div>
     </div>
 
@@ -68,6 +75,7 @@
             <input type="hidden" name="ref_size" value="{{ $refSize }}">
             <input type="hidden" name="ref_width_cm" value="{{ $refWidthCm }}">
             <input type="hidden" name="ref_height_cm" value="{{ $refHeightCm }}">
+            <input type="hidden" name="reference_mode" value="{{ $referenceMode ?? 'fixed' }}">
             <input type="hidden" name="confidence_score" value="{{ $confidence }}">
             <input type="hidden" name="quality_score" value="{{ $qualityScore }}">
             <input type="hidden" name="raw_cv_json" value='@json($rawCvJson)'>

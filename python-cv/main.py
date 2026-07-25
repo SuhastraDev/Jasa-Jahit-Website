@@ -37,6 +37,7 @@ async def measure(
     ref_object: str = Form(..., description="Jenis marker referensi: aruco_a4, checkerboard_a4, a4, ktp, custom"),
     ref_width_cm: float = Form(None, description="Lebar benda referensi (cm) jika custom"),
     ref_height_cm: float = Form(None, description="Tinggi benda referensi (cm) jika custom"),
+    reference_mode: str = Form("fixed", description="Mode benda referensi: fixed atau handheld"),
 ):
     """
     Analyze body photo and estimate measurements.
@@ -49,11 +50,15 @@ async def measure(
     - **ref_height_cm**: Height in cm (required if ref_object is 'custom')
     """
     # Validate ref_object
-    if ref_object not in ("aruco_a4", "checkerboard_a4", "a4", "ktp", "atm", "custom"):
-        raise HTTPException(status_code=422, detail="ref_object harus 'aruco_a4', 'checkerboard_a4', 'a4', 'ktp', atau 'custom'")
+    if ref_object not in ("a4", "ktp", "atm"):
+        raise HTTPException(status_code=422, detail="ref_object harus 'a4' atau 'ktp'")
 
-    if ref_object == "custom" and (not ref_width_cm or not ref_height_cm):
-        raise HTTPException(status_code=422, detail="Custom reference memerlukan ref_width_cm dan ref_height_cm")
+    if reference_mode not in ("fixed", "handheld"):
+        raise HTTPException(status_code=422, detail="reference_mode harus 'fixed' atau 'handheld'")
+
+    if reference_mode == "handheld" and ref_object != "a4":
+        raise HTTPException(status_code=422, detail="Mode praktis hanya tersedia untuk A4")
+
 
     for photo in (front_photo, side_photo, back_photo):
         if photo.content_type not in ("image/jpeg", "image/png", "image/webp"):

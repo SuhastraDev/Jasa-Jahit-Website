@@ -23,7 +23,8 @@ class CVMeasurementService
         UploadedFile $backPhoto,
         string $refObject,
         ?float $refWidthCm = null,
-        ?float $refHeightCm = null
+        ?float $refHeightCm = null,
+        string $referenceMode = 'fixed'
     ): array
     {
         try {
@@ -32,7 +33,10 @@ class CVMeasurementService
                 ->attach('side_photo', $sidePhoto->getContent(), $sidePhoto->getClientOriginalName())
                 ->attach('back_photo', $backPhoto->getContent(), $backPhoto->getClientOriginalName());
 
-            $formData = ['ref_object' => $refObject];
+            $formData = [
+                'ref_object' => $refObject,
+                'reference_mode' => $referenceMode,
+            ];
 
             if ($refObject === 'custom' || $refWidthCm || $refHeightCm) {
                 $formData['ref_width_cm'] = $refWidthCm;

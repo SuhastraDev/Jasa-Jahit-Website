@@ -25,7 +25,7 @@ class PhotoValidationService
      * Validasi foto sebelum dikirim ke CV service.
      * Return: ['valid' => bool, 'issues' => string[], 'suggestion' => string]
      */
-    public function validate(UploadedFile $photo, string $refObject, string $orientation = 'front'): array
+    public function validate(UploadedFile $photo, string $refObject, string $orientation = 'front', string $referenceMode = 'fixed'): array
     {
         if (empty($this->apiKey)) {
             // API key tidak ada → skip validasi, lanjutkan ke CV
@@ -47,6 +47,14 @@ class PhotoValidationService
             default => 'tampak depan penuh; wajah dan badan menghadap kamera',
         };
 
+        $referenceRule = $referenceMode === 'handheld'
+            ? 'Benda referensi boleh dipegang hanya jika berupa kertas A4. A4 harus berada di samping luar tubuh, sejajar tubuh, tidak maju ke arah kamera, tidak miring, dan tidak menutup dada, pinggang, pinggul, paha, atau kaki.'
+            : 'Benda referensi harus berdiri sendiri atau ditempel pada dinding/papan/tripod. Benda referensi tidak boleh dipegang oleh orang yang diukur.';
+
+        $handheldSideWarning = $referenceMode === 'handheld' && $orientation === 'side'
+            ? 'Untuk foto samping, pastikan tangan dan A4 tidak menutup siluet dada, perut, pinggul, paha, atau kaki.'
+            : '';
+
         $prompt = <<<PROMPT
 Kamu adalah sistem AI untuk memvalidasi foto pengukuran badan pada platform jasa jahit online.
 
@@ -54,12 +62,13 @@ Analisis foto ini. Semua syarat berikut HARUS terpenuhi agar foto dinyatakan VAL
 
 1. Ada tepat SATU orang yang berdiri tegak dengan posisi {$poseLabel}
 2. Seluruh tubuh terlihat — dari ujung kepala hingga ujung kaki
-3. Ada benda referensi berupa {$refLabel} yang terlihat jelas, tegak, tidak dipegang oleh orang yang diukur, dan tidak menutup siluet tubuh
+3. Ada benda referensi berupa {$refLabel} yang terlihat jelas, tegak, berada di samping tubuh, dan tidak menutup siluet tubuh
 4. Pencahayaan memadai — tidak terlalu gelap, tidak silau berlebihan
 5. Foto tidak buram (tidak blur atau goyang)
 6. Foto bukan foto random, foto produk, pemandangan, hewan, atau konten tidak relevan
 7. Orang berdiri, bukan duduk, jongkok, atau terlihat setengah badan
-8. Tangan user rileks sedikit menjauh dari badan dan tidak memegang benda referensi
+8. {$referenceRule}
+9. {$handheldSideWarning}
 
 Jawab HANYA dengan JSON tanpa markdown, tanpa teks lain:
 {
