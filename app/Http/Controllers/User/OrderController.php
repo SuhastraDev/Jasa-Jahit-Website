@@ -34,8 +34,8 @@ class OrderController extends Controller
      */
     public function create()
     {
-        $services     = Service::where('is_active', true)->get();
-        $catalogs     = Catalog::where('is_active', true)->with('service')->get();
+        $services     = Service::whereRaw('is_active = true')->get();
+        $catalogs     = Catalog::whereRaw('is_active = true')->with('service')->get();
         $measurements = Measurement::where('user_id', auth()->id())->latest()->get();
 
         return view('user.orders.create', compact('services', 'catalogs', 'measurements'));

@@ -18,7 +18,7 @@ class CatalogController extends Controller
 
     public function create()
     {
-        $services = Service::where('is_active', true)->get();
+        $services = Service::whereRaw('is_active = true')->get();
         return view('admin.catalogs.create', compact('services'));
     }
 
@@ -53,7 +53,7 @@ class CatalogController extends Controller
 
     public function edit(Catalog $catalog)
     {
-        $services = Service::where('is_active', true)->get();
+        $services = Service::whereRaw('is_active = true')->get();
         return view('admin.catalogs.edit', compact('catalog', 'services'));
     }
 

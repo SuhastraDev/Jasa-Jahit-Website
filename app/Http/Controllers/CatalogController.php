@@ -10,9 +10,9 @@ class CatalogController extends Controller
 {
     public function index(Request $request)
     {
-        $services = Service::where('is_active', true)->get();
+        $services = Service::whereRaw('is_active = true')->get();
 
-        $query = Catalog::with('service')->where('is_active', true);
+        $query = Catalog::with('service')->whereRaw('is_active = true');
 
         if ($request->has('service') && $request->service != '') {
             $query->where('service_id', $request->service);
