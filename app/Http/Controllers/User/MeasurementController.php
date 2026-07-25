@@ -10,6 +10,13 @@ use Illuminate\Http\Request;
 
 class MeasurementController extends Controller
 {
+    private const REFERENCE_DIMENSIONS = [
+        'aruco_a4' => [21.0, 29.7],
+        'checkerboard_a4' => [21.0, 29.7],
+        'a4' => [21.0, 29.7],
+        'ktp' => [8.56, 5.398],
+    ];
+
     private const MEASUREMENT_FIELDS = [
         'neck',
         'chest',
@@ -53,10 +60,16 @@ class MeasurementController extends Controller
             'front_photo'   => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'side_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'back_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'ref_object'    => 'required|in:aruco_a4,checkerboard_a4,a4,custom',
+            'ref_object'    => 'required|in:aruco_a4,checkerboard_a4,a4,ktp,custom',
             'ref_width_cm'  => 'required_if:ref_object,custom|nullable|numeric|min:1',
             'ref_height_cm' => 'required_if:ref_object,custom|nullable|numeric|min:1',
         ]);
+
+        [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
+            $request->ref_object,
+            $request->ref_width_cm,
+            $request->ref_height_cm,
+        );
 
         $validations = [
             'front_photo' => $validator->validate($request->file('front_photo'), $request->ref_object, 'front'),
@@ -96,8 +109,8 @@ class MeasurementController extends Controller
             $request->file('side_photo'),
             $request->file('back_photo'),
             $request->ref_object,
-            $request->ref_width_cm,
-            $request->ref_height_cm,
+            $refWidthCm,
+            $refHeightCm,
         );
 
         if (!$result['success']) {
@@ -107,10 +120,7 @@ class MeasurementController extends Controller
         }
 
         $data = $result['data'];
-        $refSize = null;
-        if ($request->ref_object === 'custom') {
-            $refSize = $request->ref_width_cm . 'x' . $request->ref_height_cm . 'cm';
-        }
+        $refSize = $refWidthCm && $refHeightCm ? "{$refWidthCm}x{$refHeightCm}cm" : null;
 
         return view('user.measurement.result', [
             'data' => $data,
@@ -124,8 +134,8 @@ class MeasurementController extends Controller
             'backPhotoPath' => $backPhotoPath,
             'refObject' => $request->ref_object,
             'refSize' => $refSize,
-            'refWidthCm' => $request->ref_width_cm,
-            'refHeightCm' => $request->ref_height_cm,
+            'refWidthCm' => $refWidthCm,
+            'refHeightCm' => $refHeightCm,
         ]);
     }
 
@@ -212,5 +222,17 @@ class MeasurementController extends Controller
 
         $measurement->delete();
         return back()->with('success', 'Data ukuran berhasil dihapus.');
+    }
+
+    private function resolveReferenceDimensions(string $refObject, mixed $width, mixed $height): array
+    {
+        if (isset(self::REFERENCE_DIMENSIONS[$refObject])) {
+            return self::REFERENCE_DIMENSIONS[$refObject];
+        }
+
+        return [
+            $width !== null ? (float) $width : null,
+            $height !== null ? (float) $height : null,
+        ];
     }
 }

@@ -92,7 +92,7 @@ class Measurement extends Model
     {
         return match ($this->ref_object) {
             'a4' => 'Kertas A4',
-            'atm' => 'Kartu ATM/KTP',
+            'ktp', 'atm' => 'KTP',
             'aruco_a4' => 'Marker ArUco A4',
             'checkerboard_a4' => 'Checkerboard A4',
             'custom' => 'Custom (' . $this->ref_size . ')',

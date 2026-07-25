@@ -48,16 +48,16 @@
                 <div class="flex items-center justify-between gap-4 mb-5">
                     <div>
                         <h2 class="font-bold text-gray-900">Protokol Pengambilan Foto</h2>
-                        <p class="text-sm text-gray-500 mt-1">Papan patokan ukuran tidak boleh dipegang oleh user. Tempelkan di dinding, papan tegak, tripod kecil, hanger, atau tiang penyangga.</p>
+                        <p class="text-sm text-gray-500 mt-1">Benda patokan ukuran tidak boleh dipegang oleh user. Gunakan A4 atau KTP yang ditempel di dinding, papan tegak, tripod kecil, hanger, atau tiang penyangga.</p>
                     </div>
                     <span class="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">3 foto wajib</span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     @foreach([
-                        ['Depan', 'Badan menghadap kamera. Papan patokan tegak di samping tubuh dan tidak menutup siluet.'],
-                        ['Samping', 'User menghadap kiri/kanan. Papan patokan tetap terlihat kamera, berdiri sejajar jarak tubuh.'],
-                        ['Belakang', 'Punggung menghadap kamera. Papan patokan tetap di samping tubuh dan terlihat penuh.'],
+                        ['Depan', 'Badan menghadap kamera. A4/KTP tegak di samping tubuh dan tidak menutup siluet.'],
+                        ['Samping', 'User menghadap kiri/kanan. A4/KTP tetap terlihat kamera, berdiri sejajar jarak tubuh.'],
+                        ['Belakang', 'Punggung menghadap kamera. A4/KTP tetap di samping tubuh dan terlihat penuh.'],
                     ] as [$title, $desc])
                     <div class="border border-gray-100 rounded-xl p-4">
                         <p class="font-semibold text-gray-900 text-sm">{{ $title }}</p>
@@ -68,7 +68,7 @@
 
                 <div class="mt-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
                     <p class="text-sm font-semibold text-amber-900">Aturan wajib</p>
-                    <p class="text-xs text-amber-800 mt-1 leading-relaxed">Kamera sejajar dada/pinggang, tubuh penuh kepala sampai kaki, pakaian fit, tangan rileks sedikit menjauh dari badan, pencahayaan cukup, dan papan patokan berada pada bidang yang sama dengan tubuh.</p>
+                    <p class="text-xs text-amber-800 mt-1 leading-relaxed">Kamera sejajar dada/pinggang, tubuh penuh kepala sampai kaki, pakaian fit, tangan rileks sedikit menjauh dari badan, pencahayaan cukup, dan benda patokan berada pada bidang yang sama dengan tubuh. A4 otomatis dihitung 21,0×29,7 cm; KTP otomatis dihitung 8,56×5,398 cm.</p>
                 </div>
             </div>
 
@@ -114,7 +114,7 @@
                             <svg class="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 400 300" preserveAspectRatio="none">
                                 <rect x="282" y="50" width="54" height="144" rx="4" fill="rgba(14,165,233,.12)" stroke="#38bdf8" stroke-width="3"/>
                                 <path d="M291 68 H327 M291 86 H327 M291 104 H327 M291 122 H327 M291 140 H327 M291 158 H327 M291 176 H327 M300 58 V186 M318 58 V186" stroke="#7dd3fc" stroke-width="1.4" opacity=".9"/>
-                                <text x="309" y="205" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="700">Papan patokan</text>
+                                <text x="309" y="205" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="700">A4 / KTP</text>
                                 <g x-show="activePose === 'front'">
                                         <ellipse cx="184" cy="55" rx="17" ry="20" fill="rgba(248,250,252,.18)" stroke="#f8fafc" stroke-width="3"/>
                                         <path d="M151 91 Q184 78 217 91 L207 168 Q184 181 161 168 Z" fill="rgba(248,250,252,.14)" stroke="#f8fafc" stroke-width="3"/>
@@ -193,7 +193,7 @@
                                     <rect x="0" y="198" width="260" height="32" fill="#e2e8f0"/>
                                     <rect x="182" y="42" width="42" height="118" rx="4" fill="#e0f2fe" stroke="#0284c7" stroke-width="3"/>
                                     <path d="M190 60 H216 M190 78 H216 M190 96 H216 M190 114 H216 M190 132 H216 M190 150 H216 M196 50 V154 M210 50 V154" stroke="#38bdf8" stroke-width="1.2"/>
-                                    <text x="203" y="176" text-anchor="middle" fill="#0369a1" font-size="9" font-weight="700">Papan</text>
+                                    <text x="203" y="176" text-anchor="middle" fill="#0369a1" font-size="9" font-weight="700">A4/KTP</text>
 
                                     <g x-show="pose.key === 'front'">
                                         <circle cx="92" cy="47" r="19" fill="#334155"/>
@@ -239,13 +239,24 @@
                     @csrf
 
                     <div>
-                        <label for="ref_object" class="block text-sm font-semibold text-gray-700 mb-1.5">Papan Patokan Ukuran <span class="text-red-500">*</span></label>
+                        <label for="ref_object" class="block text-sm font-semibold text-gray-700 mb-1.5">Benda Patokan Ukuran <span class="text-red-500">*</span></label>
                         <select name="ref_object" id="ref_object" x-model="refObject" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm">
                             <option value="aruco_a4">Papan ArUco A4 (direkomendasikan)</option>
                             <option value="checkerboard_a4">Papan kotak-kotak A4</option>
-                            <option value="a4">Kertas A4 polos (akurasi lebih rendah)</option>
+                            <option value="a4">Kertas A4 polos - 21,0 x 29,7 cm</option>
+                            <option value="ktp">KTP - 8,56 x 5,398 cm</option>
                             <option value="custom">Custom (ukuran sendiri)</option>
                         </select>
+                    </div>
+
+                    <div x-show="refObject !== 'custom'" x-transition class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                        <p class="text-sm font-bold text-blue-900">Ukuran benda patokan otomatis</p>
+                        <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="['aruco_a4', 'checkerboard_a4', 'a4'].includes(refObject)">
+                            Sistem memakai ukuran A4 tetap: 21,0 cm x 29,7 cm. Tidak perlu mengisi ukuran manual.
+                        </p>
+                        <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="refObject === 'ktp'">
+                            Sistem memakai ukuran KTP tetap: 8,56 cm x 5,398 cm. Tempelkan KTP pada papan/dinding, jangan dipegang oleh user.
+                        </p>
                     </div>
 
                     <div x-show="refObject === 'custom'" x-transition class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -381,9 +392,9 @@
                 'Menghitung ukuran baju dan celana',
             ],
             poseList: [
-                { key: 'front', label: 'Foto Depan', hint: 'Badan menghadap kamera, papan patokan di sisi tubuh.' },
-                { key: 'side', label: 'Foto Samping', hint: 'Badan menghadap kiri/kanan, papan patokan tetap terlihat.' },
-                { key: 'back', label: 'Foto Belakang', hint: 'Punggung menghadap kamera, papan patokan di sisi tubuh.' },
+                { key: 'front', label: 'Foto Depan', hint: 'Badan menghadap kamera, A4/KTP di sisi tubuh.' },
+                { key: 'side', label: 'Foto Samping', hint: 'Badan menghadap kiri/kanan, A4/KTP tetap terlihat.' },
+                { key: 'back', label: 'Foto Belakang', hint: 'Punggung menghadap kamera, A4/KTP di sisi tubuh.' },
             ],
             get activePoseLabel() {
                 return this.poseList.find((pose) => pose.key === this.activePose)?.label || 'Foto Depan';

@@ -14,6 +14,11 @@ class SocialiteController extends Controller
      */
     public function redirectToGoogle()
     {
+        if (empty(config('services.google.client_id')) || empty(config('services.google.client_secret'))) {
+            return redirect()->route('login')
+                ->with('error', 'Login Google belum dikonfigurasi. Isi GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET di server.');
+        }
+
         return Socialite::driver('google')->redirect();
     }
 

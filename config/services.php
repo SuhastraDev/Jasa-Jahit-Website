@@ -49,14 +49,16 @@ return [
         'token' => env('FONNTE_TOKEN', ''),
     ],
 
-    'gemini' => [
-        'key' => env('GEMINI_API_KEY', ''),
+    'groq' => [
+        'key' => env('GROQ_API_KEY', ''),
+        'model' => env('GROQ_MODEL', 'qwen/qwen3.6-27b'),
+        'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/chat/completions'),
     ],
 
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+        'redirect'      => env('GOOGLE_REDIRECT_URI', rtrim(env('APP_URL', ''), '/') . '/auth/google/callback'),
     ],
 
 ];

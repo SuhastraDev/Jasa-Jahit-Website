@@ -24,8 +24,8 @@ def get_reference_dimensions(ref_object, ref_width_cm=None, ref_height_cm=None):
     """
     if ref_object in ("a4", "aruco_a4", "checkerboard_a4"):
         return (21.0, 29.7)
-    elif ref_object == "atm":
-        return (8.56, 5.4)
+    elif ref_object in ("ktp", "atm"):
+        return (8.56, 5.398)
     elif ref_object == "custom":
         if ref_width_cm and ref_height_cm:
             return (float(ref_width_cm), float(ref_height_cm))

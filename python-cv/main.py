@@ -34,7 +34,7 @@ async def measure(
     front_photo: UploadFile = File(..., description="Foto badan tampak depan"),
     side_photo: UploadFile = File(..., description="Foto badan tampak samping"),
     back_photo: UploadFile = File(..., description="Foto badan tampak belakang"),
-    ref_object: str = Form(..., description="Jenis marker referensi: aruco_a4, checkerboard_a4, a4, custom"),
+    ref_object: str = Form(..., description="Jenis marker referensi: aruco_a4, checkerboard_a4, a4, ktp, custom"),
     ref_width_cm: float = Form(None, description="Lebar benda referensi (cm) jika custom"),
     ref_height_cm: float = Form(None, description="Tinggi benda referensi (cm) jika custom"),
 ):
@@ -44,13 +44,13 @@ async def measure(
     - **front_photo**: Image file of user standing upright, front view
     - **side_photo**: Image file of user standing upright, side view
     - **back_photo**: Image file of user standing upright, back view
-    - **ref_object**: Type of reference marker ('aruco_a4', 'checkerboard_a4', 'a4', 'custom')
+    - **ref_object**: Type of reference marker ('aruco_a4', 'checkerboard_a4', 'a4', 'ktp', 'custom')
     - **ref_width_cm**: Width in cm (required if ref_object is 'custom')
     - **ref_height_cm**: Height in cm (required if ref_object is 'custom')
     """
     # Validate ref_object
-    if ref_object not in ("aruco_a4", "checkerboard_a4", "a4", "custom"):
-        raise HTTPException(status_code=422, detail="ref_object harus 'aruco_a4', 'checkerboard_a4', 'a4', atau 'custom'")
+    if ref_object not in ("aruco_a4", "checkerboard_a4", "a4", "ktp", "atm", "custom"):
+        raise HTTPException(status_code=422, detail="ref_object harus 'aruco_a4', 'checkerboard_a4', 'a4', 'ktp', atau 'custom'")
 
     if ref_object == "custom" and (not ref_width_cm or not ref_height_cm):
         raise HTTPException(status_code=422, detail="Custom reference memerlukan ref_width_cm dan ref_height_cm")

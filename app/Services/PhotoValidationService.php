@@ -6,19 +6,19 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Validasi foto pengukuran badan menggunakan Google Gemini Vision (GRATIS).
- * Free tier: 15 request/menit, 1 juta token/hari — cukup untuk produksi skala kecil.
- * Daftar API key: https://aistudio.google.com/app/apikey
+ * Validasi foto pengukuran badan menggunakan Groq Vision.
  */
 class PhotoValidationService
 {
     protected string $apiKey;
-    // Gemini 2.0 Flash — gratis, cepat, multimodal (vision)
-    protected string $model = 'gemini-2.0-flash';
+    protected string $model;
+    protected string $apiUrl;
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.key', '');
+        $this->apiKey = config('services.groq.key', '');
+        $this->model = config('services.groq.model', 'qwen/qwen3.6-27b');
+        $this->apiUrl = config('services.groq.url', 'https://api.groq.com/openai/v1/chat/completions');
     }
 
     /**
@@ -33,8 +33,8 @@ class PhotoValidationService
         }
 
         $refLabel = match($refObject) {
-            'a4'     => 'kertas A4 (ukuran 21×29,7 cm) yang diletakkan di samping tubuh',
-            'atm'    => 'kartu ATM atau KTP (ukuran 8,6×5,4 cm) yang diletakkan di samping tubuh',
+            'a4'     => 'kertas A4 (ukuran tetap 21,0×29,7 cm) yang diletakkan di samping tubuh',
+            'ktp', 'atm' => 'KTP (ukuran tetap 8,56×5,398 cm) yang diletakkan di samping tubuh',
             'aruco_a4' => 'marker ArUco ukuran A4 yang berdiri sendiri di samping tubuh',
             'checkerboard_a4' => 'marker checkerboard ukuran A4 yang berdiri sendiri di samping tubuh',
             'custom' => 'benda referensi berukuran kustom yang diletakkan di samping tubuh',
@@ -72,38 +72,41 @@ Gunakan Bahasa Indonesia. Jika semua syarat terpenuhi, "valid" = true dan "issue
 PROMPT;
 
         try {
-            $imageData = base64_encode(file_get_contents($photo->getPathname()));
-            $mimeType  = $photo->getMimeType() ?: 'image/jpeg';
+            [$imageData, $mimeType] = $this->encodeImageForGroq($photo);
 
             $response = Http::timeout(20)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}", [
-                    'contents' => [
+                ->withToken($this->apiKey)
+                ->acceptJson()
+                ->post($this->apiUrl, [
+                    'model' => $this->model,
+                    'messages' => [
                         [
-                            'parts' => [
+                            'role' => 'user',
+                            'content' => [
                                 [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType,
-                                        'data'      => $imageData,
-                                    ],
+                                    'type' => 'text',
+                                    'text' => $prompt,
                                 ],
                                 [
-                                    'text' => $prompt,
+                                    'type' => 'image_url',
+                                    'image_url' => [
+                                        'url' => "data:{$mimeType};base64,{$imageData}",
+                                    ],
                                 ],
                             ],
                         ],
                     ],
-                    'generationConfig' => [
-                        'temperature'     => 0.1,
-                        'maxOutputTokens' => 300,
-                    ],
+                    'temperature' => 0.1,
+                    'max_completion_tokens' => 300,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
 
             if (!$response->successful()) {
                 return ['valid' => true, 'issues' => [], 'suggestion' => ''];
             }
 
-            $text   = $response->json('candidates.0.content.parts.0.text', '{}');
-            // Bersihkan jika Gemini masih menambahkan markdown
+            $text   = $response->json('choices.0.message.content', '{}');
+            // Bersihkan jika model masih menambahkan markdown
             $text   = preg_replace('/```json|```/', '', $text);
             $result = json_decode(trim($text), true);
 
@@ -121,5 +124,40 @@ PROMPT;
             // Network error atau timeout → skip validasi
             return ['valid' => true, 'issues' => [], 'suggestion' => ''];
         }
+    }
+
+    /**
+     * Groq membatasi base64 image request. Kompres ke JPEG ukuran sedang agar
+     * validasi tetap stabil saat user upload foto kamera yang besar.
+     */
+    private function encodeImageForGroq(UploadedFile $photo): array
+    {
+        $raw = file_get_contents($photo->getPathname());
+        $mimeType = $photo->getMimeType() ?: 'image/jpeg';
+
+        if (!function_exists('imagecreatefromstring')) {
+            return [base64_encode($raw), $mimeType];
+        }
+
+        $source = @imagecreatefromstring($raw);
+        if (!$source) {
+            return [base64_encode($raw), $mimeType];
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $maxDimension = 1400;
+        $ratio = min(1, $maxDimension / max($width, $height));
+        $targetWidth = max(1, (int) round($width * $ratio));
+        $targetHeight = max(1, (int) round($height * $ratio));
+
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+        ob_start();
+        imagejpeg($target, null, 82);
+        $compressed = ob_get_clean();
+
+        return [base64_encode($compressed ?: $raw), 'image/jpeg'];
     }
 }

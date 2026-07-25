@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Measurement;
 use App\Models\User;
 use App\Services\CVMeasurementService;
+use App\Services\PhotoValidationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class MeasurementMultiviewTest extends TestCase
@@ -130,5 +132,73 @@ class MeasurementMultiviewTest extends TestCase
 
         $measurement = Measurement::firstOrFail();
         $this->assertArrayHasKey('chest', $measurement->edited_fields_json);
+    }
+
+    public function test_ktp_reference_uses_fixed_dimensions_without_manual_input(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(PhotoValidationService::class, function ($mock): void {
+            $mock->shouldReceive('validate')->times(3)->andReturn([
+                'valid' => true,
+                'issues' => [],
+                'suggestion' => '',
+            ]);
+        });
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('measure')
+                ->once()
+                ->with(
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    'ktp',
+                    8.56,
+                    5.398,
+                )
+                ->andReturn([
+                    'success' => true,
+                    'confidence' => 0.8,
+                    'quality_score' => 0.78,
+                    'ref_detected' => true,
+                    'per_field_confidence' => [],
+                    'data' => [
+                        'neck' => 38,
+                        'chest' => 92,
+                        'waist' => 78,
+                        'hips' => 96,
+                        'shoulder_width' => 44,
+                        'shirt_length' => 68,
+                        'arm_length' => 57,
+                        'upper_arm' => 31,
+                        'wrist' => 17,
+                        'height' => 170,
+                        'pants_waist' => 78,
+                        'pants_hips' => 96,
+                        'thigh' => 55,
+                        'knee' => 38,
+                        'calf' => 36,
+                        'ankle' => 22,
+                        'inseam' => 76,
+                        'outseam' => 98,
+                        'rise' => 22,
+                    ],
+                ]);
+        });
+
+        $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
+            'front_photo' => UploadedFile::fake()->image('front.jpg'),
+            'side_photo' => UploadedFile::fake()->image('side.jpg'),
+            'back_photo' => UploadedFile::fake()->image('back.jpg'),
+            'ref_object' => 'ktp',
+        ]);
+
+        $response->assertOk();
+        $response->assertViewHas('refObject', 'ktp');
+        $response->assertViewHas('refWidthCm', 8.56);
+        $response->assertViewHas('refHeightCm', 5.398);
+        $response->assertViewHas('refSize', '8.56x5.398cm');
     }
 }
