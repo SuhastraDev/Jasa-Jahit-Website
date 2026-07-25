@@ -6,7 +6,7 @@
 
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Ukur Badan Multi-view</h1>
-        <p class="text-gray-500 text-sm mt-1">Ambil foto langsung dari kamera atau upload foto depan, samping, dan belakang dengan papan patokan ukuran yang berdiri sendiri.</p>
+        <p class="text-gray-500 text-sm mt-1">Ambil foto langsung dari kamera atau upload foto depan, samping, dan belakang dengan benda patokan ukuran A4 atau KTP.</p>
     </div>
 
     @if(session('photo_issues') && count(session('photo_issues')) > 0)
@@ -41,38 +41,6 @@
     @if(session('success'))
     <div class="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{{ session('success') }}</div>
     @endif
-
-    @if($errors->any())
-    <div class="mb-6 bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="flex items-start gap-3 p-4 bg-red-50 border-b border-red-100">
-            <div class="mt-0.5 h-8 w-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-black">!</div>
-            <div>
-                <p class="font-bold text-red-900">Upload belum bisa diproses</p>
-                <p class="text-sm text-red-700 mt-1">Periksa kembali ukuran dan format foto yang dipilih.</p>
-            </div>
-        </div>
-        <ul class="p-4 space-y-2">
-            @foreach($errors->all() as $message)
-            <li class="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{{ $message }}</li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
-
-    <div x-show="Object.keys(uploadErrors).length > 0" x-cloak class="mb-6 bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="flex items-start gap-3 p-4 bg-red-50 border-b border-red-100">
-            <div class="mt-0.5 h-8 w-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-black">!</div>
-            <div>
-                <p class="font-bold text-red-900">File foto terlalu besar</p>
-                <p class="text-sm text-red-700 mt-1">Maksimal 5MB per foto. Pilih foto yang lebih kecil atau kompres dulu sebelum upload.</p>
-            </div>
-        </div>
-        <ul class="p-4 space-y-2">
-            <template x-for="message in Object.values(uploadErrors)" :key="message">
-                <li class="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-3 py-2" x-text="message"></li>
-            </template>
-        </ul>
-    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-5">
@@ -273,33 +241,19 @@
                     <div>
                         <label for="ref_object" class="block text-sm font-semibold text-gray-700 mb-1.5">Benda Patokan Ukuran <span class="text-red-500">*</span></label>
                         <select name="ref_object" id="ref_object" x-model="refObject" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm">
-                            <option value="aruco_a4">Papan ArUco A4 (direkomendasikan)</option>
-                            <option value="checkerboard_a4">Papan kotak-kotak A4</option>
                             <option value="a4">Kertas A4 polos - 21,0 x 29,7 cm</option>
                             <option value="ktp">KTP - 8,56 x 5,398 cm</option>
-                            <option value="custom">Custom (ukuran sendiri)</option>
                         </select>
                     </div>
 
-                    <div x-show="refObject !== 'custom'" x-transition class="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
                         <p class="text-sm font-bold text-blue-900">Ukuran benda patokan otomatis</p>
-                        <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="['aruco_a4', 'checkerboard_a4', 'a4'].includes(refObject)">
+                        <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="refObject === 'a4'">
                             Sistem memakai ukuran A4 tetap: 21,0 cm x 29,7 cm. Tidak perlu mengisi ukuran manual.
                         </p>
                         <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="refObject === 'ktp'">
                             Sistem memakai ukuran KTP tetap: 8,56 cm x 5,398 cm. Tempelkan KTP pada papan/dinding, jangan dipegang oleh user.
                         </p>
-                    </div>
-
-                    <div x-show="refObject === 'custom'" x-transition class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label for="ref_width_cm" class="block text-xs font-semibold text-gray-600 mb-1">Lebar papan/kertas (cm)</label>
-                            <input type="number" step="0.1" name="ref_width_cm" id="ref_width_cm" value="{{ old('ref_width_cm') }}" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm" placeholder="Contoh: 21">
-                        </div>
-                        <div>
-                            <label for="ref_height_cm" class="block text-xs font-semibold text-gray-600 mb-1">Tinggi papan/kertas (cm)</label>
-                            <input type="number" step="0.1" name="ref_height_cm" id="ref_height_cm" value="{{ old('ref_height_cm') }}" class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm" placeholder="Contoh: 29.7">
-                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -308,18 +262,24 @@
                             ['side_photo', 'side', 'Foto Samping', 'User menghadap kiri/kanan'],
                             ['back_photo', 'back', 'Foto Belakang', 'Punggung menghadap kamera'],
                         ] as [$name, $key, $label, $hint])
-                        <div class="border border-gray-100 rounded-xl p-4">
+                        <div class="border rounded-xl p-4 transition-colors" :class="uploadErrors.{{ $key }} ? 'border-red-200 bg-red-50/40' : 'border-gray-100 bg-white'">
                             <label for="{{ $name }}" class="block text-sm font-semibold text-gray-700 mb-1.5">{{ $label }} <span class="text-red-500">*</span></label>
                             <p class="text-xs text-gray-400 mb-3">{{ $hint }}</p>
                             <input type="file" name="{{ $name }}" id="{{ $name }}" x-ref="{{ $key }}Input" accept="image/*" required
                                    @change="handleUpload($event, '{{ $key }}')"
                                    class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                            <div x-show="uploadErrors.{{ $key }}" x-cloak class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700" x-text="uploadErrors.{{ $key }}"></div>
+                            @error($name)
+                            <div class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</div>
+                            @enderror
                             <div x-show="previews.{{ $key }}" class="mt-3">
                                 <img :src="previews.{{ $key }}" class="h-48 w-full rounded-lg border border-gray-200 object-contain bg-gray-50" alt="Preview {{ $label }}">
                             </div>
                         </div>
                         @endforeach
                     </div>
+
+                    <div x-show="totalUploadError" x-cloak class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" x-text="totalUploadError"></div>
 
                     <button type="submit" :disabled="isAnalyzing" class="w-full px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait">
                         <span x-show="!isAnalyzing">Validasi dan Hitung Ukuran</span>
@@ -388,7 +348,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-bold text-gray-900">Foto depan, samping, dan belakang sedang diproses.</p>
-                        <p class="text-xs text-gray-500 mt-1">Sistem mengecek papan patokan, membaca pose tubuh, lalu menghitung ukuran dalam sentimeter.</p>
+                        <p class="text-xs text-gray-500 mt-1">Sistem mengecek benda patokan, membaca pose tubuh, lalu menghitung ukuran dalam sentimeter.</p>
                     </div>
                 </div>
                 <div class="space-y-3">
@@ -409,7 +369,7 @@
 <script>
     function measurementCapture() {
         return {
-            refObject: '{{ old('ref_object', 'aruco_a4') }}',
+            refObject: '{{ old('ref_object', 'a4') }}',
             activePose: 'front',
             cameraReady: false,
             cameraError: '',
@@ -419,10 +379,11 @@
             maxFileSizeMb: 5,
             maxTotalSizeMb: 15,
             uploadErrors: {},
+            totalUploadError: '',
             previews: { front: null, side: null, back: null },
             processSteps: [
                 'Mengecek kualitas tiga foto',
-                'Mendeteksi papan patokan ukuran',
+                'Mendeteksi benda patokan ukuran',
                 'Membaca pose dan siluet tubuh',
                 'Menghitung ukuran baju dan celana',
             ],
@@ -448,10 +409,9 @@
             },
             handleSubmit(event) {
                 this.validateSelectedFiles();
-                if (Object.keys(this.uploadErrors).length > 0) {
+                if (Object.keys(this.uploadErrors).length > 0 || this.totalUploadError) {
                     event.preventDefault();
                     this.isAnalyzing = false;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
                     return;
                 }
 
@@ -535,6 +495,7 @@
                     this.previews[pose] = null;
                     delete this.uploadErrors[pose];
                     this.uploadErrors = { ...this.uploadErrors };
+                    this.validateSelectedFiles();
                     return;
                 }
 
@@ -550,6 +511,7 @@
                     event.target.value = '';
                     if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                     this.previews[pose] = null;
+                    this.validateSelectedFiles();
                     return;
                 }
 
@@ -575,11 +537,13 @@
                 });
 
                 if (totalSize > this.maxTotalSizeMb * 1024 * 1024) {
-                    nextErrors.total = `Total ukuran 3 foto terlalu besar (${this.formatMb(totalSize)}MB). Maksimal sekitar ${this.maxTotalSizeMb}MB untuk sekali analisis.`;
+                    this.totalUploadError = `Total ukuran 3 foto terlalu besar (${this.formatMb(totalSize)}MB). Maksimal sekitar ${this.maxTotalSizeMb}MB untuk sekali analisis.`;
+                } else {
+                    this.totalUploadError = '';
                 }
 
                 this.uploadErrors = nextErrors;
-                return Object.keys(this.uploadErrors).length === 0;
+                return Object.keys(this.uploadErrors).length === 0 && !this.totalUploadError;
             },
             poseLabel(pose) {
                 return this.poseList.find((item) => item.key === pose)?.label || 'Foto';

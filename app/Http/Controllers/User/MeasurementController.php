@@ -11,8 +11,6 @@ use Illuminate\Http\Request;
 class MeasurementController extends Controller
 {
     private const REFERENCE_DIMENSIONS = [
-        'aruco_a4' => [21.0, 29.7],
-        'checkerboard_a4' => [21.0, 29.7],
         'a4' => [21.0, 29.7],
         'ktp' => [8.56, 5.398],
     ];
@@ -60,9 +58,9 @@ class MeasurementController extends Controller
             'front_photo'   => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'side_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'back_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'ref_object'    => 'required|in:aruco_a4,checkerboard_a4,a4,ktp,custom',
-            'ref_width_cm'  => 'required_if:ref_object,custom|nullable|numeric|min:1',
-            'ref_height_cm' => 'required_if:ref_object,custom|nullable|numeric|min:1',
+            'ref_object'    => 'required|in:a4,ktp',
+            'ref_width_cm'  => 'nullable|numeric|min:1',
+            'ref_height_cm' => 'nullable|numeric|min:1',
         ], [
             'front_photo.max' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
             'side_photo.max' => 'Foto samping terlalu besar. Maksimal 5MB per foto.',
@@ -105,7 +103,7 @@ class MeasurementController extends Controller
             return back()
                 ->withInput()
                 ->with('photo_issues', $photoIssues)
-                ->with('photo_suggestion', 'Gunakan marker berdiri sendiri dan ulangi foto sesuai orientasi depan, samping, dan belakang.')
+                ->with('photo_suggestion', 'Gunakan A4 atau KTP sebagai benda patokan ukuran, lalu ulangi foto sesuai orientasi depan, samping, dan belakang.')
                 ->with('error', 'Salah satu foto tidak memenuhi protokol pengukuran otomatis.');
         }
 

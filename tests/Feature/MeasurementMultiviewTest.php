@@ -22,7 +22,7 @@ class MeasurementMultiviewTest extends TestCase
 
         $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
             'front_photo' => UploadedFile::fake()->image('front.jpg'),
-            'ref_object' => 'aruco_a4',
+            'ref_object' => 'a4',
         ]);
 
         $response->assertSessionHasErrors(['side_photo', 'back_photo']);
@@ -88,7 +88,7 @@ class MeasurementMultiviewTest extends TestCase
             'front_photo' => UploadedFile::fake()->image('front.jpg'),
             'side_photo' => UploadedFile::fake()->image('side.jpg'),
             'back_photo' => UploadedFile::fake()->image('back.jpg'),
-            'ref_object' => 'aruco_a4',
+            'ref_object' => 'a4',
         ]);
 
         $analysis->assertOk();
@@ -98,7 +98,7 @@ class MeasurementMultiviewTest extends TestCase
             'front_photo_path' => 'measurements/1/front.jpg',
             'side_photo_path' => 'measurements/1/side.jpg',
             'back_photo_path' => 'measurements/1/back.jpg',
-            'ref_object' => 'aruco_a4',
+            'ref_object' => 'a4',
             'confidence_score' => 0.86,
             'quality_score' => 0.82,
             'raw_cv_json' => json_encode(['success' => true]),
