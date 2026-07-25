@@ -603,7 +603,6 @@
                     event.target.value = '';
                     if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                     this.previews[pose] = null;
-                    this.validateSelectedFiles();
                     return;
                 }
 
