@@ -297,7 +297,7 @@
                         </p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 gap-6">
                         @foreach([
                             ['front_photo', 'front', 'Foto Depan', 'User menghadap kamera'],
                             ['side_photo', 'side', 'Foto Samping', 'User menghadap kiri/kanan'],
@@ -317,7 +317,7 @@
                             <div x-show="previews.{{ $key }}" class="mt-3">
                                 <img :src="previews.{{ $key }}" class="h-48 w-full rounded-lg border border-gray-200 object-contain bg-gray-50" alt="Preview {{ $label }}">
                             </div>
-                            <div x-show="detectionReports.{{ $key }}" x-cloak class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                            <div x-show="detectionReports.{{ $key }}" x-cloak class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
                                 <div class="border-b border-slate-200 bg-white px-4 py-3">
                                  <div class="flex items-center justify-between gap-2 mb-2">
                                     <div>
@@ -1295,8 +1295,8 @@
                         const g = imageData[offset + 1];
                         const b = imageData[offset + 2];
                         const luma = (r + g + b) / 3;
-                        const neutral = Math.max(r, g, b) - Math.min(r, g, b) < 42;
-                        active[gy * cols + gx] = luma > 182 && neutral ? 1 : 0;
+                        const neutral = Math.max(r, g, b) - Math.min(r, g, b) < 48;
+                        active[gy * cols + gx] = luma > 205 && neutral ? 1 : 0;
                     }
                 }
 
@@ -1342,7 +1342,11 @@
                         const areaRatio = boxArea / Math.max(1, width * height);
                         const fillRatio = (count * step * step) / Math.max(1, boxArea);
                         const centerX = ((minX + maxX + 1) * step) / 2;
-                        const atSide = centerX < width * 0.38 || centerX > width * 0.62;
+                        const bodyGap = width * 0.015;
+                        const atSide = bodyBox
+                            ? (minX * step + boxW < bodyBox.x - bodyGap
+                                || minX * step > bodyBox.x + bodyBox.w + bodyGap)
+                            : (centerX < width * 0.38 || centerX > width * 0.62);
                         const box = { x: minX * step, y: minY * step, w: boxW, h: boxH };
                         const referenceLongCm = this.refObject === 'ktp' ? 8.56 : 29.7;
                         const impliedStature = bodyBox
