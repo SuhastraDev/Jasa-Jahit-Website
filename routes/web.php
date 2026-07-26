@@ -47,6 +47,8 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::post('/pesanan-saya/{order}/bayar', [UserPaymentController::class, 'store'])->name('user.payment.store');
 
     // === Ukur Badan (CV) ===
+    Route::get('/ukur-badan/mediapipe/{file}', [MeasurementController::class, 'mediaPipeAsset'])->name('user.measurement.mediapipe-asset');
+    Route::get('/ukur-badan/model/pose-landmarker', [MeasurementController::class, 'poseModel'])->name('user.measurement.pose-model');
     Route::get('/ukur-badan', [MeasurementController::class, 'index'])->name('user.measurement.index');
     Route::post('/ukur-badan/analisis', [MeasurementController::class, 'analyze'])->name('user.measurement.analyze');
     Route::post('/ukur-badan/simpan', [MeasurementController::class, 'store'])->name('user.measurement.store');

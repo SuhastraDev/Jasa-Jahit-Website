@@ -99,6 +99,18 @@ def make_side_mask():
 
 class MeasurementGeometryTest(unittest.TestCase):
     @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_reference_detector_prefers_a4_proportion_at_body_side(self):
+        image = np.zeros((500, 400, 3), dtype=np.uint8)
+        cv2.rectangle(image, (130, 90), (270, 430), (255, 255, 255), 5)
+        cv2.rectangle(image, (20, 150), (104, 269), (255, 255, 255), 5)
+
+        contour = measurement.detect_reference_object(image, 21.0, 29.7)
+
+        self.assertIsNotNone(contour)
+        x, _, w, _ = cv2.boundingRect(contour)
+        self.assertLess(x + w, 130)
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
     def test_pose_component_is_selected_instead_of_larger_background_region(self):
         mask = np.zeros((240, 180), dtype=np.uint8)
         mask[10:70, 5:175] = 255

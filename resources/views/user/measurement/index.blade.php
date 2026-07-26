@@ -171,7 +171,7 @@
                             <button type="button" @click="startCamera()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">
                                 Aktifkan Kamera
                             </button>
-                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady"
+                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady || !liveReport.ready"
                                 class="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
                                 Capture <span x-text="activePoseLabel"></span>
                             </button>
@@ -525,6 +525,10 @@
             cameraFacing: 'environment',
             stream: null,
             detectionTimer: null,
+            poseLandmarker: null,
+            poseDetectorReady: false,
+            poseDetectorError: '',
+            poseDetectionBusy: false,
             isAnalyzing: false,
             maxFileSizeMb: 5,
             maxTotalSizeMb: 15,
@@ -558,9 +562,47 @@
             get activePoseLabel() {
                 return this.poseList.find((pose) => pose.key === this.activePose)?.label || 'Foto Depan';
             },
-            init() {
+            async init() {
                 this.syncReferenceMode();
                 window.addEventListener('beforeunload', () => this.stopCamera());
+                await this.initializePoseDetector();
+            },
+            async initializePoseDetector() {
+                if (!window.MediaPipeVision) {
+                    this.poseDetectorError = 'Modul deteksi pose belum termuat.';
+                    return;
+                }
+
+                try {
+                    const vision = await window.MediaPipeVision.FilesetResolver.forVisionTasks(
+                        '{{ url('/ukur-badan/mediapipe') }}'
+                    );
+                    this.poseLandmarker = await window.MediaPipeVision.PoseLandmarker.createFromOptions(vision, {
+                        baseOptions: {
+                            modelAssetPath: '{{ route('user.measurement.pose-model') }}',
+                        },
+                        runningMode: 'IMAGE',
+                        numPoses: 1,
+                        minPoseDetectionConfidence: 0.55,
+                        minPosePresenceConfidence: 0.55,
+                    });
+                    this.poseDetectorReady = true;
+                    this.poseDetectorError = '';
+                } catch (error) {
+                    console.error('Pose detector gagal dimuat', error);
+                    this.poseDetectorReady = false;
+                    this.poseDetectorError = 'Detektor pose belum siap. Foto tetap akan diperiksa ulang oleh server.';
+                }
+            },
+            detectPoseLandmarks(source) {
+                if (!this.poseLandmarker || !source) return null;
+                try {
+                    const result = this.poseLandmarker.detect(source);
+                    return result?.landmarks?.[0] || null;
+                } catch (error) {
+                    console.warn('Pose tidak dapat dibaca pada frame', error);
+                    return null;
+                }
             },
             syncReferenceMode() {
                 if (this.refObject === 'ktp' && this.referenceMode === 'handheld') {
@@ -578,6 +620,7 @@
             },
             handleSubmit(event) {
                 this.validateSelectedFiles();
+                this.validateDetectionReports();
                 if (Object.keys(this.uploadErrors).length > 0 || this.totalUploadError) {
                     event.preventDefault();
                     this.isAnalyzing = false;
@@ -586,6 +629,37 @@
 
                 this.isAnalyzing = true;
                 this.stopCamera();
+            },
+            validateDetectionReports() {
+                const nextErrors = { ...this.uploadErrors };
+
+                this.poseList.forEach((pose) => {
+                    const file = this.$refs[`${pose.key}Input`]?.files?.[0];
+                    const report = this.detectionReports[pose.key];
+                    if (!file || !report || nextErrors[pose.key]) return;
+
+                    if (this.poseDetectorReady && !report.poseDetected) {
+                        nextErrors[pose.key] = `${pose.label}: orang tidak terdeteksi. Gunakan foto tubuh penuh yang jelas.`;
+                        return;
+                    }
+
+                    if (this.poseDetectorReady && !report.fullBody) {
+                        nextErrors[pose.key] = `${pose.label}: kepala atau kaki belum masuk penuh di dalam foto.`;
+                        return;
+                    }
+
+                    const manualBox = this.manualReferenceBoxes[pose.key];
+                    if (!report.refBox && !manualBox) {
+                        nextErrors[pose.key] = `${pose.label}: ${this.refObject.toUpperCase()} belum terdeteksi. Pilih benda patokan dengan kotak manual.`;
+                        return;
+                    }
+
+                    if (manualBox && !this.referenceBoxRatioOk(manualBox)) {
+                        nextErrors[pose.key] = `${pose.label}: bentuk kotak manual belum mengikuti proporsi ${this.refObject.toUpperCase()}.`;
+                    }
+                });
+
+                this.uploadErrors = nextErrors;
             },
             async startCamera() {
                 this.cameraError = '';
@@ -643,20 +717,26 @@
             },
             startLiveDetection() {
                 if (this.detectionTimer) clearInterval(this.detectionTimer);
-                this.detectionTimer = setInterval(() => {
-                    if (!this.cameraReady || !this.$refs.video?.videoWidth) return;
+                this.detectionTimer = setInterval(async () => {
+                    if (!this.cameraReady || !this.$refs.video?.videoWidth || this.poseDetectionBusy) return;
+                    this.poseDetectionBusy = true;
 
-                    const video = this.$refs.video;
-                    const canvas = this.$refs.canvas;
-                    canvas.width = 320;
-                    canvas.height = Math.max(1, Math.round(320 * (video.videoHeight / video.videoWidth)));
-                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    this.liveReport = this.buildDetectionReport(ctx, canvas.width, canvas.height, this.activePose, false);
+                    try {
+                        const video = this.$refs.video;
+                        const canvas = this.$refs.canvas;
+                        canvas.width = 320;
+                        canvas.height = Math.max(1, Math.round(320 * (video.videoHeight / video.videoWidth)));
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const poseLandmarks = this.detectPoseLandmarks(canvas);
+                        this.liveReport = this.buildDetectionReport(ctx, canvas.width, canvas.height, this.activePose, false, poseLandmarks);
+                    } finally {
+                        this.poseDetectionBusy = false;
+                    }
                 }, 900);
             },
             async capturePose(pose) {
-                if (!this.cameraReady || !this.$refs.video.videoWidth) return;
+                if (!this.cameraReady || !this.liveReport.ready || !this.$refs.video.videoWidth) return;
 
                 const video = this.$refs.video;
                 const canvas = this.$refs.canvas;
@@ -751,7 +831,7 @@
             },
             analyzePreview(file, pose) {
                 const image = new Image();
-                image.onload = () => {
+                image.onload = async () => {
                     const canvas = this.$refs[`${pose}DetectionCanvas`];
                     if (!canvas) return;
 
@@ -762,7 +842,8 @@
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
                     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-                    const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true);
+                    const poseLandmarks = this.detectPoseLandmarks(canvas);
+                    const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true, poseLandmarks);
                     this.previewImageSource[pose] = image;
                     this.previewImageSource = { ...this.previewImageSource };
                     this.previewImageData[pose] = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1053,18 +1134,152 @@
                     if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
                 }
             },
-            buildDetectionReport(ctx, width, height, pose, includeOverlay) {
+            summarizePose(poseLandmarks, width, height, pose) {
+                const fallback = {
+                    detected: false,
+                    fullBody: false,
+                    orientationOk: false,
+                    bodyBox: {
+                        x: width * 0.25,
+                        y: height * 0.08,
+                        w: width * 0.5,
+                        h: height * 0.84,
+                    },
+                };
+                if (!Array.isArray(poseLandmarks) || poseLandmarks.length < 29) return fallback;
+
+                const visible = (index, threshold = 0.45) => {
+                    const landmark = poseLandmarks[index];
+                    if (!landmark) return false;
+                    const confidence = landmark.visibility ?? landmark.presence ?? 1;
+                    return confidence >= threshold
+                        && landmark.x >= -0.03 && landmark.x <= 1.03
+                        && landmark.y >= -0.03 && landmark.y <= 1.03;
+                };
+                const pairVisible = (left, right) => visible(left) && visible(right);
+                const detected = pairVisible(11, 12) && pairVisible(23, 24);
+                if (!detected) return fallback;
+
+                const requiredFullBody = [0, 11, 12, 23, 24, 25, 26, 27, 28];
+                const fullBody = requiredFullBody.every((index) => visible(index))
+                    && poseLandmarks[0].y > 0.01
+                    && Math.max(poseLandmarks[27].y, poseLandmarks[28].y) < 0.995;
+
+                const visibleLandmarks = poseLandmarks.filter((_, index) => visible(index, 0.35));
+                const xs = visibleLandmarks.map((landmark) => landmark.x * width);
+                const ys = visibleLandmarks.map((landmark) => landmark.y * height);
+                const minX = Math.max(0, Math.min(...xs) - width * 0.04);
+                const maxX = Math.min(width, Math.max(...xs) + width * 0.04);
+                const minY = Math.max(0, Math.min(...ys) - height * 0.03);
+                const maxY = Math.min(height, Math.max(...ys) + height * 0.03);
+                const shoulderSpan = Math.abs(poseLandmarks[12].x - poseLandmarks[11].x);
+                const orientationOk = pose === 'side'
+                    ? shoulderSpan <= 0.18
+                    : shoulderSpan >= 0.08;
+
+                return {
+                    detected,
+                    fullBody,
+                    orientationOk,
+                    bodyBox: {
+                        x: minX,
+                        y: minY,
+                        w: Math.max(1, maxX - minX),
+                        h: Math.max(1, maxY - minY),
+                    },
+                };
+            },
+            referenceBoxRatioOk(box) {
+                if (!box?.w || !box?.h) return false;
+                const ratio = Math.max(box.w, box.h) / Math.max(1, Math.min(box.w, box.h));
+                const expected = this.refObject === 'ktp' ? (8.56 / 5.398) : (29.7 / 21);
+                return Math.abs(ratio - expected) / expected <= 0.28;
+            },
+            findReferenceCandidate(imageData, width, height) {
+                const step = 3;
+                const cols = Math.ceil(width / step);
+                const rows = Math.ceil(height / step);
+                const active = new Uint8Array(cols * rows);
+                const visited = new Uint8Array(cols * rows);
+
+                for (let gy = 0; gy < rows; gy++) {
+                    const y = Math.min(height - 1, gy * step);
+                    for (let gx = 0; gx < cols; gx++) {
+                        const x = Math.min(width - 1, gx * step);
+                        const offset = (y * width + x) * 4;
+                        const r = imageData[offset];
+                        const g = imageData[offset + 1];
+                        const b = imageData[offset + 2];
+                        const luma = (r + g + b) / 3;
+                        const neutral = Math.max(r, g, b) - Math.min(r, g, b) < 42;
+                        active[gy * cols + gx] = luma > 182 && neutral ? 1 : 0;
+                    }
+                }
+
+                const candidates = [];
+                const stack = [];
+                for (let gy = 0; gy < rows; gy++) {
+                    for (let gx = 0; gx < cols; gx++) {
+                        const start = gy * cols + gx;
+                        if (!active[start] || visited[start]) continue;
+
+                        let count = 0;
+                        let minX = gx;
+                        let maxX = gx;
+                        let minY = gy;
+                        let maxY = gy;
+                        let touchesFrame = false;
+                        stack.push(start);
+                        visited[start] = 1;
+
+                        while (stack.length) {
+                            const current = stack.pop();
+                            const cy = Math.floor(current / cols);
+                            const cx = current - cy * cols;
+                            count++;
+                            minX = Math.min(minX, cx);
+                            maxX = Math.max(maxX, cx);
+                            minY = Math.min(minY, cy);
+                            maxY = Math.max(maxY, cy);
+                            touchesFrame ||= cx === 0 || cy === 0 || cx === cols - 1 || cy === rows - 1;
+
+                            [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]].forEach(([nx, ny]) => {
+                                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
+                                const next = ny * cols + nx;
+                                if (!active[next] || visited[next]) return;
+                                visited[next] = 1;
+                                stack.push(next);
+                            });
+                        }
+
+                        const boxW = (maxX - minX + 1) * step;
+                        const boxH = (maxY - minY + 1) * step;
+                        const boxArea = boxW * boxH;
+                        const areaRatio = boxArea / Math.max(1, width * height);
+                        const fillRatio = (count * step * step) / Math.max(1, boxArea);
+                        const centerX = ((minX + maxX + 1) * step) / 2;
+                        const atSide = centerX < width * 0.38 || centerX > width * 0.62;
+                        const box = { x: minX * step, y: minY * step, w: boxW, h: boxH };
+
+                        if (!touchesFrame && atSide && areaRatio >= 0.009 && areaRatio <= 0.28
+                            && fillRatio >= 0.5 && this.referenceBoxRatioOk(box)) {
+                            candidates.push({
+                                ...box,
+                                score: areaRatio * fillRatio,
+                            });
+                        }
+                    }
+                }
+
+                candidates.sort((a, b) => b.score - a.score);
+                const candidate = candidates[0];
+                if (!candidate) return null;
+                return { x: candidate.x, y: candidate.y, w: candidate.w, h: candidate.h };
+            },
+            buildDetectionReport(ctx, width, height, pose, includeOverlay, poseLandmarks = null) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
                 let luminance = 0;
-                let brightCount = 0;
                 let contrastCount = 0;
-                let refMinX = width;
-                let refMinY = height;
-                let refMaxX = 0;
-                let refMaxY = 0;
-                let centerActivity = 0;
-                const centerLeft = width * 0.24;
-                const centerRight = width * 0.76;
 
                 for (let y = 0; y < height; y += 2) {
                     for (let x = 0; x < width; x += 2) {
@@ -1074,18 +1289,6 @@
                         const b = imageData[index + 2];
                         const l = (r + g + b) / 3;
                         luminance += l;
-                        if (l > 205 && Math.abs(r - g) < 35 && Math.abs(g - b) < 35) {
-                            brightCount++;
-                            if (x < width * 0.35 || x > width * 0.65) {
-                                refMinX = Math.min(refMinX, x);
-                                refMinY = Math.min(refMinY, y);
-                                refMaxX = Math.max(refMaxX, x);
-                                refMaxY = Math.max(refMaxY, y);
-                            }
-                        }
-                        if (x > centerLeft && x < centerRight && l < 185) {
-                            centerActivity++;
-                        }
                         if (l < 55 || l > 210) {
                             contrastCount++;
                         }
@@ -1094,43 +1297,39 @@
 
                 const sampleCount = Math.ceil(width / 2) * Math.ceil(height / 2);
                 const avgLight = luminance / Math.max(1, sampleCount);
-                const refDetected = refMaxX > refMinX && refMaxY > refMinY;
-                const refBox = refDetected ? {
-                    x: refMinX,
-                    y: refMinY,
-                    w: refMaxX - refMinX,
-                    h: refMaxY - refMinY,
-                } : null;
-                const refRatio = refBox ? refBox.h / Math.max(1, refBox.w) : 0;
-                const refRatioOk = this.refObject === 'ktp'
-                    ? refRatio > 0.45 && refRatio < 1.9
-                    : refRatio > 1.05 && refRatio < 1.75;
-                const refSizeOk = refBox ? (refBox.w * refBox.h) > (width * height * 0.012) : false;
+                const poseSummary = this.summarizePose(poseLandmarks, width, height, pose);
+                const refBox = this.findReferenceCandidate(imageData, width, height);
                 const lightOk = avgLight > 65 && avgLight < 220;
-                const bodyOk = centerActivity > sampleCount * 0.045;
-                const fullBodyFraming = height >= width * 0.65;
                 const contrastOk = contrastCount > sampleCount * 0.08;
                 const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
+                const detectorAvailable = this.poseDetectorReady;
 
                 const checks = [
-                    { label: bodyOk ? 'Area tubuh terdeteksi di tengah frame.' : 'Posisikan tubuh penuh di tengah frame.', ok: bodyOk },
-                    { label: fullBodyFraming ? 'Frame cukup untuk tubuh penuh.' : 'Mundur sedikit agar kepala sampai kaki masuk.', ok: fullBodyFraming },
-                    { label: refDetected && refSizeOk ? `${this.refObject.toUpperCase()} terlihat di sisi tubuh.` : `${this.refObject.toUpperCase()} belum terlihat jelas di sisi tubuh.`, ok: refDetected && refSizeOk },
-                    { label: refRatioOk ? 'Benda patokan tampak tegak dan proporsional.' : 'Benda patokan terlalu miring atau bentuknya belum terbaca.', ok: refRatioOk },
+                    {
+                        label: poseSummary.detected
+                            ? 'Orang terdeteksi dengan landmark tubuh.'
+                            : (detectorAvailable ? 'Orang belum terdeteksi dengan jelas.' : 'Detektor pose sedang disiapkan.'),
+                        ok: poseSummary.detected,
+                    },
+                    { label: poseSummary.fullBody ? 'Kepala sampai kaki masuk penuh.' : 'Mundur agar kepala sampai kaki terlihat penuh.', ok: poseSummary.fullBody },
+                    { label: refBox ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.` : `${this.refObject.toUpperCase()} belum terdeteksi. Gunakan kotak manual bila perlu.`, ok: Boolean(refBox) },
+                    { label: refBox ? 'Proporsi benda patokan sesuai.' : 'Benda patokan belum dapat diperiksa proporsinya.', ok: Boolean(refBox) },
                     { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
-                    { label: sideWarningOk ? 'Mode patokan sesuai pose.' : 'Foto samping mode praktis perlu dicek ulang agar tangan/A4 tidak menutup siluet.', ok: sideWarningOk },
+                    {
+                        label: poseSummary.orientationOk && sideWarningOk
+                            ? `Arah tubuh sesuai foto ${this.poseLabel(pose).toLowerCase()}.`
+                            : (sideWarningOk ? 'Arah tubuh belum sesuai dengan pose yang dipilih.' : 'Mode praktis tidak disarankan pada foto samping.'),
+                        ok: poseSummary.orientationOk && sideWarningOk,
+                    },
                 ];
 
                 return {
-                    ready: checks.filter((item) => item.ok).length >= 4,
+                    ready: detectorAvailable && checks.every((item) => item.ok),
                     checks,
                     refBox,
-                    bodyBox: {
-                        x: width * 0.25,
-                        y: height * 0.08,
-                        w: width * 0.36,
-                        h: height * 0.84,
-                    },
+                    bodyBox: poseSummary.bodyBox,
+                    poseDetected: poseSummary.detected,
+                    fullBody: poseSummary.fullBody,
                     includeOverlay,
                 };
             },

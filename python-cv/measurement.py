@@ -87,7 +87,7 @@ def resize_for_measurement(image, max_dimension=1280):
     return cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_AREA)
 
 
-def detect_reference_object(image):
+def detect_reference_object(image, real_width, real_height):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
@@ -96,18 +96,41 @@ def detect_reference_object(image):
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     best = None
-    best_area = 0
+    best_score = 0.0
     image_area = image.shape[0] * image.shape[1]
+    image_h, image_w = image.shape[:2]
+    expected_ratio = max(real_width, real_height) / min(real_width, real_height)
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area < image_area * 0.005 or area > image_area * 0.45:
+        if area < image_area * 0.005 or area > image_area * 0.3:
             continue
 
         peri = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.025 * peri, True)
-        if 4 <= len(approx) <= 8 and area > best_area:
+        if not 4 <= len(approx) <= 8:
+            continue
+
+        x, y, bound_w, bound_h = cv2.boundingRect(contour)
+        if x <= 1 or y <= 1 or x + bound_w >= image_w - 1 or y + bound_h >= image_h - 1:
+            continue
+
+        (_, _), (rect_w, rect_h), _ = cv2.minAreaRect(contour)
+        if rect_w <= 0 or rect_h <= 0:
+            continue
+
+        observed_ratio = max(rect_w, rect_h) / min(rect_w, rect_h)
+        ratio_quality = min(observed_ratio, expected_ratio) / max(observed_ratio, expected_ratio)
+        rectangularity = min(1.0, area / max(1.0, rect_w * rect_h))
+        center_x = x + bound_w / 2
+        at_body_side = center_x < image_w * 0.43 or center_x > image_w * 0.57
+        if ratio_quality < 0.72 or rectangularity < 0.62 or not at_body_side:
+            continue
+
+        area_quality = min(1.0, area / (image_area * 0.06))
+        score = ratio_quality * 0.55 + rectangularity * 0.3 + area_quality * 0.15
+        if score > best_score:
             best = contour
-            best_area = area
+            best_score = score
 
     return best
 
@@ -166,7 +189,7 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, ma
     contour = manual_reference_contour(image, manual_box)
     source = "manual" if contour is not None else "auto"
     if contour is None:
-        contour = detect_reference_object(image)
+        contour = detect_reference_object(image, real_width, real_height)
     if contour is None:
         return None
 

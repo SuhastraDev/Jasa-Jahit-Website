@@ -49,6 +49,36 @@ class MeasurementController extends Controller
         return view('user.measurement.index', compact('measurements'));
     }
 
+    public function poseModel()
+    {
+        $path = base_path('python-cv/pose_landmarker_lite.task');
+        abort_unless(is_file($path), 404);
+
+        return response()->file($path, [
+            'Content-Type' => 'application/octet-stream',
+            'Cache-Control' => 'public, max-age=604800, immutable',
+        ]);
+    }
+
+    public function mediaPipeAsset(string $file)
+    {
+        $allowed = [
+            'vision_wasm_internal.js' => 'application/javascript',
+            'vision_wasm_internal.wasm' => 'application/wasm',
+            'vision_wasm_nosimd_internal.js' => 'application/javascript',
+            'vision_wasm_nosimd_internal.wasm' => 'application/wasm',
+        ];
+        abort_unless(isset($allowed[$file]), 404);
+
+        $path = base_path("node_modules/@mediapipe/tasks-vision/wasm/{$file}");
+        abort_unless(is_file($path), 404);
+
+        return response()->file($path, [
+            'Content-Type' => $allowed[$file],
+            'Cache-Control' => 'public, max-age=604800, immutable',
+        ]);
+    }
+
     /**
      * Proses analisis CV dan tampilkan hasil
      */

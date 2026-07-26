@@ -16,6 +16,30 @@ class MeasurementMultiviewTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_authenticated_user_can_load_local_pose_detector_assets(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.pose-model'))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/octet-stream');
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.mediapipe-asset', ['file' => 'vision_wasm_internal.wasm']))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/wasm');
+    }
+
+    public function test_pose_detector_asset_route_rejects_unknown_files(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.mediapipe-asset', ['file' => 'unknown.js']))
+            ->assertNotFound();
+    }
+
     public function test_measurement_analysis_requires_front_side_and_back_photos(): void
     {
         $user = User::factory()->create(['role' => 'user']);
