@@ -155,7 +155,7 @@
                         <div class="rounded-xl border border-gray-100 bg-white p-4">
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <p class="text-sm font-bold text-gray-900">Status kamera</p>
-                                <span class="text-[11px] font-bold px-2 py-1 rounded-full" :class="liveReport.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="liveReport.ready ? 'Frame siap' : 'Ikuti panduan frame'"></span>
+                                <span class="text-[11px] font-bold px-2 py-1 rounded-full" :class="liveReport.captureReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="liveReport.captureReady ? 'Siap ambil foto' : 'Ikuti panduan frame'"></span>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <template x-for="item in liveReport.checks" :key="item.label">
@@ -171,7 +171,7 @@
                             <button type="button" @click="startCamera()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">
                                 Aktifkan Kamera
                             </button>
-                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady || !liveReport.ready"
+                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady || !liveReport.captureReady"
                                 class="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
                                 Capture <span x-text="activePoseLabel"></span>
                             </button>
@@ -736,7 +736,7 @@
                 }, 900);
             },
             async capturePose(pose) {
-                if (!this.cameraReady || !this.liveReport.ready || !this.$refs.video.videoWidth) return;
+                if (!this.cameraReady || !this.liveReport.captureReady || !this.$refs.video.videoWidth) return;
 
                 const video = this.$refs.video;
                 const canvas = this.$refs.canvas;
@@ -1325,6 +1325,13 @@
 
                 return {
                     ready: detectorAvailable && checks.every((item) => item.ok),
+                    captureReady: detectorAvailable
+                        && poseSummary.detected
+                        && poseSummary.fullBody
+                        && lightOk
+                        && contrastOk
+                        && poseSummary.orientationOk
+                        && sideWarningOk,
                     checks,
                     refBox,
                     bodyBox: poseSummary.bodyBox,
