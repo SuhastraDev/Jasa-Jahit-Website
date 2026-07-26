@@ -341,6 +341,10 @@
                                             class="rounded-lg bg-sky-600 px-3 py-1.5 text-[11px] font-bold text-white border border-sky-600">
                                             Buat kotak manual
                                         </button>
+                                        <button type="button" @click="openReferenceEditor('{{ $key }}')"
+                                            class="rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white border border-slate-900">
+                                            Perbesar dan atur kotak
+                                        </button>
                                         <button type="button" @click="useDetectedReferenceBox('{{ $key }}')" :disabled="!detectionReports.{{ $key }}?.refBox"
                                             class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-sky-700 border border-sky-200 disabled:opacity-50">
                                             Pakai kotak terdeteksi
@@ -449,6 +453,63 @@
             </div>
         </div>
     </div>
+
+    <div x-show="referenceEditor.open" x-cloak class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div class="w-full max-w-6xl max-h-[94vh] rounded-2xl bg-white shadow-2xl border border-white/70 overflow-hidden flex flex-col">
+            <div class="bg-slate-900 px-5 py-4 text-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs font-bold text-sky-200">Editor area benda patokan</p>
+                    <h3 class="text-lg font-black mt-0.5" x-text="`Perbesar foto ${poseLabel(referenceEditor.pose)}`"></h3>
+                    <p class="text-xs text-slate-300 mt-1">Geser kotak ke A4/KTP, lalu tarik bulatan sudut sampai pas dengan pinggir benda.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="rounded-lg bg-sky-500 px-3 py-2 text-xs font-bold text-white">
+                        Buat ulang kotak
+                    </button>
+                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-auto bg-slate-100 p-3 sm:p-5">
+                <div class="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <canvas x-ref="referenceEditorCanvas"
+                        class="w-full max-h-[68vh] cursor-move touch-none rounded-lg bg-slate-50"
+                        @mousedown="startManualReference($event, referenceEditor.pose, 'editor')"
+                        @mousemove="updateManualReference($event, referenceEditor.pose, 'editor')"
+                        @mouseup="finishManualReference($event, referenceEditor.pose, 'editor')"
+                        @mouseleave="cancelManualReference(referenceEditor.pose, 'editor')"
+                        @touchstart.prevent="startManualReference($event, referenceEditor.pose, 'editor')"
+                        @touchmove.prevent="updateManualReference($event, referenceEditor.pose, 'editor')"
+                        @touchend.prevent="finishManualReference($event, referenceEditor.pose, 'editor')"></canvas>
+                </div>
+                <div class="mx-auto mt-3 max-w-5xl grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div class="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
+                        <span class="font-black">1.</span> Letakkan kotak tepat di area A4/KTP.
+                    </div>
+                    <div class="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
+                        <span class="font-black">2.</span> Tarik sudut kotak untuk menyesuaikan ukuran.
+                    </div>
+                    <div class="rounded-xl border border-green-100 bg-green-50 p-3 text-xs text-green-800">
+                        <span class="font-black">3.</span> Area otomatis tersimpan saat kotak berubah.
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 bg-white px-5 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-slate-500" x-text="manualReferenceBoxes[referenceEditor.pose] ? 'Kotak manual aktif dan akan dipakai untuk menghitung skala.' : 'Belum ada kotak manual untuk foto ini.'"></p>
+                <div class="flex gap-2">
+                    <button type="button" @click="clearManualReferenceBox(referenceEditor.pose)" class="rounded-lg border border-red-100 px-4 py-2 text-xs font-bold text-red-600">
+                        Hapus kotak
+                    </button>
+                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white">
+                        Simpan area
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -473,8 +534,10 @@
             detectionReports: { front: null, side: null, back: null },
             manualReferenceBoxes: { front: null, side: null, back: null },
             previewImageData: { front: null, side: null, back: null },
+            previewImageSource: { front: null, side: null, back: null },
             referenceDrag: null,
             referenceAction: null,
+            referenceEditor: { open: false, pose: 'front', imageData: null },
             liveReport: {
                 ready: false,
                 checks: [
@@ -622,6 +685,7 @@
                     this.detectionReports[pose] = null;
                     this.manualReferenceBoxes[pose] = null;
                     this.previewImageData[pose] = null;
+                    this.previewImageSource[pose] = null;
                     delete this.uploadErrors[pose];
                     this.uploadErrors = { ...this.uploadErrors };
                     this.validateSelectedFiles();
@@ -643,6 +707,7 @@
                     this.detectionReports[pose] = null;
                     this.manualReferenceBoxes[pose] = null;
                     this.previewImageData[pose] = null;
+                    this.previewImageSource[pose] = null;
                     return;
                 }
 
@@ -698,6 +763,8 @@
                     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
                     const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true);
+                    this.previewImageSource[pose] = image;
+                    this.previewImageSource = { ...this.previewImageSource };
                     this.previewImageData[pose] = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     this.previewImageData = { ...this.previewImageData };
                     this.detectionReports[pose] = report;
@@ -707,6 +774,10 @@
                 };
                 image.src = URL.createObjectURL(file);
             },
+            getReferenceCanvas(pose, surface = 'preview') {
+                if (surface === 'editor') return this.$refs.referenceEditorCanvas;
+                return this.$refs[`${pose}DetectionCanvas`];
+            },
             canvasPoint(event, canvas) {
                 const source = event.touches?.[0] || event.changedTouches?.[0] || event;
                 const rect = canvas.getBoundingClientRect();
@@ -715,17 +786,18 @@
                     y: (source.clientY - rect.top) * (canvas.height / rect.height),
                 };
             },
-            startManualReference(event, pose) {
-                const canvas = this.$refs[`${pose}DetectionCanvas`];
-                if (!canvas || !this.previewImageData[pose]) return;
+            startManualReference(event, pose, surface = 'preview') {
+                const canvas = this.getReferenceCanvas(pose, surface);
+                if (!canvas || !this.referenceCanvasReady(pose, surface)) return;
 
                 const point = this.canvasPoint(event, canvas);
-                const box = this.manualReferenceBoxes[pose];
+                const box = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
                 if (box) {
                     this.referenceAction = this.pickReferenceAction(point, box);
                     if (this.referenceAction) {
                         this.referenceDrag = {
                             pose,
+                            surface,
                             startX: point.x,
                             startY: point.y,
                             currentX: point.x,
@@ -738,12 +810,12 @@
                 }
 
                 this.referenceAction = 'draw';
-                this.referenceDrag = { pose, startX: point.x, startY: point.y, currentX: point.x, currentY: point.y };
-                this.redrawPreviewOverlay(pose);
+                this.referenceDrag = { pose, surface, startX: point.x, startY: point.y, currentX: point.x, currentY: point.y };
+                this.redrawReferenceCanvas(pose, surface);
             },
-            updateManualReference(event, pose) {
-                if (!this.referenceDrag || this.referenceDrag.pose !== pose) return;
-                const canvas = this.$refs[`${pose}DetectionCanvas`];
+            updateManualReference(event, pose, surface = 'preview') {
+                if (!this.referenceDrag || this.referenceDrag.pose !== pose || this.referenceDrag.surface !== surface) return;
+                const canvas = this.getReferenceCanvas(pose, surface);
                 const point = this.canvasPoint(event, canvas);
                 this.referenceDrag.currentX = point.x;
                 this.referenceDrag.currentY = point.y;
@@ -755,11 +827,11 @@
                         this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
                     }
                 }
-                this.redrawPreviewOverlay(pose);
+                this.redrawReferenceCanvas(pose, surface);
             },
-            finishManualReference(event, pose) {
-                if (!this.referenceDrag || this.referenceDrag.pose !== pose) return;
-                this.updateManualReference(event, pose);
+            finishManualReference(event, pose, surface = 'preview') {
+                if (!this.referenceDrag || this.referenceDrag.pose !== pose || this.referenceDrag.surface !== surface) return;
+                this.updateManualReference(event, pose, surface);
                 const box = this.referenceAction === 'draw'
                     ? this.normalizeReferenceBox(this.referenceDrag)
                     : this.manualReferenceBoxes[pose];
@@ -770,17 +842,18 @@
                     this.manualReferenceBoxes[pose] = box;
                     this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
                 }
-                this.redrawPreviewOverlay(pose);
+                this.redrawReferenceCanvas(pose, surface);
+                if (surface === 'editor') this.redrawPreviewOverlay(pose);
             },
-            cancelManualReference(pose) {
-                if (this.referenceDrag?.pose !== pose) return;
+            cancelManualReference(pose, surface = 'preview') {
+                if (this.referenceDrag?.pose !== pose || this.referenceDrag?.surface !== surface) return;
                 this.referenceDrag = null;
                 this.referenceAction = null;
-                this.redrawPreviewOverlay(pose);
+                this.redrawReferenceCanvas(pose, surface);
             },
-            createManualReferenceBox(pose) {
-                const canvas = this.$refs[`${pose}DetectionCanvas`];
-                if (!canvas || !this.previewImageData[pose]) return;
+            createManualReferenceBox(pose, surface = 'preview') {
+                const canvas = this.getReferenceCanvas(pose, surface);
+                if (!canvas || !this.referenceCanvasReady(pose, surface)) return;
 
                 const ratio = this.refObject === 'ktp' ? 8.56 / 5.398 : 21 / 29.7;
                 const h = Math.round(canvas.height * 0.42);
@@ -794,10 +867,11 @@
                     image_height: canvas.height,
                 };
                 this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
-                this.redrawPreviewOverlay(pose);
+                this.redrawReferenceCanvas(pose, surface);
+                if (surface === 'editor') this.redrawPreviewOverlay(pose);
             },
             normalizeReferenceBox(drag) {
-                const canvas = this.$refs[`${drag.pose}DetectionCanvas`];
+                const canvas = this.getReferenceCanvas(drag.pose, drag.surface);
                 if (!canvas) return null;
                 const x = Math.max(0, Math.min(drag.startX, drag.currentX));
                 const y = Math.max(0, Math.min(drag.startY, drag.currentY));
@@ -831,7 +905,7 @@
                 return inside ? 'move' : null;
             },
             boxFromEditAction(drag, action) {
-                const canvas = this.$refs[`${drag.pose}DetectionCanvas`];
+                const canvas = this.getReferenceCanvas(drag.pose, drag.surface);
                 const box = { ...drag.originalBox };
                 const dx = drag.currentX - drag.startX;
                 const dy = drag.currentY - drag.startY;
@@ -880,11 +954,89 @@
                 };
                 this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
                 this.redrawPreviewOverlay(pose);
+                if (this.referenceEditor.open && this.referenceEditor.pose === pose) this.redrawReferenceEditor();
             },
             clearManualReferenceBox(pose) {
                 this.manualReferenceBoxes[pose] = null;
                 this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
                 this.redrawPreviewOverlay(pose);
+                if (this.referenceEditor.open && this.referenceEditor.pose === pose) this.redrawReferenceEditor();
+            },
+            referenceCanvasReady(pose, surface = 'preview') {
+                return surface === 'editor'
+                    ? Boolean(this.referenceEditor.imageData)
+                    : Boolean(this.previewImageData[pose]);
+            },
+            scaleReferenceBoxToCanvas(box, canvas) {
+                if (!box || !canvas || !box.image_width || !box.image_height) return null;
+                const scaleX = canvas.width / box.image_width;
+                const scaleY = canvas.height / box.image_height;
+                return {
+                    x: box.x * scaleX,
+                    y: box.y * scaleY,
+                    w: box.w * scaleX,
+                    h: box.h * scaleY,
+                    image_width: canvas.width,
+                    image_height: canvas.height,
+                };
+            },
+            redrawReferenceCanvas(pose, surface = 'preview') {
+                if (surface === 'editor') {
+                    this.redrawReferenceEditor();
+                    return;
+                }
+                this.redrawPreviewOverlay(pose);
+            },
+            openReferenceEditor(pose) {
+                if (!this.previewImageSource[pose]) return;
+                this.referenceEditor = { open: true, pose, imageData: null };
+                this.$nextTick(() => {
+                    const image = this.previewImageSource[pose];
+                    const canvas = this.$refs.referenceEditorCanvas;
+                    if (!canvas || !image) return;
+
+                    const maxWidth = 1100;
+                    const scale = Math.min(1, maxWidth / image.width);
+                    canvas.width = Math.max(1, Math.round(image.width * scale));
+                    canvas.height = Math.max(1, Math.round(image.height * scale));
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    this.referenceEditor.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    if (!this.manualReferenceBoxes[pose]) this.createManualReferenceBox(pose, 'editor');
+                    this.redrawReferenceEditor();
+                });
+            },
+            closeReferenceEditor() {
+                const pose = this.referenceEditor.pose;
+                this.referenceEditor.open = false;
+                this.referenceDrag = null;
+                this.referenceAction = null;
+                this.redrawPreviewOverlay(pose);
+            },
+            redrawReferenceEditor() {
+                const pose = this.referenceEditor.pose;
+                const canvas = this.$refs.referenceEditorCanvas;
+                const snapshot = this.referenceEditor.imageData;
+                if (!canvas || !snapshot) return;
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.putImageData(snapshot, 0, 0);
+                const report = this.detectionReports[pose];
+                if (report) {
+                    const scaledReport = {
+                        ...report,
+                        refBox: this.scaleReferenceBoxToCanvas(report.refBox, canvas),
+                        bodyBox: this.scaleReferenceBoxToCanvas({ ...report.bodyBox, image_width: this.$refs[`${pose}DetectionCanvas`]?.width || canvas.width, image_height: this.$refs[`${pose}DetectionCanvas`]?.height || canvas.height }, canvas),
+                    };
+                    this.drawDetectionOverlay(ctx, canvas.width, canvas.height, scaledReport);
+                }
+
+                const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
+                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#0284c7', 'MANUAL');
+                if (this.referenceDrag?.pose === pose && this.referenceDrag?.surface === 'editor' && this.referenceAction === 'draw') {
+                    const draft = this.normalizeReferenceBox(this.referenceDrag);
+                    if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
+                }
             },
             redrawPreviewOverlay(pose) {
                 const canvas = this.$refs[`${pose}DetectionCanvas`];
@@ -894,9 +1046,9 @@
                 ctx.putImageData(snapshot, 0, 0);
                 const report = this.detectionReports[pose];
                 if (report) this.drawDetectionOverlay(ctx, canvas.width, canvas.height, report);
-                const manualBox = this.manualReferenceBoxes[pose];
+                const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
                 if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#0284c7', 'MANUAL');
-                if (this.referenceDrag?.pose === pose) {
+                if (this.referenceDrag?.pose === pose && this.referenceDrag?.surface === 'preview' && this.referenceAction === 'draw') {
                     const draft = this.normalizeReferenceBox(this.referenceDrag);
                     if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
                 }
