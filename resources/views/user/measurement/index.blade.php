@@ -315,14 +315,24 @@
                             ['side_photo', 'side', 'Foto Samping', 'User menghadap kiri/kanan'],
                             ['back_photo', 'back', 'Foto Belakang', 'Punggung menghadap kamera'],
                         ] as [$name, $key, $label, $hint])
-                        <div class="border rounded-xl p-4 transition-colors" :class="uploadErrors.{{ $key }} ? 'border-red-200 bg-red-50/40' : 'border-gray-100 bg-white'">
-                            <label for="{{ $name }}" class="block text-sm font-semibold text-gray-700 mb-1.5">{{ $label }} <span class="text-red-500">*</span></label>
+                        <div data-upload-card="{{ $key }}" class="border rounded-xl p-4 transition-all" :class="uploadErrors.{{ $key }} ? 'border-red-400 bg-red-50/60 ring-2 ring-red-100 shadow-sm' : 'border-gray-100 bg-white'">
+                            <div class="mb-1.5 flex items-center justify-between gap-3">
+                                <label for="{{ $name }}" class="block text-sm font-semibold text-gray-700">{{ $label }} <span class="text-red-500">*</span></label>
+                                <span x-show="uploadErrors.{{ $key }}" x-cloak class="rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white">PERLU DIPERBAIKI</span>
+                            </div>
                             <p class="text-xs text-gray-400 mb-3">{{ $hint }}</p>
                             <input type="file" name="{{ $name }}" id="{{ $name }}" x-ref="{{ $key }}Input" accept="image/*" required
                                    @change="handleUpload($event, '{{ $key }}')"
                                    class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                             <input type="hidden" name="{{ $key }}_reference_box" :value="manualReferenceBoxes.{{ $key }} ? JSON.stringify(manualReferenceBoxes.{{ $key }}) : ''">
-                            <div x-show="uploadErrors.{{ $key }}" x-cloak class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700" x-text="uploadErrors.{{ $key }}"></div>
+                            <div x-show="uploadErrors.{{ $key }}" x-cloak class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3" role="alert">
+                                <p class="text-xs font-black text-red-800">Periksa {{ $label }}</p>
+                                <p class="mt-1 text-xs font-semibold leading-relaxed text-red-700" x-text="uploadErrors.{{ $key }}"></p>
+                                <button type="button" x-show="previews.{{ $key }}" @click="openReferenceEditor('{{ $key }}')"
+                                    class="mt-2 min-h-10 touch-manipulation rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white">
+                                    Perbesar dan koreksi kotak {{ $label }}
+                                </button>
+                            </div>
                             @error($name)
                             <div class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</div>
                             @enderror
@@ -502,6 +512,11 @@
                     <p class="text-xs text-slate-300 mt-1">Kotak sudah diarahkan otomatis. Pastikan keempat sisinya tepat menempel pada tepi A4/KTP.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button type="button" @click="toggleReferenceContrast()"
+                        class="rounded-lg border px-3 py-2 text-xs font-bold"
+                        :class="referenceEditor.contrast ? 'border-amber-300 bg-amber-300 text-slate-950' : 'border-white/20 bg-white/10 text-white'">
+                        <span x-text="referenceEditor.contrast ? 'Kontras aktif' : 'Naikkan kontras'"></span>
+                    </button>
                     <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white">
                         Deteksi ulang
                     </button>
@@ -522,6 +537,9 @@
                         @touchstart.prevent="startManualReference($event, referenceEditor.pose, 'editor')"
                         @touchmove.prevent="updateManualReference($event, referenceEditor.pose, 'editor')"
                         @touchend.prevent="finishManualReference($event, referenceEditor.pose, 'editor')"></canvas>
+                </div>
+                <div x-show="referenceEditor.contrast" x-cloak class="mx-auto mt-3 max-w-5xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
+                    Area di dalam kotak merah sedang ditampilkan dalam grayscale dengan kontras diperkuat. Cocokkan kotak pada empat tepi benda yang terlihat, bukan pada bayangan atau ruang kosong.
                 </div>
                 <div class="mx-auto mt-3 max-w-5xl grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <div class="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-800">
@@ -589,7 +607,7 @@
             previewImageSource: { front: null, side: null, back: null },
             referenceDrag: null,
             referenceAction: null,
-            referenceEditor: { open: false, pose: 'front', imageData: null },
+            referenceEditor: { open: false, pose: 'front', imageData: null, contrast: true },
             liveReport: {
                 ready: false,
                 checks: [
@@ -778,6 +796,7 @@
                         return;
                     }
                     if (payload.status === 'failed') {
+                        this.applyAnalysisFailure(payload);
                         throw new Error(payload.error || 'Foto tidak dapat dianalisis.');
                     }
                 }
@@ -841,10 +860,30 @@
                 this.uploadErrors = nextErrors;
                 this.totalUploadError = (payload.photo_issues || []).join(' ') || payload.message || '';
             },
+            applyAnalysisFailure(payload) {
+                const detail = payload.result || payload;
+                const failedView = detail.failed_view;
+                const message = detail.error || payload.error || 'Foto tidak dapat dianalisis.';
+                if (['front', 'side', 'back'].includes(failedView)) {
+                    const label = this.poseLabel(failedView);
+                    const edgeHint = detail.reference_processing?.refined === false
+                        ? ' Tepi benda belum ditemukan otomatis di dalam kotak. Buka mode kontras dan rapatkan kotak ke empat tepi A4/KTP.'
+                        : '';
+                    this.uploadErrors = {
+                        ...this.uploadErrors,
+                        [failedView]: `${label}: ${message}${edgeHint}`,
+                    };
+                    this.totalUploadError = `${label} perlu diperbaiki. Gunakan tombol koreksi pada kartu yang diberi garis merah.`;
+                    return;
+                }
+                this.totalUploadError = message;
+            },
             scrollToFirstAnalysisError() {
                 const firstInvalidPose = this.poseList.find((pose) => this.uploadErrors[pose.key]);
                 const input = firstInvalidPose ? this.$refs[`${firstInvalidPose.key}Input`] : null;
-                const target = input?.closest('.border.rounded-xl') || this.$refs.analysisForm;
+                const target = firstInvalidPose
+                    ? this.$refs.analysisForm?.querySelector(`[data-upload-card="${firstInvalidPose.key}"]`)
+                    : this.$refs.analysisForm;
                 target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
             validateDetectionReports() {
@@ -1338,7 +1377,7 @@
             },
             openReferenceEditor(pose) {
                 if (!this.previewImageSource[pose]) return;
-                this.referenceEditor = { open: true, pose, imageData: null };
+                this.referenceEditor = { open: true, pose, imageData: null, contrast: true };
                 this.$nextTick(() => {
                     const image = this.previewImageSource[pose];
                     const canvas = this.$refs.referenceEditorCanvas;
@@ -1355,6 +1394,45 @@
                     this.redrawReferenceEditor();
                 });
             },
+            toggleReferenceContrast() {
+                this.referenceEditor.contrast = !this.referenceEditor.contrast;
+                this.redrawReferenceEditor();
+            },
+            enhanceReferenceArea(ctx, box) {
+                if (!box?.w || !box?.h) return;
+                const x = Math.max(0, Math.floor(box.x));
+                const y = Math.max(0, Math.floor(box.y));
+                const width = Math.max(1, Math.min(ctx.canvas.width - x, Math.ceil(box.w)));
+                const height = Math.max(1, Math.min(ctx.canvas.height - y, Math.ceil(box.h)));
+                if (width <= 1 || height <= 1) return;
+
+                const image = ctx.getImageData(x, y, width, height);
+                const luminance = new Uint8Array(width * height);
+                let min = 255;
+                let max = 0;
+                for (let pixel = 0; pixel < luminance.length; pixel++) {
+                    const offset = pixel * 4;
+                    const value = Math.round(
+                        image.data[offset] * 0.299
+                        + image.data[offset + 1] * 0.587
+                        + image.data[offset + 2] * 0.114,
+                    );
+                    luminance[pixel] = value;
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                }
+
+                const range = Math.max(24, max - min);
+                for (let pixel = 0; pixel < luminance.length; pixel++) {
+                    const offset = pixel * 4;
+                    const stretched = Math.max(0, Math.min(255, Math.round((luminance[pixel] - min) * 255 / range)));
+                    const highContrast = stretched < 112 ? Math.round(stretched * 0.72) : Math.min(255, Math.round(128 + (stretched - 112) * 1.35));
+                    image.data[offset] = highContrast;
+                    image.data[offset + 1] = highContrast;
+                    image.data[offset + 2] = highContrast;
+                }
+                ctx.putImageData(image, x, y);
+            },
             closeReferenceEditor() {
                 const pose = this.referenceEditor.pose;
                 this.referenceEditor.open = false;
@@ -1370,6 +1448,10 @@
 
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 ctx.putImageData(snapshot, 0, 0);
+                const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
+                if (this.referenceEditor.contrast && manualBox) {
+                    this.enhanceReferenceArea(ctx, manualBox);
+                }
                 const report = this.detectionReports[pose];
                 if (report) {
                     const scaledReport = {
@@ -1380,7 +1462,6 @@
                     this.drawDetectionOverlay(ctx, canvas.width, canvas.height, scaledReport);
                 }
 
-                const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
                 if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#ef4444', this.refObject.toUpperCase());
                 if (this.referenceDrag?.pose === pose && this.referenceDrag?.surface === 'editor' && this.referenceAction === 'draw') {
                     const draft = this.normalizeReferenceBox(this.referenceDrag);

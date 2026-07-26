@@ -269,6 +269,10 @@ class MeasurementGeometryTest(unittest.TestCase):
             "source": "manual",
             "quality": 0.98,
             "axis_scales": [8.0, 7.84],
+            "processing": {
+                "method": "manual_box",
+                "refined": False,
+            },
         }
 
         with (
@@ -287,8 +291,11 @@ class MeasurementGeometryTest(unittest.TestCase):
             )
 
         self.assertFalse(result["success"])
+        self.assertEqual("front", result["failed_view"])
         self.assertEqual("invalid_reference_scale", result["failed_reason"])
         self.assertLess(result["estimated_stature_cm"], 110)
+        self.assertEqual("manual", result["reference_source"])
+        self.assertFalse(result["reference_processing"]["refined"])
 
 
 if __name__ == "__main__":

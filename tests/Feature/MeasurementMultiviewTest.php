@@ -169,6 +169,48 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('92.4');
     }
 
+    public function test_failed_background_analysis_keeps_the_problematic_photo_detail(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $jobId = 'job-failed-front-789';
+        Cache::put("measurement_analysis:{$user->id}:{$jobId}", [
+            'user_id' => $user->id,
+            'front_photo_path' => 'measurements/1/front.jpg',
+            'side_photo_path' => 'measurements/1/side.jpg',
+            'back_photo_path' => 'measurements/1/back.jpg',
+            'ref_object' => 'a4',
+            'ref_width_cm' => 21.0,
+            'ref_height_cm' => 29.7,
+            'reference_mode' => 'fixed',
+            'result' => null,
+        ], now()->addMinutes(10));
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('measurementJobStatus')->once()->andReturn([
+                'status' => 'failed',
+                'error' => 'Kotak A4/KTP tidak mengikuti benda patokan.',
+                'result' => [
+                    'success' => false,
+                    'failed_view' => 'front',
+                    'failed_reason' => 'invalid_reference_scale',
+                    'estimated_stature_cm' => 104.8,
+                    'reference_processing' => [
+                        'method' => 'manual_box',
+                        'refined' => false,
+                    ],
+                ],
+            ]);
+        });
+
+        $this->actingAs($user)
+            ->getJson(route('user.measurement.analysis-status', $jobId))
+            ->assertOk()
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('result.failed_view', 'front')
+            ->assertJsonPath('result.failed_reason', 'invalid_reference_scale')
+            ->assertJsonPath('result.reference_processing.refined', false);
+    }
+
     public function test_handheld_reference_mode_is_rejected_for_ktp(): void
     {
         $user = User::factory()->create(['role' => 'user']);

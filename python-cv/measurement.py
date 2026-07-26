@@ -779,6 +779,9 @@ def process_measurement(
                 "failed_view": view,
                 "failed_reason": "invalid_reference_scale",
                 "estimated_stature_cm": round(float(stature_cm), 2),
+                "reference_source": scale_result.get("source"),
+                "reference_processing": scale_result.get("processing", {}),
+                "reference_axis_scales": scale_result.get("axis_scales", []),
             }
 
         mask = build_body_mask(
