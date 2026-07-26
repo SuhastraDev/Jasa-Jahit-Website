@@ -80,6 +80,92 @@ class CVMeasurementService
     }
 
     /**
+     * Upload the photos once and let FastAPI process them in the background.
+     */
+    public function startMeasurementJob(
+        UploadedFile $frontPhoto,
+        UploadedFile $sidePhoto,
+        UploadedFile $backPhoto,
+        string $refObject,
+        ?float $refWidthCm = null,
+        ?float $refHeightCm = null,
+        string $referenceMode = 'fixed',
+        array $referenceBoxes = []
+    ): array
+    {
+        try {
+            [$frontContent, $frontName] = $this->preparePhotoForCv($frontPhoto, 'front.jpg');
+            [$sideContent, $sideName] = $this->preparePhotoForCv($sidePhoto, 'side.jpg');
+            [$backContent, $backName] = $this->preparePhotoForCv($backPhoto, 'back.jpg');
+
+            $request = Http::timeout(35)
+                ->attach('front_photo', $frontContent, $frontName)
+                ->attach('side_photo', $sideContent, $sideName)
+                ->attach('back_photo', $backContent, $backName);
+
+            $formData = [
+                'ref_object' => $refObject,
+                'reference_mode' => $referenceMode,
+                'ref_width_cm' => $refWidthCm,
+                'ref_height_cm' => $refHeightCm,
+            ];
+
+            foreach (['front', 'side', 'back'] as $view) {
+                if (!empty($referenceBoxes[$view])) {
+                    $formData["{$view}_reference_box"] = $referenceBoxes[$view];
+                }
+            }
+
+            $response = $request->post("{$this->baseUrl}/measure/jobs", $formData);
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Layanan CV gagal memulai analisis: ' . $response->status(),
+            ];
+        } catch (\Illuminate\Http\Client\ConnectionException) {
+            return [
+                'success' => false,
+                'error' => 'Layanan CV tidak merespons saat foto dikirim. Periksa koneksi lalu coba lagi.',
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'error' => 'Analisis tidak dapat dimulai: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public function measurementJobStatus(string $jobId): array
+    {
+        try {
+            $response = Http::timeout(10)->get("{$this->baseUrl}/measure/jobs/{$jobId}");
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'status' => 'failed',
+                'error' => $response->status() === 404
+                    ? 'Proses analisis tidak ditemukan atau sudah kedaluwarsa.'
+                    : 'Status analisis tidak dapat dibaca.',
+            ];
+        } catch (\Throwable) {
+            return [
+                'status' => 'waiting',
+                'progress' => [
+                    'stage' => 'reconnecting',
+                    'percent' => 5,
+                    'message' => 'Menghubungkan kembali ke layanan analisis',
+                    'view' => null,
+                ],
+            ];
+        }
+    }
+
+    /**
      * Check if the CV service is available.
      */
     public function isAvailable(): bool

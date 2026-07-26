@@ -184,10 +184,124 @@ def manual_reference_contour(image, box_payload):
     ], dtype=np.int32)
 
 
+def refine_manual_reference_contour(image, box_payload, real_width, real_height):
+    """Find the physical reference edges inside a user-selected search area."""
+    manual_contour = manual_reference_contour(image, box_payload)
+    if manual_contour is None:
+        return None
+
+    image_h, image_w = image.shape[:2]
+    x, y, width, height = cv2.boundingRect(manual_contour)
+    padding = max(4, int(round(max(width, height) * 0.08)))
+    roi_x1 = max(0, x - padding)
+    roi_y1 = max(0, y - padding)
+    roi_x2 = min(image_w, x + width + padding)
+    roi_y2 = min(image_h, y + height + padding)
+    roi = image[roi_y1:roi_y2, roi_x1:roi_x2]
+    if roi.size == 0:
+        return None
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(gray)
+    blurred = cv2.GaussianBlur(clahe, (5, 5), 0)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+    edge_variants = []
+    canny = cv2.Canny(blurred, 35, 120)
+    edge_variants.append(("canny", cv2.morphologyEx(canny, cv2.MORPH_CLOSE, kernel, iterations=2)))
+    for threshold_type, name in (
+        (cv2.THRESH_BINARY, "adaptive"),
+        (cv2.THRESH_BINARY_INV, "adaptive_inverse"),
+    ):
+        thresholded = cv2.adaptiveThreshold(
+            blurred,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            threshold_type,
+            31,
+            7,
+        )
+        edge_variants.append((name, cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel, iterations=2)))
+
+    expected_ratio = max(real_width, real_height) / min(real_width, real_height)
+    roi_area = max(1, roi.shape[0] * roi.shape[1])
+    target_center = np.array([x + width / 2 - roi_x1, y + height / 2 - roi_y1], dtype=np.float32)
+    target_size = max(1.0, math.hypot(width, height))
+    best = None
+    best_score = 0.0
+    best_method = None
+    best_quality = 0.0
+
+    for method, processed in edge_variants:
+        contours, _ = cv2.findContours(processed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < roi_area * 0.12 or area > roi_area * 0.94:
+                continue
+
+            rect = cv2.minAreaRect(contour)
+            (_, _), (rect_w, rect_h), _ = rect
+            if rect_w <= 0 or rect_h <= 0:
+                continue
+
+            observed_ratio = max(rect_w, rect_h) / min(rect_w, rect_h)
+            ratio_quality = min(observed_ratio, expected_ratio) / max(observed_ratio, expected_ratio)
+            rectangularity = min(1.0, area / max(1.0, rect_w * rect_h))
+            rect_center = np.array(rect[0], dtype=np.float32)
+            center_quality = max(0.0, 1.0 - np.linalg.norm(rect_center - target_center) / target_size)
+            area_quality = min(1.0, area / max(1.0, width * height))
+            if ratio_quality < 0.72 or rectangularity < 0.58 or center_quality < 0.45:
+                continue
+
+            score = ratio_quality * 0.45 + rectangularity * 0.25 + center_quality * 0.2 + area_quality * 0.1
+            if score <= best_score:
+                continue
+
+            points = cv2.boxPoints(rect)
+            points[:, 0] += roi_x1
+            points[:, 1] += roi_y1
+            best = points.reshape((-1, 1, 2)).astype(np.int32)
+            best_score = score
+            best_method = method
+            best_quality = min(0.98, max(0.72, score))
+
+    if best is not None:
+        return {
+            "contour": best,
+            "source": "manual_refined",
+            "quality": round(float(best_quality), 4),
+            "processing": {
+                "roi": [int(roi_x1), int(roi_y1), int(roi_x2 - roi_x1), int(roi_y2 - roi_y1)],
+                "method": best_method,
+                "variants": ["clahe", "canny", "adaptive", "adaptive_inverse"],
+                "refined": True,
+            },
+        }
+
+    return {
+        "contour": manual_contour,
+        "source": "manual_fallback",
+        "quality": 0.72,
+        "processing": {
+            "roi": [int(roi_x1), int(roi_y1), int(roi_x2 - roi_x1), int(roi_y2 - roi_y1)],
+            "method": "manual_box",
+            "variants": ["clahe", "canny", "adaptive", "adaptive_inverse"],
+            "refined": False,
+        },
+    }
+
+
 def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, manual_box=None):
     real_width, real_height = get_reference_dimensions(ref_object, ref_width_cm, ref_height_cm)
-    contour = manual_reference_contour(image, manual_box)
-    source = "manual" if contour is not None else "auto"
+    manual_result = refine_manual_reference_contour(image, manual_box, real_width, real_height)
+    contour = manual_result["contour"] if manual_result else None
+    source = manual_result["source"] if manual_result else "auto"
+    detection_quality = manual_result["quality"] if manual_result else 1.0
+    processing = manual_result["processing"] if manual_result else {
+        "method": "full_image_contour",
+        "variants": ["grayscale", "gaussian_blur", "canny"],
+        "refined": True,
+    }
     if contour is None:
         contour = detect_reference_object(image, real_width, real_height)
     if contour is None:
@@ -210,8 +324,9 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, ma
         "contour": contour,
         "area": float(cv2.contourArea(contour)),
         "source": source,
-        "quality": round(float(scale_consistency), 4),
+        "quality": round(float(min(scale_consistency, detection_quality)), 4),
         "axis_scales": [round(float(long_scale), 4), round(float(short_scale), 4)],
+        "processing": processing,
     }
 
 
@@ -560,8 +675,28 @@ def impossible_measurements(data):
     return invalid
 
 
-def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_width_cm=None, ref_height_cm=None, reference_boxes=None):
+def process_measurement(
+    front_bytes,
+    side_bytes,
+    back_bytes,
+    ref_object,
+    ref_width_cm=None,
+    ref_height_cm=None,
+    reference_boxes=None,
+    progress_callback=None,
+):
     started_at = time.perf_counter()
+
+    def progress(stage, percent, message, view=None):
+        if progress_callback:
+            progress_callback({
+                "stage": stage,
+                "percent": int(percent),
+                "message": message,
+                "view": view,
+            })
+
+    progress("prepare_photos", 5, "Membaca dan menyiapkan tiga foto")
     images = {
         "front": decode_image(front_bytes),
         "side": decode_image(side_bytes),
@@ -575,17 +710,28 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         view: resize_for_measurement(image)
         for view, image in images.items()
     }
+    progress("prepare_photos", 10, "Foto siap diproses")
 
     scales = {}
     scale_sources = {}
     scale_qualities = {}
     reference_axis_scales = {}
+    reference_processing = {}
     poses = {}
     masks = {}
     bounds = {}
     pose_statures = {}
 
+    view_progress = {
+        "front": (16, 25),
+        "side": (32, 41),
+        "back": (48, 57),
+    }
+
     for view, image in images.items():
+        reference_percent, body_percent = view_progress[view]
+        label = VIEW_LABELS.get(view, f"foto {view}")
+        progress("reference_roi", reference_percent, f"Memproses area benda patokan pada {label}", view)
         scale_result = calculate_scale(
             image,
             ref_object,
@@ -594,14 +740,12 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
             (reference_boxes or {}).get(view),
         )
         if scale_result is None:
-            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
                 "error": f"Benda patokan ukuran tidak terdeteksi pada {label}. Pilih area A4/KTP secara manual di preview, atau pastikan benda terlihat penuh, tegak, dan berada di samping tubuh.",
                 "failed_view": view,
             }
         if scale_result.get("quality", 0.0) < 0.72:
-            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
                 "error": f"Proporsi kotak A4/KTP pada {label} tidak sesuai. Atur kotak tepat pada empat tepi benda patokan, jangan menyertakan background, lalu ulangi analisis.",
@@ -611,9 +755,9 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
                 "reference_axis_scales": scale_result.get("axis_scales", []),
             }
 
+        progress("body_segmentation", body_percent, f"Mendeteksi pose dan siluet pada {label}", view)
         pose = detect_pose(image)
         if pose is None:
-            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
                 "error": f"Pose tubuh tidak terdeteksi pada {label}. Pastikan seluruh badan terlihat jelas.",
@@ -625,7 +769,6 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         pose_span_px = max(0.0, ankle_y - points["nose"][1])
         stature_cm = px_to_cm(pose_span_px * 1.08, scale_result["scale"])
         if stature_cm < 110 or stature_cm > 230:
-            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
                 "error": (
@@ -646,7 +789,6 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         )
         body_bounds = largest_body_bounds(mask)
         if body_bounds is None:
-            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
                 "error": f"Siluet tubuh tidak terbaca pada {label}. Gunakan background polos dan pencahayaan cukup.",
@@ -657,11 +799,29 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         scale_sources[view] = scale_result["source"]
         scale_qualities[view] = scale_result.get("quality", 0.5)
         reference_axis_scales[view] = scale_result.get("axis_scales", [])
+        reference_processing[view] = scale_result.get("processing", {})
         poses[view] = pose
         masks[view] = mask
         bounds[view] = body_bounds
         pose_statures[view] = stature_cm
 
+    progress("cross_view_scale", 64, "Membandingkan skala foto depan, samping, dan belakang")
+    scale_consistency = min(scales.values()) / max(scales.values())
+    stature_consistency = min(pose_statures.values()) / max(pose_statures.values())
+    if scale_consistency < 0.72 or stature_consistency < 0.82:
+        return {
+            "success": False,
+            "error": (
+                "Skala benda patokan atau posisi tubuh tidak konsisten pada tiga foto. "
+                "Pastikan kamera tetap, tubuh berdiri di titik yang sama, dan kotak merah "
+                "mengikuti tepi A4/KTP pada setiap foto."
+            ),
+            "failed_reason": "inconsistent_multiview_scale",
+            "scale_consistency": round(float(scale_consistency), 4),
+            "stature_consistency": round(float(stature_consistency), 4),
+        }
+
+    progress("calculate_measurements", 72, "Mengambil lebar, kedalaman, dan panjang tubuh")
     front_scale = scales["front"]
     side_scale = scales["side"]
     back_scale = scales["back"]
@@ -753,6 +913,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
     }
 
     invalid_measurements = impossible_measurements(data)
+    progress("anatomical_validation", 88, "Memeriksa konsistensi anatomi hasil ukuran")
     if invalid_measurements:
         fields = ", ".join(f"{MEASUREMENT_LABELS.get(item['field'], item['field'])} {item['value']}cm" for item in invalid_measurements[:5])
         return {
@@ -769,6 +930,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
             },
         }
 
+    progress("confidence", 95, "Menghitung confidence dan kualitas setiap ukuran")
     pose_confidence = round(average(poses["front"]["confidence"], poses["side"]["confidence"], poses["back"]["confidence"]), 2)
     scale_quality = average(*scale_qualities.values())
 
@@ -829,7 +991,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         else:
             per_field_confidence[field] = direct_confidence
 
-    return {
+    result = {
         "success": True,
         "data": data,
         "confidence": quality_score,
@@ -848,6 +1010,11 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
             "width_quality_by_level": {key: round(value, 4) for key, value in width_quality_by_level.items()},
             "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
             "reference_scale_sources": scale_sources,
+            "reference_processing": reference_processing,
+            "scale_consistency": round(float(scale_consistency), 4),
+            "stature_consistency": round(float(stature_consistency), 4),
             "width_samples": width_debug,
         },
     }
+    progress("completed", 100, "Analisis selesai dan hasil siap diperiksa")
+    return result

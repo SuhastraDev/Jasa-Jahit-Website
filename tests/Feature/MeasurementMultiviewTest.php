@@ -8,6 +8,7 @@ use App\Services\CVMeasurementService;
 use App\Services\PhotoValidationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
 use Tests\TestCase;
@@ -71,6 +72,101 @@ class MeasurementMultiviewTest extends TestCase
         $response->assertSessionHasErrors([
             'front_photo' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
         ]);
+    }
+
+    public function test_user_can_start_background_measurement_analysis(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(PhotoValidationService::class, function ($mock): void {
+            $mock->shouldReceive('validateMany')->once()->andReturn([
+                'front_photo' => ['valid' => true, 'issues' => []],
+                'side_photo' => ['valid' => true, 'issues' => []],
+                'back_photo' => ['valid' => true, 'issues' => []],
+            ]);
+        });
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('startMeasurementJob')->once()->andReturn([
+                'success' => true,
+                'job_id' => 'job-mobile-123',
+            ]);
+        });
+
+        $response = $this->actingAs($user)->post(
+            route('user.measurement.analysis-start'),
+            [
+                'front_photo' => UploadedFile::fake()->image('front.jpg'),
+                'side_photo' => UploadedFile::fake()->image('side.jpg'),
+                'back_photo' => UploadedFile::fake()->image('back.jpg'),
+                'ref_object' => 'a4',
+                'reference_mode' => 'fixed',
+                'front_reference_box' => '{"x":10,"y":10,"w":30,"h":42,"image_width":200,"image_height":300}',
+                'side_reference_box' => '{"x":10,"y":10,"w":30,"h":42,"image_width":200,"image_height":300}',
+                'back_reference_box' => '{"x":10,"y":10,"w":30,"h":42,"image_width":200,"image_height":300}',
+            ],
+            ['Accept' => 'application/json'],
+        );
+
+        $response
+            ->assertAccepted()
+            ->assertJsonPath('job_id', 'job-mobile-123')
+            ->assertJsonStructure(['status_url']);
+        $this->assertTrue(Cache::has("measurement_analysis:{$user->id}:job-mobile-123"));
+    }
+
+    public function test_background_analysis_status_exposes_real_progress_and_result_page(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $jobId = 'job-completed-456';
+        Cache::put("measurement_analysis:{$user->id}:{$jobId}", [
+            'user_id' => $user->id,
+            'front_photo_path' => 'measurements/1/front.jpg',
+            'side_photo_path' => 'measurements/1/side.jpg',
+            'back_photo_path' => 'measurements/1/back.jpg',
+            'ref_object' => 'a4',
+            'ref_width_cm' => 21.0,
+            'ref_height_cm' => 29.7,
+            'reference_mode' => 'fixed',
+            'result' => null,
+        ], now()->addMinutes(10));
+
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('measurementJobStatus')->once()->andReturn([
+                'status' => 'completed',
+                'progress' => [
+                    'stage' => 'completed',
+                    'percent' => 100,
+                    'message' => 'Analisis selesai',
+                    'view' => null,
+                ],
+                'result' => [
+                    'success' => true,
+                    'confidence' => 0.86,
+                    'quality_score' => 0.84,
+                    'ref_detected' => true,
+                    'per_field_confidence' => ['chest' => 0.82],
+                    'data' => ['chest' => 92.4],
+                ],
+            ]);
+        });
+
+        $status = $this->actingAs($user)->getJson(
+            route('user.measurement.analysis-status', $jobId),
+        );
+
+        $status
+            ->assertOk()
+            ->assertJsonPath('status', 'completed')
+            ->assertJsonPath('progress.percent', 100)
+            ->assertJsonStructure(['result_url'])
+            ->assertJsonMissing(['result']);
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.analysis-result', $jobId))
+            ->assertOk()
+            ->assertSee('Hasil Analisis Multi-view')
+            ->assertSee('92.4');
     }
 
     public function test_handheld_reference_mode_is_rejected_for_ktp(): void

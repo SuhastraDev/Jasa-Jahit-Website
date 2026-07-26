@@ -51,6 +51,9 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::get('/ukur-badan/model/pose-landmarker', [MeasurementController::class, 'poseModel'])->name('user.measurement.pose-model');
     Route::get('/ukur-badan', [MeasurementController::class, 'index'])->name('user.measurement.index');
     Route::post('/ukur-badan/analisis', [MeasurementController::class, 'analyze'])->name('user.measurement.analyze');
+    Route::post('/ukur-badan/analisis/mulai', [MeasurementController::class, 'startAnalysis'])->name('user.measurement.analysis-start');
+    Route::get('/ukur-badan/analisis/{jobId}/status', [MeasurementController::class, 'analysisStatus'])->name('user.measurement.analysis-status');
+    Route::get('/ukur-badan/analisis/{jobId}/hasil', [MeasurementController::class, 'analysisResult'])->name('user.measurement.analysis-result');
     Route::post('/ukur-badan/simpan', [MeasurementController::class, 'store'])->name('user.measurement.store');
     Route::delete('/ukur-badan/{measurement}', [MeasurementController::class, 'destroy'])->name('user.measurement.destroy');
 

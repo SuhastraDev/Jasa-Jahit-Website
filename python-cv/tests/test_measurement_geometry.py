@@ -99,6 +99,72 @@ def make_side_mask():
 
 class MeasurementGeometryTest(unittest.TestCase):
     @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_manual_reference_roi_refines_a4_edges_after_contrast_processing(self):
+        image = np.full((500, 400, 3), 185, dtype=np.uint8)
+        cv2.rectangle(image, (245, 130), (329, 249), (245, 245, 245), -1)
+        cv2.rectangle(image, (245, 130), (329, 249), (30, 30, 30), 4)
+        payload = {
+            "x": 225,
+            "y": 110,
+            "w": 125,
+            "h": 170,
+            "image_width": 400,
+            "image_height": 500,
+        }
+
+        result = measurement.refine_manual_reference_contour(image, payload, 21.0, 29.7)
+
+        self.assertIsNotNone(result)
+        self.assertEqual("manual_refined", result["source"])
+        self.assertTrue(result["processing"]["refined"])
+        x, y, width, height = cv2.boundingRect(result["contour"])
+        self.assertAlmostEqual(245, x, delta=8)
+        self.assertAlmostEqual(130, y, delta=8)
+        self.assertAlmostEqual(84, width, delta=10)
+        self.assertAlmostEqual(119, height, delta=10)
+
+    def test_process_measurement_reports_real_pipeline_progress(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
+        scale_result = {
+            "scale": 2.0,
+            "contour": None,
+            "area": 1200.0,
+            "source": "manual_refined",
+            "quality": 0.95,
+            "axis_scales": [2.0, 2.0],
+            "processing": {"method": "canny", "refined": True},
+        }
+        progress_events = []
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", side_effect=[scale_result.copy() for _ in range(3)]),
+            patch.object(measurement, "detect_pose", side_effect=poses),
+            patch.object(measurement, "build_body_mask", side_effect=masks),
+            patch.object(measurement, "largest_body_bounds", return_value=(40, 30, 120, 360)),
+        ):
+            result = measurement.process_measurement(
+                b"front",
+                b"side",
+                b"back",
+                "a4",
+                21.0,
+                29.7,
+                progress_callback=progress_events.append,
+            )
+
+        self.assertTrue(result["success"], result.get("error"))
+        stages = [event["stage"] for event in progress_events]
+        self.assertIn("reference_roi", stages)
+        self.assertIn("body_segmentation", stages)
+        self.assertIn("calculate_measurements", stages)
+        self.assertEqual("completed", stages[-1])
+        self.assertEqual(100, progress_events[-1]["percent"])
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
     def test_reference_detector_prefers_a4_proportion_at_body_side(self):
         image = np.zeros((500, 400, 3), dtype=np.uint8)
         cv2.rectangle(image, (130, 90), (270, 430), (255, 255, 255), 5)

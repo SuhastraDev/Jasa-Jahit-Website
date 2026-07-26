@@ -250,8 +250,20 @@
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <h2 class="font-bold text-gray-900 mb-5">Analisis Ukuran dengan Computer Vision</h2>
 
-                <form action="{{ route('user.measurement.analyze') }}" method="POST" enctype="multipart/form-data" class="space-y-5" @submit="handleSubmit($event)">
+                <form x-ref="analysisForm" action="{{ route('user.measurement.analysis-start') }}" method="POST" enctype="multipart/form-data" class="space-y-5" novalidate @submit.prevent="startAnalysis($event)">
                     @csrf
+
+                    <div class="rounded-xl border border-blue-100 bg-blue-50 p-3 sm:hidden">
+                        <button type="submit" :disabled="isAnalyzing"
+                            class="flex min-h-12 w-full touch-manipulation items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-70">
+                            <span x-show="!isAnalyzing">Validasi dan Hitung Ukuran</span>
+                            <span x-show="isAnalyzing" x-cloak>Analisis sedang berjalan...</span>
+                        </button>
+                        <p class="mt-1.5 text-center text-[11px] text-blue-700">Bisa ditekan setelah tiga foto dipilih dan kotak merah diperiksa.</p>
+                    </div>
+                    <div x-show="totalUploadError" x-cloak
+                        class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-relaxed text-red-700 sm:hidden"
+                        role="alert" aria-live="assertive" x-text="totalUploadError"></div>
 
                     <div>
                         <label for="ref_object" class="block text-sm font-semibold text-gray-700 mb-1.5">Benda Patokan Ukuran <span class="text-red-500">*</span></label>
@@ -374,10 +386,15 @@
 
                     <div x-show="totalUploadError" x-cloak class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" x-text="totalUploadError"></div>
 
-                    <button type="submit" :disabled="isAnalyzing" class="w-full px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait">
-                        <span x-show="!isAnalyzing">Validasi dan Hitung Ukuran</span>
-                        <span x-show="isAnalyzing" x-cloak>Memproses foto...</span>
-                    </button>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
+                        style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
+                        <button type="submit" :disabled="isAnalyzing"
+                            class="flex min-h-12 w-full touch-manipulation items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-70">
+                            <span x-show="!isAnalyzing">Validasi dan Hitung Ukuran</span>
+                            <span x-show="isAnalyzing" x-cloak>Analisis sedang berjalan...</span>
+                        </button>
+                        <p class="mt-1.5 text-center text-[11px] text-slate-500 sm:hidden">Pastikan tiga foto dan kotak merah sudah benar.</p>
+                    </div>
                 </form>
             </div>
         </div>
@@ -426,33 +443,52 @@
         </div>
     </div>
 
-    <div x-show="isAnalyzing" x-cloak class="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-white/70 overflow-hidden">
-            <div class="bg-slate-900 px-6 py-5 text-white">
-                <p class="text-sm font-semibold text-sky-200">Analisis ukuran sedang berjalan</p>
-                <h3 class="text-xl font-black mt-1">Mengecek foto dan menghitung ukuran tubuh</h3>
-                <p class="text-sm text-slate-300 mt-2">Jangan tutup halaman sampai proses selesai.</p>
+    <div x-show="isAnalyzing" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-2 backdrop-blur-sm sm:p-4">
+        <div class="flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+            <div class="bg-slate-900 px-5 py-4 text-white sm:px-6 sm:py-5">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold text-sky-200 sm:text-sm">Analisis ukuran sedang berjalan</p>
+                        <h3 class="mt-1 text-lg font-black sm:text-xl">Mengecek foto dan menghitung ukuran tubuh</h3>
+                    </div>
+                    <span class="shrink-0 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-black" x-text="`${analysisProgress.percent || 0}%`"></span>
+                </div>
+                <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+                    <div class="h-full rounded-full bg-sky-400 transition-all duration-500" :style="`width: ${analysisProgress.percent || 0}%`"></div>
+                </div>
             </div>
-            <div class="p-6">
-                <div class="flex items-center gap-4 mb-5">
-                    <div class="relative h-16 w-16 flex-shrink-0">
+            <div class="overflow-y-auto p-4 sm:p-6">
+                <div class="mb-4 flex items-center gap-3 sm:mb-5 sm:gap-4">
+                    <div class="relative h-12 w-12 flex-shrink-0 sm:h-16 sm:w-16">
                         <div class="absolute inset-0 rounded-full border-4 border-sky-100"></div>
                         <div class="absolute inset-0 rounded-full border-4 border-sky-500 border-t-transparent animate-spin"></div>
-                        <div class="absolute inset-4 rounded-full bg-sky-50"></div>
+                        <div class="absolute inset-3 rounded-full bg-sky-50 sm:inset-4"></div>
                     </div>
-                    <div>
-                        <p class="text-sm font-bold text-gray-900">Foto depan, samping, dan belakang sedang diproses.</p>
-                        <p class="text-xs text-gray-500 mt-1">Sistem mengecek benda patokan, membaca pose tubuh, lalu menghitung ukuran dalam sentimeter.</p>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-gray-900" x-text="analysisProgress.message || 'Mengirim foto ke layanan analisis'"></p>
+                        <p class="mt-1 text-xs text-gray-500">Status berubah setelah tahap CV benar-benar selesai.</p>
                     </div>
                 </div>
-                <div class="space-y-3">
-                    <template x-for="(step, index) in processSteps" :key="step">
-                        <div class="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                            <span class="h-7 w-7 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center" x-text="index + 1"></span>
-                            <span class="text-sm font-semibold text-gray-700" x-text="step"></span>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <template x-for="view in poseList" :key="view.key">
+                        <div class="rounded-lg border px-2 py-2 text-center" :class="analysisViewState(view.key) === 'active' ? 'border-sky-200 bg-sky-50' : (analysisViewState(view.key) === 'done' ? 'border-green-200 bg-green-50' : 'border-slate-100 bg-slate-50')">
+                            <p class="truncate text-[10px] font-black text-slate-700" x-text="view.label.replace('Foto ', '')"></p>
+                            <p class="mt-0.5 text-[10px]" :class="analysisViewState(view.key) === 'active' ? 'text-sky-700' : (analysisViewState(view.key) === 'done' ? 'text-green-700' : 'text-slate-400')" x-text="analysisViewLabel(view.key)"></p>
                         </div>
                     </template>
                 </div>
+                <div class="space-y-2">
+                    <template x-for="item in analysisTimeline" :key="item.stage">
+                        <div class="flex items-start gap-3 rounded-xl border p-3" :class="item.current ? 'border-sky-200 bg-sky-50' : 'border-green-100 bg-green-50/60'">
+                            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black" :class="item.current ? 'bg-sky-600 text-white' : 'bg-green-100 text-green-700'" x-text="item.current ? '...' : '✓'"></span>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-slate-800" x-text="item.label"></p>
+                                <p class="mt-0.5 text-[11px] leading-4 text-slate-500" x-text="item.message"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <p class="mt-4 text-center text-[11px] text-slate-400">Jangan tutup halaman sampai hasil siap.</p>
             </div>
         </div>
     </div>
@@ -533,6 +569,15 @@
             poseDetectorError: '',
             poseDetectionBusy: false,
             isAnalyzing: false,
+            analysisProgress: {
+                stage: 'idle',
+                percent: 0,
+                message: '',
+                view: null,
+            },
+            analysisTimeline: [],
+            analysisViews: { front: 'waiting', side: 'waiting', back: 'waiting' },
+            analysisStartUrl: @json(route('user.measurement.analysis-start')),
             maxFileSizeMb: 5,
             maxTotalSizeMb: 15,
             uploadErrors: {},
@@ -551,12 +596,19 @@
                     { label: 'Aktifkan kamera untuk mulai deteksi.', ok: false },
                 ],
             },
-            processSteps: [
-                'Mengecek kualitas tiga foto',
-                'Mendeteksi benda patokan ukuran',
-                'Membaca pose dan siluet tubuh',
-                'Menghitung ukuran baju dan celana',
-            ],
+            analysisStageLabels: {
+                uploading: 'Mengunggah dan memeriksa foto',
+                queued: 'Menyiapkan layanan analisis',
+                prepare_photos: 'Menyiapkan resolusi foto',
+                reference_roi: 'Mendeteksi tepi A4/KTP',
+                body_segmentation: 'Membaca pose dan siluet tubuh',
+                cross_view_scale: 'Memeriksa skala tiga foto',
+                calculate_measurements: 'Menghitung ukuran tubuh',
+                anatomical_validation: 'Memeriksa konsistensi anatomi',
+                confidence: 'Menghitung kualitas hasil',
+                reconnecting: 'Menghubungkan kembali',
+                completed: 'Analisis selesai',
+            },
             poseList: [
                 { key: 'front', label: 'Foto Depan', hint: 'Badan menghadap kamera, A4/KTP di sisi tubuh.' },
                 { key: 'side', label: 'Foto Samping', hint: 'Badan menghadap kiri/kanan, A4/KTP tetap terlihat.' },
@@ -651,17 +703,149 @@
                     await this.startCamera();
                 }
             },
-            handleSubmit(event) {
-                this.validateSelectedFiles();
+            async startAnalysis(event) {
+                if (this.isAnalyzing) return;
+
+                this.validateSelectedFiles(true);
                 this.validateDetectionReports();
                 if (Object.keys(this.uploadErrors).length > 0 || this.totalUploadError) {
-                    event.preventDefault();
                     this.isAnalyzing = false;
+                    this.$nextTick(() => this.scrollToFirstAnalysisError());
                     return;
                 }
 
                 this.isAnalyzing = true;
+                this.analysisTimeline = [];
+                this.analysisViews = { front: 'waiting', side: 'waiting', back: 'waiting' };
+                this.recordAnalysisProgress({
+                    stage: 'uploading',
+                    percent: 1,
+                    message: 'Mengunggah tiga foto dan menjalankan validasi awal',
+                    view: null,
+                });
                 this.stopCamera();
+
+                try {
+                    const formData = new FormData(event.currentTarget);
+                    const response = await fetch(this.analysisStartUrl, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        this.applyServerAnalysisErrors(payload);
+                        throw new Error(payload.message || 'Analisis tidak dapat dimulai.');
+                    }
+
+                    this.recordAnalysisProgress({
+                        stage: 'queued',
+                        percent: 3,
+                        message: 'Foto diterima dan proses CV sedang disiapkan',
+                        view: null,
+                    });
+                    await this.pollAnalysis(payload.status_url);
+                } catch (error) {
+                    console.error('Analisis gagal', error);
+                    this.isAnalyzing = false;
+                    if (!this.totalUploadError) {
+                        this.totalUploadError = error.message || 'Analisis gagal. Periksa koneksi lalu coba lagi.';
+                    }
+                    this.$nextTick(() => this.scrollToFirstAnalysisError());
+                }
+            },
+            async pollAnalysis(statusUrl) {
+                const deadline = Date.now() + 4 * 60 * 1000;
+                while (Date.now() < deadline) {
+                    await new Promise((resolve) => setTimeout(resolve, 850));
+                    const response = await fetch(statusUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Status analisis tidak dapat dibaca.');
+                    }
+
+                    if (payload.progress) this.recordAnalysisProgress(payload.progress);
+                    if (payload.status === 'completed' && payload.result_url) {
+                        window.location.assign(payload.result_url);
+                        return;
+                    }
+                    if (payload.status === 'failed') {
+                        throw new Error(payload.error || 'Foto tidak dapat dianalisis.');
+                    }
+                }
+
+                throw new Error('Analisis melewati batas waktu. Coba gunakan foto beresolusi lebih kecil.');
+            },
+            recordAnalysisProgress(progress) {
+                const nextPercent = Math.max(
+                    Number(this.analysisProgress.percent || 0),
+                    Number(progress.percent || 0),
+                );
+                this.analysisProgress = { ...progress, percent: nextPercent };
+                this.analysisTimeline = this.analysisTimeline.map((item) => ({ ...item, current: false }));
+
+                const existingIndex = this.analysisTimeline.findIndex((item) => item.stage === progress.stage);
+                const item = {
+                    stage: progress.stage,
+                    label: this.analysisStageLabels[progress.stage] || 'Memproses foto',
+                    message: progress.message || '',
+                    current: progress.stage !== 'completed',
+                };
+                if (existingIndex >= 0) {
+                    this.analysisTimeline.splice(existingIndex, 1, item);
+                } else {
+                    this.analysisTimeline.push(item);
+                }
+                this.analysisTimeline = [...this.analysisTimeline];
+
+                if (progress.view) {
+                    Object.keys(this.analysisViews).forEach((view) => {
+                        if (this.analysisViews[view] === 'active' && view !== progress.view) {
+                            this.analysisViews[view] = 'done';
+                        }
+                    });
+                    this.analysisViews[progress.view] = 'active';
+                }
+                if (nextPercent >= 64) {
+                    this.analysisViews = { front: 'done', side: 'done', back: 'done' };
+                } else {
+                    this.analysisViews = { ...this.analysisViews };
+                }
+            },
+            analysisViewState(view) {
+                return this.analysisViews[view] || 'waiting';
+            },
+            analysisViewLabel(view) {
+                return {
+                    waiting: 'Menunggu',
+                    active: 'Diproses',
+                    done: 'Selesai',
+                }[this.analysisViewState(view)];
+            },
+            applyServerAnalysisErrors(payload) {
+                const nextErrors = { ...this.uploadErrors };
+                Object.entries(payload.errors || {}).forEach(([field, messages]) => {
+                    const pose = field.replace('_photo', '');
+                    if (['front', 'side', 'back'].includes(pose)) {
+                        nextErrors[pose] = Array.isArray(messages) ? messages[0] : messages;
+                    }
+                });
+                this.uploadErrors = nextErrors;
+                this.totalUploadError = (payload.photo_issues || []).join(' ') || payload.message || '';
+            },
+            scrollToFirstAnalysisError() {
+                const firstInvalidPose = this.poseList.find((pose) => this.uploadErrors[pose.key]);
+                const input = firstInvalidPose ? this.$refs[`${firstInvalidPose.key}Input`] : null;
+                const target = input?.closest('.border.rounded-xl') || this.$refs.analysisForm;
+                target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
             validateDetectionReports() {
                 const nextErrors = { ...this.uploadErrors };
@@ -669,7 +853,11 @@
                 this.poseList.forEach((pose) => {
                     const file = this.$refs[`${pose.key}Input`]?.files?.[0];
                     const report = this.detectionReports[pose.key];
-                    if (!file || !report || nextErrors[pose.key]) return;
+                    if (!file || nextErrors[pose.key]) return;
+                    if (!report) {
+                        nextErrors[pose.key] = `${pose.label}: pemeriksaan foto belum selesai. Tunggu preview dan kotak patokan muncul.`;
+                        return;
+                    }
 
                     if (this.poseDetectorReady && !report.poseDetected) {
                         nextErrors[pose.key] = `${pose.label}: orang tidak terdeteksi. Gunakan foto tubuh penuh yang jelas.`;
@@ -830,14 +1018,17 @@
                 this.validateSelectedFiles();
                 this.analyzePreview(file, pose);
             },
-            validateSelectedFiles() {
+            validateSelectedFiles(requireAll = false) {
                 const nextErrors = {};
                 let totalSize = 0;
 
                 this.poseList.forEach((pose) => {
                     const input = this.$refs[`${pose.key}Input`];
                     const file = input?.files?.[0];
-                    if (!file) return;
+                    if (!file) {
+                        if (requireAll) nextErrors[pose.key] = `${pose.label} wajib dipilih sebelum analisis.`;
+                        return;
+                    }
 
                     totalSize += file.size;
                     if (!file.type.startsWith('image/')) {
