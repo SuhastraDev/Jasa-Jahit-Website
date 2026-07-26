@@ -25,6 +25,50 @@ if not os.path.exists(MODEL_PATH):
 
 _POSE_LANDMARKER = None
 
+MEASUREMENT_LIMITS_CM = {
+    "neck": (20, 70),
+    "chest": (45, 180),
+    "waist": (40, 180),
+    "hips": (45, 190),
+    "shoulder_width": (20, 75),
+    "shirt_length": (35, 120),
+    "arm_length": (25, 95),
+    "upper_arm": (15, 80),
+    "wrist": (8, 35),
+    "height": (90, 230),
+    "pants_waist": (40, 180),
+    "pants_hips": (45, 190),
+    "thigh": (25, 110),
+    "knee": (20, 80),
+    "calf": (18, 80),
+    "ankle": (10, 45),
+    "inseam": (35, 120),
+    "outseam": (55, 140),
+    "rise": (12, 55),
+}
+
+MEASUREMENT_LABELS = {
+    "neck": "leher",
+    "chest": "dada",
+    "waist": "pinggang",
+    "hips": "pinggul",
+    "shoulder_width": "lebar bahu",
+    "shirt_length": "panjang baju",
+    "arm_length": "panjang lengan",
+    "upper_arm": "lengan atas",
+    "wrist": "pergelangan",
+    "height": "tinggi",
+    "pants_waist": "pinggang celana",
+    "pants_hips": "pinggul celana",
+    "thigh": "paha",
+    "knee": "lutut",
+    "calf": "betis",
+    "ankle": "bukaan bawah",
+    "inseam": "inseam",
+    "outseam": "outseam",
+    "rise": "rise/pesak",
+}
+
 
 def decode_image(image_bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
@@ -286,6 +330,23 @@ def rounded(value):
     return round(float(value), 2) if value and value > 0 else 0.0
 
 
+def impossible_measurements(data):
+    invalid = []
+    for field, value in data.items():
+        limits = MEASUREMENT_LIMITS_CM.get(field)
+        if not limits:
+            continue
+        minimum, maximum = limits
+        if value and (value < minimum or value > maximum):
+            invalid.append({
+                "field": field,
+                "value": value,
+                "min": minimum,
+                "max": maximum,
+            })
+    return invalid
+
+
 def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_width_cm=None, ref_height_cm=None, reference_boxes=None):
     started_at = time.perf_counter()
     images = {
@@ -415,6 +476,22 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         "outseam": rounded(px_to_cm(outseam_px, front_scale)),
         "rise": rounded(px_to_cm(max(0, outseam_px - inseam_px), front_scale)),
     }
+
+    invalid_measurements = impossible_measurements(data)
+    if invalid_measurements:
+        fields = ", ".join(f"{MEASUREMENT_LABELS.get(item['field'], item['field'])} {item['value']}cm" for item in invalid_measurements[:5])
+        return {
+            "success": False,
+            "error": f"Hasil ukuran tidak masuk akal ({fields}). Periksa kembali kotak A4/KTP manual, pastikan kotak hanya mengikuti pinggir benda patokan, lalu ulangi analisis.",
+            "failed_reason": "unrealistic_measurements",
+            "invalid_measurements": invalid_measurements,
+            "debug": {
+                "duration_seconds": round(time.perf_counter() - started_at, 3),
+                "scales": {key: round(value, 4) for key, value in scales.items()},
+                "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
+                "reference_scale_sources": scale_sources,
+            },
+        }
 
     confidence = round(average(poses["front"]["confidence"], poses["side"]["confidence"], poses["back"]["confidence"]), 2)
     scale_spread = max(scales.values()) - min(scales.values())
