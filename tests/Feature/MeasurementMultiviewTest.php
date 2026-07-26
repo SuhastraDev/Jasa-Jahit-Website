@@ -185,10 +185,10 @@ class MeasurementMultiviewTest extends TestCase
         $user = User::factory()->create(['role' => 'user']);
 
         $this->mock(PhotoValidationService::class, function ($mock): void {
-            $mock->shouldReceive('validate')->times(3)->andReturn([
-                'valid' => true,
-                'issues' => [],
-                'suggestion' => '',
+            $mock->shouldReceive('validateMany')->once()->andReturn([
+                'front_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'side_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'back_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
             ]);
         });
 
@@ -255,10 +255,10 @@ class MeasurementMultiviewTest extends TestCase
         $user = User::factory()->create(['role' => 'user']);
 
         $this->mock(PhotoValidationService::class, function ($mock): void {
-            $mock->shouldReceive('validate')->times(3)->andReturn([
-                'valid' => true,
-                'issues' => [],
-                'suggestion' => '',
+            $mock->shouldReceive('validateMany')->once()->andReturn([
+                'front_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'side_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'back_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
             ]);
         });
 

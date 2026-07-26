@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 
@@ -34,6 +36,81 @@ class PhotoValidationService
             return ['valid' => true, 'issues' => [], 'suggestion' => ''];
         }
 
+        try {
+            $response = Http::timeout($this->timeout)
+                ->withToken($this->apiKey)
+                ->acceptJson()
+                ->post($this->apiUrl, $this->buildPayload($photo, $refObject, $orientation, $referenceMode));
+
+            return $this->parseResponse($response);
+        } catch (\Exception $e) {
+            // Network error atau timeout → skip validasi
+            return ['valid' => true, 'issues' => [], 'suggestion' => ''];
+        }
+    }
+
+    /**
+     * Validasi beberapa foto secara paralel agar upload 3 sisi tidak menunggu
+     * request Groq satu per satu.
+     *
+     * @param array<string, array{photo: UploadedFile, orientation: string}> $photos
+     * @return array<string, array{valid: bool, issues: array, suggestion: string}>
+     */
+    public function validateMany(array $photos, string $refObject, string $referenceMode = 'fixed'): array
+    {
+        if (empty($this->apiKey)) {
+            return collect($photos)
+                ->mapWithKeys(fn ($config, string $key): array => [
+                    $key => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                ])
+                ->all();
+        }
+
+        try {
+            $payloads = [];
+            foreach ($photos as $key => $config) {
+                $payloads[$key] = $this->buildPayload(
+                    $config['photo'],
+                    $refObject,
+                    $config['orientation'],
+                    $referenceMode,
+                );
+            }
+
+            $responses = Http::pool(function (Pool $pool) use ($payloads): array {
+                $requests = [];
+                foreach ($payloads as $key => $payload) {
+                    $requests[] = $pool
+                        ->as($key)
+                        ->timeout($this->timeout)
+                        ->withToken($this->apiKey)
+                        ->acceptJson()
+                        ->post($this->apiUrl, $payload);
+                }
+
+                return $requests;
+            });
+
+            $validations = [];
+            foreach (array_keys($photos) as $key) {
+                $response = $responses[$key] ?? null;
+                $validations[$key] = $response instanceof Response
+                    ? $this->parseResponse($response)
+                    : ['valid' => true, 'issues' => [], 'suggestion' => ''];
+            }
+
+            return $validations;
+        } catch (\Exception $e) {
+            return collect($photos)
+                ->mapWithKeys(fn ($config, string $key): array => [
+                    $key => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                ])
+                ->all();
+        }
+    }
+
+    private function buildPayload(UploadedFile $photo, string $refObject, string $orientation, string $referenceMode): array
+    {
         $refLabel = match($refObject) {
             'a4'     => 'kertas A4 (ukuran tetap 21,0×29,7 cm) yang diletakkan di samping tubuh',
             'ktp', 'atm' => 'KTP (ukuran tetap 8,56×5,398 cm) yang diletakkan di samping tubuh',
@@ -82,59 +159,53 @@ Jawab HANYA dengan JSON tanpa markdown, tanpa teks lain:
 Gunakan Bahasa Indonesia. Jika semua syarat terpenuhi, "valid" = true dan "issues" = [].
 PROMPT;
 
-        try {
-            [$imageData, $mimeType] = $this->encodeImageForGroq($photo);
+        [$imageData, $mimeType] = $this->encodeImageForGroq($photo);
 
-            $response = Http::timeout($this->timeout)
-                ->withToken($this->apiKey)
-                ->acceptJson()
-                ->post($this->apiUrl, [
-                    'model' => $this->model,
-                    'messages' => [
+        return [
+            'model' => $this->model,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => [
                         [
-                            'role' => 'user',
-                            'content' => [
-                                [
-                                    'type' => 'text',
-                                    'text' => $prompt,
-                                ],
-                                [
-                                    'type' => 'image_url',
-                                    'image_url' => [
-                                        'url' => "data:{$mimeType};base64,{$imageData}",
-                                    ],
-                                ],
+                            'type' => 'text',
+                            'text' => $prompt,
+                        ],
+                        [
+                            'type' => 'image_url',
+                            'image_url' => [
+                                'url' => "data:{$mimeType};base64,{$imageData}",
                             ],
                         ],
                     ],
-                    'temperature' => 0.1,
-                    'max_completion_tokens' => 300,
-                    'response_format' => ['type' => 'json_object'],
-                ]);
+                ],
+            ],
+            'temperature' => 0.1,
+            'max_completion_tokens' => 300,
+            'response_format' => ['type' => 'json_object'],
+        ];
+    }
 
-            if (!$response->successful()) {
-                return ['valid' => true, 'issues' => [], 'suggestion' => ''];
-            }
-
-            $text   = $response->json('choices.0.message.content', '{}');
-            // Bersihkan jika model masih menambahkan markdown
-            $text   = preg_replace('/```json|```/', '', $text);
-            $result = json_decode(trim($text), true);
-
-            if (!is_array($result)) {
-                return ['valid' => true, 'issues' => [], 'suggestion' => ''];
-            }
-
-            return [
-                'valid'      => (bool) ($result['valid'] ?? true),
-                'issues'     => (array) ($result['issues'] ?? []),
-                'suggestion' => (string) ($result['suggestion'] ?? ''),
-            ];
-
-        } catch (\Exception $e) {
-            // Network error atau timeout → skip validasi
+    private function parseResponse(Response $response): array
+    {
+        if (!$response->successful()) {
             return ['valid' => true, 'issues' => [], 'suggestion' => ''];
         }
+
+        $text = $response->json('choices.0.message.content', '{}');
+        // Bersihkan jika model masih menambahkan markdown.
+        $text = preg_replace('/```json|```/', '', $text);
+        $result = json_decode(trim($text), true);
+
+        if (!is_array($result)) {
+            return ['valid' => true, 'issues' => [], 'suggestion' => ''];
+        }
+
+        return [
+            'valid' => (bool) ($result['valid'] ?? true),
+            'issues' => (array) ($result['issues'] ?? []),
+            'suggestion' => (string) ($result['suggestion'] ?? ''),
+        ];
     }
 
     /**
@@ -157,7 +228,7 @@ PROMPT;
 
         $width = imagesx($source);
         $height = imagesy($source);
-        $maxDimension = 1400;
+        $maxDimension = 900;
         $ratio = min(1, $maxDimension / max($width, $height));
         $targetWidth = max(1, (int) round($width * $ratio));
         $targetHeight = max(1, (int) round($height * $ratio));
@@ -166,7 +237,7 @@ PROMPT;
         imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
 
         ob_start();
-        imagejpeg($target, null, 82);
+        imagejpeg($target, null, 72);
         $compressed = ob_get_clean();
 
         return [base64_encode($compressed ?: $raw), 'image/jpeg'];

@@ -86,11 +86,20 @@ class MeasurementController extends Controller
             $request->ref_height_cm,
         );
 
-        $validations = [
-            'front_photo' => $validator->validate($request->file('front_photo'), $request->ref_object, 'front', $request->reference_mode),
-            'side_photo' => $validator->validate($request->file('side_photo'), $request->ref_object, 'side', $request->reference_mode),
-            'back_photo' => $validator->validate($request->file('back_photo'), $request->ref_object, 'back', $request->reference_mode),
-        ];
+        $validations = $validator->validateMany([
+            'front_photo' => [
+                'photo' => $request->file('front_photo'),
+                'orientation' => 'front',
+            ],
+            'side_photo' => [
+                'photo' => $request->file('side_photo'),
+                'orientation' => 'side',
+            ],
+            'back_photo' => [
+                'photo' => $request->file('back_photo'),
+                'orientation' => 'back',
+            ],
+        ], $request->ref_object, $request->reference_mode);
 
         $photoIssues = [];
         foreach ($validations as $photoName => $validation) {

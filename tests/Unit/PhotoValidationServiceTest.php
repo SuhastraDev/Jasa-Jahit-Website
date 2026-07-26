@@ -51,4 +51,48 @@ class PhotoValidationServiceTest extends TestCase
                 && str_starts_with($payload['messages'][0]['content'][1]['image_url']['url'], 'data:image/jpeg;base64,');
         });
     }
+
+    public function test_photo_validation_can_validate_three_photos_in_one_call(): void
+    {
+        Config::set('services.groq.key', 'test-groq-key');
+        Config::set('services.groq.model', 'qwen/qwen3.6-27b');
+        Config::set('services.groq.url', 'https://api.groq.com/openai/v1/chat/completions');
+
+        Http::fake([
+            'api.groq.com/*' => Http::response([
+                'choices' => [
+                    [
+                        'message' => [
+                            'content' => json_encode([
+                                'valid' => true,
+                                'issues' => [],
+                                'suggestion' => '',
+                            ]),
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = app(PhotoValidationService::class)->validateMany([
+            'front_photo' => [
+                'photo' => UploadedFile::fake()->image('front.jpg', 600, 900),
+                'orientation' => 'front',
+            ],
+            'side_photo' => [
+                'photo' => UploadedFile::fake()->image('side.jpg', 600, 900),
+                'orientation' => 'side',
+            ],
+            'back_photo' => [
+                'photo' => UploadedFile::fake()->image('back.jpg', 600, 900),
+                'orientation' => 'back',
+            ],
+        ], 'a4');
+
+        $this->assertTrue($result['front_photo']['valid']);
+        $this->assertTrue($result['side_photo']['valid']);
+        $this->assertTrue($result['back_photo']['valid']);
+
+        Http::assertSentCount(3);
+    }
 }
