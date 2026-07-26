@@ -203,6 +203,7 @@ class MeasurementMultiviewTest extends TestCase
                     8.56,
                     5.398,
                     'fixed',
+                    Mockery::type('array'),
                 )
                 ->andReturn([
                     'success' => true,
@@ -273,6 +274,7 @@ class MeasurementMultiviewTest extends TestCase
                     21.0,
                     29.7,
                     'handheld',
+                    Mockery::type('array'),
                 )
                 ->andReturn([
                     'success' => true,
@@ -316,5 +318,74 @@ class MeasurementMultiviewTest extends TestCase
         $response->assertViewHas('referenceMode', 'handheld');
         $response->assertViewHas('confidence', 0.72);
         $response->assertViewHas('qualityScore', 0.76);
+    }
+
+    public function test_manual_reference_boxes_are_passed_to_cv_service(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'user']);
+        $frontBox = '{"x":30,"y":40,"w":80,"h":120,"image_width":520,"image_height":390}';
+
+        $this->mock(PhotoValidationService::class, function ($mock): void {
+            $mock->shouldReceive('validateMany')->once()->andReturn([
+                'front_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'side_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+                'back_photo' => ['valid' => true, 'issues' => [], 'suggestion' => ''],
+            ]);
+        });
+
+        $this->mock(CVMeasurementService::class, function ($mock) use ($frontBox): void {
+            $mock->shouldReceive('measure')
+                ->once()
+                ->with(
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    Mockery::type(UploadedFile::class),
+                    'a4',
+                    21.0,
+                    29.7,
+                    'fixed',
+                    Mockery::on(fn ($boxes) => ($boxes['front'] ?? null) === $frontBox),
+                )
+                ->andReturn([
+                    'success' => true,
+                    'confidence' => 0.8,
+                    'quality_score' => 0.8,
+                    'ref_detected' => true,
+                    'per_field_confidence' => [],
+                    'data' => array_fill_keys([
+                        'neck',
+                        'chest',
+                        'waist',
+                        'hips',
+                        'shoulder_width',
+                        'shirt_length',
+                        'arm_length',
+                        'upper_arm',
+                        'wrist',
+                        'height',
+                        'pants_waist',
+                        'pants_hips',
+                        'thigh',
+                        'knee',
+                        'calf',
+                        'ankle',
+                        'inseam',
+                        'outseam',
+                        'rise',
+                    ], 50),
+                ]);
+        });
+
+        $response = $this->actingAs($user)->post(route('user.measurement.analyze'), [
+            'front_photo' => UploadedFile::fake()->image('front.jpg'),
+            'side_photo' => UploadedFile::fake()->image('side.jpg'),
+            'back_photo' => UploadedFile::fake()->image('back.jpg'),
+            'ref_object' => 'a4',
+            'reference_mode' => 'fixed',
+            'front_reference_box' => $frontBox,
+        ]);
+
+        $response->assertOk();
     }
 }

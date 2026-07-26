@@ -38,6 +38,9 @@ async def measure(
     ref_width_cm: float = Form(None, description="Lebar benda referensi (cm) jika custom"),
     ref_height_cm: float = Form(None, description="Tinggi benda referensi (cm) jika custom"),
     reference_mode: str = Form("fixed", description="Mode benda referensi: fixed atau handheld"),
+    front_reference_box: str = Form(None, description="Koordinat manual benda patokan untuk foto depan"),
+    side_reference_box: str = Form(None, description="Koordinat manual benda patokan untuk foto samping"),
+    back_reference_box: str = Form(None, description="Koordinat manual benda patokan untuk foto belakang"),
 ):
     """
     Analyze body photo and estimate measurements.
@@ -72,6 +75,11 @@ async def measure(
             ref_object,
             ref_width_cm,
             ref_height_cm,
+            {
+                "front": front_reference_box,
+                "side": side_reference_box,
+                "back": back_reference_box,
+            },
         )
         return result
     except Exception as e:

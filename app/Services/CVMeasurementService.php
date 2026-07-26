@@ -26,7 +26,8 @@ class CVMeasurementService
         string $refObject,
         ?float $refWidthCm = null,
         ?float $refHeightCm = null,
-        string $referenceMode = 'fixed'
+        string $referenceMode = 'fixed',
+        array $referenceBoxes = []
     ): array
     {
         try {
@@ -43,6 +44,12 @@ class CVMeasurementService
                 'ref_object' => $refObject,
                 'reference_mode' => $referenceMode,
             ];
+
+            foreach (['front', 'side', 'back'] as $view) {
+                if (!empty($referenceBoxes[$view])) {
+                    $formData["{$view}_reference_box"] = $referenceBoxes[$view];
+                }
+            }
 
             if ($refObject === 'custom' || $refWidthCm || $refHeightCm) {
                 $formData['ref_width_cm'] = $refWidthCm;

@@ -9,6 +9,7 @@ tailoring measurements unstable.
 import math
 import os
 import time
+import json
 import urllib.request
 
 import cv2
@@ -67,9 +68,61 @@ def detect_reference_object(image):
     return best
 
 
-def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None):
+VIEW_LABELS = {
+    "front": "foto depan",
+    "side": "foto samping",
+    "back": "foto belakang",
+}
+
+
+def manual_reference_contour(image, box_payload):
+    if not box_payload:
+        return None
+
+    try:
+        box = json.loads(box_payload) if isinstance(box_payload, str) else box_payload
+    except (TypeError, ValueError):
+        return None
+
+    required = ("x", "y", "w", "h", "image_width", "image_height")
+    if not all(key in box for key in required):
+        return None
+
+    source_w = float(box.get("image_width") or 0)
+    source_h = float(box.get("image_height") or 0)
+    if source_w <= 0 or source_h <= 0:
+        return None
+
+    image_h, image_w = image.shape[:2]
+    x = float(box["x"]) / source_w * image_w
+    y = float(box["y"]) / source_h * image_h
+    w = float(box["w"]) / source_w * image_w
+    h = float(box["h"]) / source_h * image_h
+
+    if w < image_w * 0.015 or h < image_h * 0.015:
+        return None
+
+    x1 = max(0, min(image_w - 1, x))
+    y1 = max(0, min(image_h - 1, y))
+    x2 = max(0, min(image_w - 1, x + w))
+    y2 = max(0, min(image_h - 1, y + h))
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    return np.array([
+        [[int(round(x1)), int(round(y1))]],
+        [[int(round(x2)), int(round(y1))]],
+        [[int(round(x2)), int(round(y2))]],
+        [[int(round(x1)), int(round(y2))]],
+    ], dtype=np.int32)
+
+
+def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, manual_box=None):
     real_width, real_height = get_reference_dimensions(ref_object, ref_width_cm, ref_height_cm)
-    contour = detect_reference_object(image)
+    contour = manual_reference_contour(image, manual_box)
+    source = "manual" if contour is not None else "auto"
+    if contour is None:
+        contour = detect_reference_object(image)
     if contour is None:
         return None
 
@@ -86,6 +139,7 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None):
         "scale": float(scale),
         "contour": contour,
         "area": float(cv2.contourArea(contour)),
+        "source": source,
     }
 
 
@@ -232,7 +286,7 @@ def rounded(value):
     return round(float(value), 2) if value and value > 0 else 0.0
 
 
-def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_width_cm=None, ref_height_cm=None):
+def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_width_cm=None, ref_height_cm=None, reference_boxes=None):
     started_at = time.perf_counter()
     images = {
         "front": decode_image(front_bytes),
@@ -249,37 +303,48 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
     }
 
     scales = {}
+    scale_sources = {}
     poses = {}
     masks = {}
     bounds = {}
 
     for view, image in images.items():
-        scale_result = calculate_scale(image, ref_object, ref_width_cm, ref_height_cm)
+        scale_result = calculate_scale(
+            image,
+            ref_object,
+            ref_width_cm,
+            ref_height_cm,
+            (reference_boxes or {}).get(view),
+        )
         if scale_result is None:
+            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
-                "error": f"Marker kalibrasi tidak terdeteksi pada foto {view}. Gunakan marker berdiri sendiri yang terlihat penuh.",
+                "error": f"Benda patokan ukuran tidak terdeteksi pada {label}. Pilih area A4/KTP secara manual di preview, atau pastikan benda terlihat penuh, tegak, dan berada di samping tubuh.",
                 "failed_view": view,
             }
 
         pose = detect_pose(image)
         if pose is None:
+            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
-                "error": f"Pose tubuh tidak terdeteksi pada foto {view}. Pastikan seluruh badan terlihat jelas.",
+                "error": f"Pose tubuh tidak terdeteksi pada {label}. Pastikan seluruh badan terlihat jelas.",
                 "failed_view": view,
             }
 
         mask = build_body_mask(image, scale_result["contour"])
         body_bounds = largest_body_bounds(mask)
         if body_bounds is None:
+            label = VIEW_LABELS.get(view, f"foto {view}")
             return {
                 "success": False,
-                "error": f"Siluet tubuh tidak terbaca pada foto {view}. Gunakan background polos dan pencahayaan cukup.",
+                "error": f"Siluet tubuh tidak terbaca pada {label}. Gunakan background polos dan pencahayaan cukup.",
                 "failed_view": view,
             }
 
         scales[view] = scale_result["scale"]
+        scale_sources[view] = scale_result["source"]
         poses[view] = pose
         masks[view] = mask
         bounds[view] = body_bounds
@@ -375,5 +440,6 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
             "image_shapes": {key: [int(v) for v in image.shape[:2]] for key, image in images.items()},
             "scales": {key: round(value, 4) for key, value in scales.items()},
             "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
+            "reference_scale_sources": scale_sources,
         },
     }

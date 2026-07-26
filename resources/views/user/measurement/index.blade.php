@@ -48,7 +48,7 @@
                 <div class="flex items-center justify-between gap-4 mb-5">
                     <div>
                         <h2 class="font-bold text-gray-900">Protokol Pengambilan Foto</h2>
-                        <p class="text-sm text-gray-500 mt-1">Benda patokan ukuran tidak boleh dipegang oleh user. Gunakan A4 atau KTP yang ditempel di dinding, papan tegak, tripod kecil, hanger, atau tiang penyangga.</p>
+                        <p class="text-sm text-gray-500 mt-1">Mode akurat memakai A4/KTP yang ditempel atau disandarkan. Jika perlu lebih praktis, A4 boleh dipegang di samping tubuh dengan confidence lebih rendah.</p>
                     </div>
                     <span class="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">3 foto wajib</span>
                 </div>
@@ -309,6 +309,7 @@
                             <input type="file" name="{{ $name }}" id="{{ $name }}" x-ref="{{ $key }}Input" accept="image/*" required
                                    @change="handleUpload($event, '{{ $key }}')"
                                    class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                            <input type="hidden" name="{{ $key }}_reference_box" :value="manualReferenceBoxes.{{ $key }} ? JSON.stringify(manualReferenceBoxes.{{ $key }}) : ''">
                             <div x-show="uploadErrors.{{ $key }}" x-cloak class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700" x-text="uploadErrors.{{ $key }}"></div>
                             @error($name)
                             <div class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</div>
@@ -321,7 +322,32 @@
                                     <p class="text-xs font-black text-gray-800">Deteksi visual</p>
                                     <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" :class="detectionReports.{{ $key }}?.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="detectionReports.{{ $key }}?.ready ? 'Siap dianalisis' : 'Perlu dicek'"></span>
                                 </div>
-                                <canvas x-ref="{{ $key }}DetectionCanvas" class="w-full rounded-lg border border-gray-100 bg-slate-50"></canvas>
+                                <div class="rounded-lg border border-gray-100 bg-slate-50 overflow-hidden">
+                                    <canvas x-ref="{{ $key }}DetectionCanvas"
+                                        class="w-full cursor-crosshair"
+                                        @mousedown="startManualReference($event, '{{ $key }}')"
+                                        @mousemove="updateManualReference($event, '{{ $key }}')"
+                                        @mouseup="finishManualReference($event, '{{ $key }}')"
+                                        @mouseleave="cancelManualReference('{{ $key }}')"
+                                        @touchstart.prevent="startManualReference($event, '{{ $key }}')"
+                                        @touchmove.prevent="updateManualReference($event, '{{ $key }}')"
+                                        @touchend.prevent="finishManualReference($event, '{{ $key }}')"></canvas>
+                                </div>
+                                <div class="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
+                                    <p class="text-xs font-bold text-sky-900">Fallback manual benda patokan</p>
+                                    <p class="text-[11px] text-sky-700 mt-1 leading-relaxed">Jika A4/KTP belum terbaca otomatis, drag kotak tepat mengikuti pinggir benda patokan pada gambar ini.</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <button type="button" @click="useDetectedReferenceBox('{{ $key }}')" :disabled="!detectionReports.{{ $key }}?.refBox"
+                                            class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-sky-700 border border-sky-200 disabled:opacity-50">
+                                            Pakai kotak terdeteksi
+                                        </button>
+                                        <button type="button" @click="clearManualReferenceBox('{{ $key }}')" x-show="manualReferenceBoxes.{{ $key }}" x-cloak
+                                            class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-red-600 border border-red-100">
+                                            Hapus kotak manual
+                                        </button>
+                                    </div>
+                                    <p x-show="manualReferenceBoxes.{{ $key }}" x-cloak class="mt-2 text-[11px] font-bold text-green-700">Kotak manual aktif untuk {{ $label }}.</p>
+                                </div>
                                 <ul class="mt-3 space-y-1.5">
                                     <template x-for="item in detectionReports.{{ $key }}?.checks || []" :key="item.label">
                                         <li class="flex items-start gap-2 text-xs">
@@ -441,6 +467,9 @@
             totalUploadError: '',
             previews: { front: null, side: null, back: null },
             detectionReports: { front: null, side: null, back: null },
+            manualReferenceBoxes: { front: null, side: null, back: null },
+            previewImageData: { front: null, side: null, back: null },
+            referenceDrag: null,
             liveReport: {
                 ready: false,
                 checks: [
@@ -585,6 +614,9 @@
                 const file = event.target.files[0];
                 if (!file) {
                     this.previews[pose] = null;
+                    this.detectionReports[pose] = null;
+                    this.manualReferenceBoxes[pose] = null;
+                    this.previewImageData[pose] = null;
                     delete this.uploadErrors[pose];
                     this.uploadErrors = { ...this.uploadErrors };
                     this.validateSelectedFiles();
@@ -603,11 +635,15 @@
                     event.target.value = '';
                     if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                     this.previews[pose] = null;
+                    this.detectionReports[pose] = null;
+                    this.manualReferenceBoxes[pose] = null;
+                    this.previewImageData[pose] = null;
                     return;
                 }
 
                 if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                 this.previews[pose] = URL.createObjectURL(file);
+                this.manualReferenceBoxes[pose] = null;
                 this.validateSelectedFiles();
                 this.analyzePreview(file, pose);
             },
@@ -657,12 +693,106 @@
                     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
                     const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true);
-                    this.drawDetectionOverlay(ctx, canvas.width, canvas.height, report);
+                    this.previewImageData[pose] = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    this.previewImageData = { ...this.previewImageData };
                     this.detectionReports[pose] = report;
                     this.detectionReports = { ...this.detectionReports };
+                    this.redrawPreviewOverlay(pose);
                     URL.revokeObjectURL(image.src);
                 };
                 image.src = URL.createObjectURL(file);
+            },
+            canvasPoint(event, canvas) {
+                const source = event.touches?.[0] || event.changedTouches?.[0] || event;
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: (source.clientX - rect.left) * (canvas.width / rect.width),
+                    y: (source.clientY - rect.top) * (canvas.height / rect.height),
+                };
+            },
+            startManualReference(event, pose) {
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                if (!canvas || !this.previewImageData[pose]) return;
+
+                const point = this.canvasPoint(event, canvas);
+                this.referenceDrag = { pose, startX: point.x, startY: point.y, currentX: point.x, currentY: point.y };
+                this.redrawPreviewOverlay(pose);
+            },
+            updateManualReference(event, pose) {
+                if (!this.referenceDrag || this.referenceDrag.pose !== pose) return;
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                const point = this.canvasPoint(event, canvas);
+                this.referenceDrag.currentX = point.x;
+                this.referenceDrag.currentY = point.y;
+                this.redrawPreviewOverlay(pose);
+            },
+            finishManualReference(event, pose) {
+                if (!this.referenceDrag || this.referenceDrag.pose !== pose) return;
+                this.updateManualReference(event, pose);
+                const box = this.normalizeReferenceBox(this.referenceDrag);
+                this.referenceDrag = null;
+
+                if (box && box.w >= 12 && box.h >= 12) {
+                    this.manualReferenceBoxes[pose] = box;
+                    this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
+                }
+                this.redrawPreviewOverlay(pose);
+            },
+            cancelManualReference(pose) {
+                if (this.referenceDrag?.pose !== pose) return;
+                this.referenceDrag = null;
+                this.redrawPreviewOverlay(pose);
+            },
+            normalizeReferenceBox(drag) {
+                const canvas = this.$refs[`${drag.pose}DetectionCanvas`];
+                if (!canvas) return null;
+                const x = Math.max(0, Math.min(drag.startX, drag.currentX));
+                const y = Math.max(0, Math.min(drag.startY, drag.currentY));
+                const w = Math.min(canvas.width - x, Math.abs(drag.currentX - drag.startX));
+                const h = Math.min(canvas.height - y, Math.abs(drag.currentY - drag.startY));
+                return {
+                    x: Math.round(x),
+                    y: Math.round(y),
+                    w: Math.round(w),
+                    h: Math.round(h),
+                    image_width: canvas.width,
+                    image_height: canvas.height,
+                };
+            },
+            useDetectedReferenceBox(pose) {
+                const refBox = this.detectionReports[pose]?.refBox;
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                if (!refBox || !canvas) return;
+                this.manualReferenceBoxes[pose] = {
+                    x: Math.round(refBox.x),
+                    y: Math.round(refBox.y),
+                    w: Math.round(refBox.w),
+                    h: Math.round(refBox.h),
+                    image_width: canvas.width,
+                    image_height: canvas.height,
+                };
+                this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
+                this.redrawPreviewOverlay(pose);
+            },
+            clearManualReferenceBox(pose) {
+                this.manualReferenceBoxes[pose] = null;
+                this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
+                this.redrawPreviewOverlay(pose);
+            },
+            redrawPreviewOverlay(pose) {
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                const snapshot = this.previewImageData[pose];
+                if (!canvas || !snapshot) return;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.putImageData(snapshot, 0, 0);
+                const report = this.detectionReports[pose];
+                if (report) this.drawDetectionOverlay(ctx, canvas.width, canvas.height, report);
+                const manualBox = this.manualReferenceBoxes[pose];
+                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#0284c7', 'MANUAL');
+                if (this.referenceDrag?.pose === pose) {
+                    const draft = this.normalizeReferenceBox(this.referenceDrag);
+                    if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
+                }
             },
             buildDetectionReport(ctx, width, height, pose, includeOverlay) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
@@ -765,6 +895,19 @@
                     ctx.strokeStyle = '#ef4444';
                     ctx.strokeRect(width * 0.68, height * 0.14, width * 0.18, height * 0.55);
                 }
+                ctx.restore();
+            },
+            drawManualReferenceBox(ctx, box, color, label) {
+                ctx.save();
+                ctx.lineWidth = Math.max(3, box.image_width * 0.007);
+                ctx.strokeStyle = color;
+                ctx.setLineDash([]);
+                ctx.strokeRect(box.x, box.y, box.w, box.h);
+                ctx.fillStyle = color;
+                ctx.fillRect(box.x, Math.max(0, box.y - 24), 92, 24);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.fillText(label, box.x + 8, Math.max(16, box.y - 8));
                 ctx.restore();
             },
         };

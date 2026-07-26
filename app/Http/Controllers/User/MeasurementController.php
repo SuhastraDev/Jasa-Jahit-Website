@@ -62,6 +62,9 @@ class MeasurementController extends Controller
             'reference_mode' => 'required|in:fixed,handheld',
             'ref_width_cm'  => 'nullable|numeric|min:1',
             'ref_height_cm' => 'nullable|numeric|min:1',
+            'front_reference_box' => 'nullable|string',
+            'side_reference_box' => 'nullable|string',
+            'back_reference_box' => 'nullable|string',
         ], [
             'front_photo.max' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
             'side_photo.max' => 'Foto samping terlalu besar. Maksimal 5MB per foto.',
@@ -136,6 +139,11 @@ class MeasurementController extends Controller
             $refWidthCm,
             $refHeightCm,
             $request->reference_mode,
+            [
+                'front' => $request->input('front_reference_box'),
+                'side' => $request->input('side_reference_box'),
+                'back' => $request->input('back_reference_box'),
+            ],
         );
 
         if (!$result['success']) {
