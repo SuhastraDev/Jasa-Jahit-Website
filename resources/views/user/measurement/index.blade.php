@@ -324,7 +324,7 @@
                                 </div>
                                 <div class="rounded-lg border border-gray-100 bg-slate-50 overflow-hidden">
                                     <canvas x-ref="{{ $key }}DetectionCanvas"
-                                        class="w-full cursor-crosshair"
+                                        class="w-full cursor-move touch-none"
                                         @mousedown="startManualReference($event, '{{ $key }}')"
                                         @mousemove="updateManualReference($event, '{{ $key }}')"
                                         @mouseup="finishManualReference($event, '{{ $key }}')"
@@ -334,9 +334,13 @@
                                         @touchend.prevent="finishManualReference($event, '{{ $key }}')"></canvas>
                                 </div>
                                 <div class="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
-                                    <p class="text-xs font-bold text-sky-900">Fallback manual benda patokan</p>
-                                    <p class="text-[11px] text-sky-700 mt-1 leading-relaxed">Jika A4/KTP belum terbaca otomatis, drag kotak tepat mengikuti pinggir benda patokan pada gambar ini.</p>
+                                    <p class="text-xs font-bold text-sky-900">Pilih area A4/KTP manual</p>
+                                    <p class="text-[11px] text-sky-700 mt-1 leading-relaxed">Klik tombol buat kotak, geser kotak ke A4/KTP, lalu tarik bulatan sudut untuk memperbesar atau memperkecil sesuai pinggir benda patokan.</p>
                                     <div class="mt-2 flex flex-wrap gap-2">
+                                        <button type="button" @click="createManualReferenceBox('{{ $key }}')"
+                                            class="rounded-lg bg-sky-600 px-3 py-1.5 text-[11px] font-bold text-white border border-sky-600">
+                                            Buat kotak manual
+                                        </button>
                                         <button type="button" @click="useDetectedReferenceBox('{{ $key }}')" :disabled="!detectionReports.{{ $key }}?.refBox"
                                             class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-sky-700 border border-sky-200 disabled:opacity-50">
                                             Pakai kotak terdeteksi
@@ -470,6 +474,7 @@
             manualReferenceBoxes: { front: null, side: null, back: null },
             previewImageData: { front: null, side: null, back: null },
             referenceDrag: null,
+            referenceAction: null,
             liveReport: {
                 ready: false,
                 checks: [
@@ -715,6 +720,24 @@
                 if (!canvas || !this.previewImageData[pose]) return;
 
                 const point = this.canvasPoint(event, canvas);
+                const box = this.manualReferenceBoxes[pose];
+                if (box) {
+                    this.referenceAction = this.pickReferenceAction(point, box);
+                    if (this.referenceAction) {
+                        this.referenceDrag = {
+                            pose,
+                            startX: point.x,
+                            startY: point.y,
+                            currentX: point.x,
+                            currentY: point.y,
+                            originalBox: { ...box },
+                        };
+                        this.redrawPreviewOverlay(pose);
+                        return;
+                    }
+                }
+
+                this.referenceAction = 'draw';
                 this.referenceDrag = { pose, startX: point.x, startY: point.y, currentX: point.x, currentY: point.y };
                 this.redrawPreviewOverlay(pose);
             },
@@ -724,13 +747,24 @@
                 const point = this.canvasPoint(event, canvas);
                 this.referenceDrag.currentX = point.x;
                 this.referenceDrag.currentY = point.y;
+
+                if (this.referenceAction === 'move' || this.referenceAction?.startsWith('resize-')) {
+                    const nextBox = this.boxFromEditAction(this.referenceDrag, this.referenceAction);
+                    if (nextBox) {
+                        this.manualReferenceBoxes[pose] = nextBox;
+                        this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
+                    }
+                }
                 this.redrawPreviewOverlay(pose);
             },
             finishManualReference(event, pose) {
                 if (!this.referenceDrag || this.referenceDrag.pose !== pose) return;
                 this.updateManualReference(event, pose);
-                const box = this.normalizeReferenceBox(this.referenceDrag);
+                const box = this.referenceAction === 'draw'
+                    ? this.normalizeReferenceBox(this.referenceDrag)
+                    : this.manualReferenceBoxes[pose];
                 this.referenceDrag = null;
+                this.referenceAction = null;
 
                 if (box && box.w >= 12 && box.h >= 12) {
                     this.manualReferenceBoxes[pose] = box;
@@ -741,6 +775,25 @@
             cancelManualReference(pose) {
                 if (this.referenceDrag?.pose !== pose) return;
                 this.referenceDrag = null;
+                this.referenceAction = null;
+                this.redrawPreviewOverlay(pose);
+            },
+            createManualReferenceBox(pose) {
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                if (!canvas || !this.previewImageData[pose]) return;
+
+                const ratio = this.refObject === 'ktp' ? 8.56 / 5.398 : 21 / 29.7;
+                const h = Math.round(canvas.height * 0.42);
+                const w = Math.round(h * ratio);
+                this.manualReferenceBoxes[pose] = {
+                    x: Math.round(canvas.width * 0.68),
+                    y: Math.round(canvas.height * 0.16),
+                    w: Math.max(24, Math.min(w, canvas.width * 0.28)),
+                    h: Math.max(36, h),
+                    image_width: canvas.width,
+                    image_height: canvas.height,
+                };
+                this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
                 this.redrawPreviewOverlay(pose);
             },
             normalizeReferenceBox(drag) {
@@ -755,6 +808,60 @@
                     y: Math.round(y),
                     w: Math.round(w),
                     h: Math.round(h),
+                    image_width: canvas.width,
+                    image_height: canvas.height,
+                };
+            },
+            pickReferenceAction(point, box) {
+                const handle = Math.max(14, box.image_width * 0.025);
+                const handles = {
+                    'resize-nw': { x: box.x, y: box.y },
+                    'resize-ne': { x: box.x + box.w, y: box.y },
+                    'resize-sw': { x: box.x, y: box.y + box.h },
+                    'resize-se': { x: box.x + box.w, y: box.y + box.h },
+                };
+
+                for (const [action, pos] of Object.entries(handles)) {
+                    if (Math.abs(point.x - pos.x) <= handle && Math.abs(point.y - pos.y) <= handle) {
+                        return action;
+                    }
+                }
+
+                const inside = point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h;
+                return inside ? 'move' : null;
+            },
+            boxFromEditAction(drag, action) {
+                const canvas = this.$refs[`${drag.pose}DetectionCanvas`];
+                const box = { ...drag.originalBox };
+                const dx = drag.currentX - drag.startX;
+                const dy = drag.currentY - drag.startY;
+                const minSize = 16;
+
+                if (action === 'move') {
+                    box.x = Math.max(0, Math.min(canvas.width - box.w, box.x + dx));
+                    box.y = Math.max(0, Math.min(canvas.height - box.h, box.y + dy));
+                } else {
+                    let x1 = box.x;
+                    let y1 = box.y;
+                    let x2 = box.x + box.w;
+                    let y2 = box.y + box.h;
+
+                    if (action.includes('n')) y1 = Math.max(0, Math.min(y2 - minSize, y1 + dy));
+                    if (action.includes('s')) y2 = Math.min(canvas.height, Math.max(y1 + minSize, y2 + dy));
+                    if (action.includes('w')) x1 = Math.max(0, Math.min(x2 - minSize, x1 + dx));
+                    if (action.includes('e')) x2 = Math.min(canvas.width, Math.max(x1 + minSize, x2 + dx));
+
+                    box.x = x1;
+                    box.y = y1;
+                    box.w = x2 - x1;
+                    box.h = y2 - y1;
+                }
+
+                return {
+                    x: Math.round(box.x),
+                    y: Math.round(box.y),
+                    w: Math.round(box.w),
+                    h: Math.round(box.h),
                     image_width: canvas.width,
                     image_height: canvas.height,
                 };
@@ -901,6 +1008,8 @@
                 ctx.save();
                 ctx.lineWidth = Math.max(3, box.image_width * 0.007);
                 ctx.strokeStyle = color;
+                ctx.fillStyle = 'rgba(2, 132, 199, 0.10)';
+                ctx.fillRect(box.x, box.y, box.w, box.h);
                 ctx.setLineDash([]);
                 ctx.strokeRect(box.x, box.y, box.w, box.h);
                 ctx.fillStyle = color;
@@ -908,6 +1017,28 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 13px sans-serif';
                 ctx.fillText(label, box.x + 8, Math.max(16, box.y - 8));
+
+                const handleSize = Math.max(10, box.image_width * 0.018);
+                const half = handleSize / 2;
+                const handles = [
+                    [box.x, box.y],
+                    [box.x + box.w, box.y],
+                    [box.x, box.y + box.h],
+                    [box.x + box.w, box.y + box.h],
+                ];
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                handles.forEach(([x, y]) => {
+                    ctx.beginPath();
+                    ctx.rect(x - half, y - half, handleSize, handleSize);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+
+                ctx.fillStyle = color;
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText('geser kotak, tarik sudut untuk resize', box.x + 6, Math.min(box.image_height - 8, box.y + box.h + 18));
                 ctx.restore();
             },
         };
