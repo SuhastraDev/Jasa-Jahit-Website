@@ -30,10 +30,14 @@ class CVMeasurementService
     ): array
     {
         try {
+            [$frontContent, $frontName] = $this->preparePhotoForCv($frontPhoto, 'front.jpg');
+            [$sideContent, $sideName] = $this->preparePhotoForCv($sidePhoto, 'side.jpg');
+            [$backContent, $backName] = $this->preparePhotoForCv($backPhoto, 'back.jpg');
+
             $request = Http::timeout($this->timeout)
-                ->attach('front_photo', $frontPhoto->getContent(), $frontPhoto->getClientOriginalName())
-                ->attach('side_photo', $sidePhoto->getContent(), $sidePhoto->getClientOriginalName())
-                ->attach('back_photo', $backPhoto->getContent(), $backPhoto->getClientOriginalName());
+                ->attach('front_photo', $frontContent, $frontName)
+                ->attach('side_photo', $sideContent, $sideName)
+                ->attach('back_photo', $backContent, $backName);
 
             $formData = [
                 'ref_object' => $refObject,
@@ -79,5 +83,45 @@ class CVMeasurementService
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    /**
+     * Resize foto sebelum dikirim ke service CV agar MediaPipe/OpenCV tidak
+     * memproses foto kamera beresolusi sangat besar. Rasio tetap sama, jadi
+     * skala marker dalam cm tetap konsisten.
+     */
+    private function preparePhotoForCv(UploadedFile $photo, string $fallbackName): array
+    {
+        $raw = $photo->getContent();
+        $name = pathinfo($photo->getClientOriginalName() ?: $fallbackName, PATHINFO_FILENAME) . '.jpg';
+
+        if (!function_exists('imagecreatefromstring')) {
+            return [$raw, $photo->getClientOriginalName() ?: $fallbackName];
+        }
+
+        $source = @imagecreatefromstring($raw);
+        if (!$source) {
+            return [$raw, $photo->getClientOriginalName() ?: $fallbackName];
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $maxDimension = 1280;
+        $ratio = min(1, $maxDimension / max($width, $height));
+
+        if ($ratio >= 1) {
+            return [$raw, $photo->getClientOriginalName() ?: $fallbackName];
+        }
+
+        $targetWidth = max(1, (int) round($width * $ratio));
+        $targetHeight = max(1, (int) round($height * $ratio));
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+        ob_start();
+        imagejpeg($target, null, 82);
+        $compressed = ob_get_clean();
+
+        return [$compressed ?: $raw, $name];
     }
 }

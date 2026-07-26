@@ -8,6 +8,7 @@ tailoring measurements unstable.
 """
 import math
 import os
+import time
 import urllib.request
 
 import cv2
@@ -21,10 +22,24 @@ if not os.path.exists(MODEL_PATH):
     url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
     urllib.request.urlretrieve(url, MODEL_PATH)
 
+_POSE_LANDMARKER = None
+
 
 def decode_image(image_bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
     return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+
+def resize_for_measurement(image, max_dimension=1280):
+    h, w = image.shape[:2]
+    largest = max(h, w)
+    if largest <= max_dimension:
+        return image
+
+    scale = max_dimension / largest
+    target_w = max(1, int(round(w * scale)))
+    target_h = max(1, int(round(h * scale)))
+    return cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_AREA)
 
 
 def detect_reference_object(image):
@@ -75,21 +90,24 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None):
 
 
 def detect_pose(image):
+    global _POSE_LANDMARKER
+
     BaseOptions = mp.tasks.BaseOptions
     PoseLandmarker = mp.tasks.vision.PoseLandmarker
     PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
     VisionRunningMode = mp.tasks.vision.RunningMode
 
-    options = PoseLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=MODEL_PATH),
-        running_mode=VisionRunningMode.IMAGE,
-        num_poses=1,
-    )
+    if _POSE_LANDMARKER is None:
+        options = PoseLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=MODEL_PATH),
+            running_mode=VisionRunningMode.IMAGE,
+            num_poses=1,
+        )
+        _POSE_LANDMARKER = PoseLandmarker.create_from_options(options)
 
-    with PoseLandmarker.create_from_options(options) as landmarker:
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        result = landmarker.detect(mp_image)
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+    result = _POSE_LANDMARKER.detect(mp_image)
 
     if not result.pose_landmarks:
         return None
@@ -135,7 +153,7 @@ def build_body_mask(image, ref_contour=None):
     fgd = np.zeros((1, 65), np.float64)
 
     try:
-        cv2.grabCut(image, mask, rect, bgd, fgd, 4, cv2.GC_INIT_WITH_RECT)
+        cv2.grabCut(image, mask, rect, bgd, fgd, 2, cv2.GC_INIT_WITH_RECT)
         body_mask = np.where((mask == 2) | (mask == 0), 0, 255).astype("uint8")
     except cv2.error:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -215,6 +233,7 @@ def rounded(value):
 
 
 def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_width_cm=None, ref_height_cm=None):
+    started_at = time.perf_counter()
     images = {
         "front": decode_image(front_bytes),
         "side": decode_image(side_bytes),
@@ -223,6 +242,11 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
 
     if any(image is None for image in images.values()):
         return {"success": False, "error": "Gagal membaca salah satu gambar. Pastikan format gambar benar."}
+
+    images = {
+        view: resize_for_measurement(image)
+        for view, image in images.items()
+    }
 
     scales = {}
     poses = {}
@@ -347,6 +371,8 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         "measurement_method": "multiview_cv",
         "per_field_confidence": per_field_confidence,
         "debug": {
+            "duration_seconds": round(time.perf_counter() - started_at, 3),
+            "image_shapes": {key: [int(v) for v in image.shape[:2]] for key, image in images.items()},
             "scales": {key: round(value, 4) for key, value in scales.items()},
             "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
         },
