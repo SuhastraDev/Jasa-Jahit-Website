@@ -228,6 +228,7 @@ def detect_pose(image):
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
             running_mode=VisionRunningMode.IMAGE,
             num_poses=1,
+            output_segmentation_masks=True,
         )
         _POSE_LANDMARKER = PoseLandmarker.create_from_options(options)
 
@@ -261,9 +262,14 @@ def detect_pose(image):
         "right_ankle": point(28),
     }
     visible_count = sum(1 for lm in landmarks if lm.visibility > 0.5)
+    segmentation_mask = None
+    if result.segmentation_masks:
+        segmentation_mask = np.array(result.segmentation_masks[0].numpy_view(), copy=True)
+
     return {
         "keypoints": keypoints,
         "confidence": round(visible_count / 33, 2),
+        "segmentation_mask": segmentation_mask,
     }
 
 
@@ -271,7 +277,7 @@ def point_xy(point):
     return (point[0], point[1])
 
 
-def build_body_mask(image, keypoints, ref_contour=None):
+def build_body_mask(image, keypoints, ref_contour=None, pose_segmentation=None):
     h, w = image.shape[:2]
     mask = np.zeros((h, w), np.uint8)
     visible_points = [
@@ -298,16 +304,27 @@ def build_body_mask(image, keypoints, ref_contour=None):
     if x2 <= x1 or y2 <= y1:
         return mask
 
-    rect = (x1, y1, x2 - x1, y2 - y1)
-    bgd = np.zeros((1, 65), np.float64)
-    fgd = np.zeros((1, 65), np.float64)
+    body_mask = None
+    if pose_segmentation is not None:
+        probability = pose_segmentation
+        if probability.shape[:2] != (h, w):
+            probability = cv2.resize(probability, (w, h), interpolation=cv2.INTER_LINEAR)
+        candidate = np.where(probability >= 0.5, 255, 0).astype("uint8")
+        coverage = cv2.countNonZero(candidate) / max(1, h * w)
+        if 0.015 <= coverage <= 0.65:
+            body_mask = candidate
 
-    try:
-        cv2.grabCut(image, mask, rect, bgd, fgd, 2, cv2.GC_INIT_WITH_RECT)
-        body_mask = np.where((mask == 2) | (mask == 0), 0, 255).astype("uint8")
-    except cv2.error:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, body_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    if body_mask is None:
+        rect = (x1, y1, x2 - x1, y2 - y1)
+        bgd = np.zeros((1, 65), np.float64)
+        fgd = np.zeros((1, 65), np.float64)
+
+        try:
+            cv2.grabCut(image, mask, rect, bgd, fgd, 2, cv2.GC_INIT_WITH_RECT)
+            body_mask = np.where((mask == 2) | (mask == 0), 0, 255).astype("uint8")
+        except cv2.error:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            _, body_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     if ref_contour is not None:
         cv2.drawContours(body_mask, [ref_contour], -1, 0, thickness=cv2.FILLED)
@@ -566,6 +583,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
     poses = {}
     masks = {}
     bounds = {}
+    pose_statures = {}
 
     for view, image in images.items():
         scale_result = calculate_scale(
@@ -602,7 +620,30 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
                 "failed_view": view,
             }
 
-        mask = build_body_mask(image, pose["keypoints"], scale_result["contour"])
+        points = pose["keypoints"]
+        ankle_y = average(points["left_ankle"][1], points["right_ankle"][1])
+        pose_span_px = max(0.0, ankle_y - points["nose"][1])
+        stature_cm = px_to_cm(pose_span_px * 1.08, scale_result["scale"])
+        if stature_cm < 110 or stature_cm > 230:
+            label = VIEW_LABELS.get(view, f"foto {view}")
+            return {
+                "success": False,
+                "error": (
+                    f"Ukuran kotak A4/KTP pada {label} menghasilkan skala tubuh {stature_cm:.1f} cm, "
+                    "sehingga kotak kemungkinan tidak mengikuti benda patokan. Atur kotak tepat pada "
+                    "empat tepi A4/KTP, bukan pada area kosong di sekitarnya."
+                ),
+                "failed_view": view,
+                "failed_reason": "invalid_reference_scale",
+                "estimated_stature_cm": round(float(stature_cm), 2),
+            }
+
+        mask = build_body_mask(
+            image,
+            points,
+            scale_result["contour"],
+            pose.get("segmentation_mask"),
+        )
         body_bounds = largest_body_bounds(mask)
         if body_bounds is None:
             label = VIEW_LABELS.get(view, f"foto {view}")
@@ -619,6 +660,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
         poses[view] = pose
         masks[view] = mask
         bounds[view] = body_bounds
+        pose_statures[view] = stature_cm
 
     front_scale = scales["front"]
     side_scale = scales["side"]
@@ -672,7 +714,7 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
     arm_length = px_to_cm((left_arm + right_arm) / 2, front_scale)
 
     front_x, front_y, front_w, front_h = bounds["front"]
-    height = px_to_cm(front_h, front_scale)
+    height = average(pose_statures["front"], pose_statures["back"])
     hip_mid = midpoint(point_xy(front_points["left_hip"]), point_xy(front_points["right_hip"]))
     ankle_mid = midpoint(point_xy(front_points["left_ankle"]), point_xy(front_points["right_ankle"]))
     shoulder_mid = midpoint(point_xy(front_points["left_shoulder"]), point_xy(front_points["right_shoulder"]))

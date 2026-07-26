@@ -194,6 +194,36 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertEqual("front", result["failed_view"])
         self.assertEqual("invalid_reference_proportion", result["failed_reason"])
 
+    def test_process_measurement_rejects_reference_scale_that_makes_body_too_small(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        oversized_reference = {
+            "scale": 8.0,
+            "contour": None,
+            "area": 8000.0,
+            "source": "manual",
+            "quality": 0.98,
+            "axis_scales": [8.0, 7.84],
+        }
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", return_value=oversized_reference),
+            patch.object(measurement, "detect_pose", return_value=pose(front_pose())),
+        ):
+            result = measurement.process_measurement(
+                b"front",
+                b"side",
+                b"back",
+                "a4",
+                21.0,
+                29.7,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual("invalid_reference_scale", result["failed_reason"])
+        self.assertLess(result["estimated_stature_cm"], 110)
+
 
 if __name__ == "__main__":
     unittest.main()
