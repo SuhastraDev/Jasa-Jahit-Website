@@ -13,12 +13,14 @@ class PhotoValidationService
     protected string $apiKey;
     protected string $model;
     protected string $apiUrl;
+    protected int $timeout;
 
     public function __construct()
     {
         $this->apiKey = config('services.groq.key', '');
         $this->model = config('services.groq.model', 'qwen/qwen3.6-27b');
         $this->apiUrl = config('services.groq.url', 'https://api.groq.com/openai/v1/chat/completions');
+        $this->timeout = (int) config('services.groq.timeout', 10);
     }
 
     /**
@@ -83,7 +85,7 @@ PROMPT;
         try {
             [$imageData, $mimeType] = $this->encodeImageForGroq($photo);
 
-            $response = Http::timeout(20)
+            $response = Http::timeout($this->timeout)
                 ->withToken($this->apiKey)
                 ->acceptJson()
                 ->post($this->apiUrl, [

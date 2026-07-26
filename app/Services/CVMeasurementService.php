@@ -8,10 +8,12 @@ use Illuminate\Http\UploadedFile;
 class CVMeasurementService
 {
     protected string $baseUrl;
+    protected int $timeout;
 
     public function __construct()
     {
         $this->baseUrl = config('services.cv.url', 'http://localhost:8000');
+        $this->timeout = (int) config('services.cv.timeout', 120);
     }
 
     /**
@@ -28,7 +30,7 @@ class CVMeasurementService
     ): array
     {
         try {
-            $request = Http::timeout(60)
+            $request = Http::timeout($this->timeout)
                 ->attach('front_photo', $frontPhoto->getContent(), $frontPhoto->getClientOriginalName())
                 ->attach('side_photo', $sidePhoto->getContent(), $sidePhoto->getClientOriginalName())
                 ->attach('back_photo', $backPhoto->getContent(), $backPhoto->getClientOriginalName());
@@ -56,7 +58,7 @@ class CVMeasurementService
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             return [
                 'success' => false,
-                'error' => 'Tidak dapat terhubung ke layanan CV. Pastikan server Python FastAPI berjalan di ' . $this->baseUrl,
+                'error' => 'Analisis foto terlalu lama atau layanan CV tidak merespons. Coba kompres foto, pastikan koneksi stabil, lalu ulangi proses.',
             ];
         } catch (\Exception $e) {
             return [

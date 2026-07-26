@@ -37,6 +37,7 @@ return [
 
     'cv' => [
         'url' => env('CV_SERVICE_URL', 'http://127.0.0.1:8000'),
+        'timeout' => (int) env('CV_SERVICE_TIMEOUT', 120),
     ],
 
     'dana' => [
@@ -53,6 +54,7 @@ return [
         'key' => env('GROQ_API_KEY', ''),
         'model' => env('GROQ_MODEL', 'qwen/qwen3.6-27b'),
         'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/chat/completions'),
+        'timeout' => (int) env('GROQ_TIMEOUT', 10),
     ],
 
     'google' => [
