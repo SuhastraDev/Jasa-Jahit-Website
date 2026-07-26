@@ -10,8 +10,14 @@ CV_DIR = Path(__file__).resolve().parents[1]
 if str(CV_DIR) not in sys.path:
     sys.path.insert(0, str(CV_DIR))
 
-sys.modules.setdefault("cv2", MagicMock())
-sys.modules.setdefault("mediapipe", MagicMock())
+try:
+    import cv2
+    import mediapipe
+    HAS_REAL_CV = True
+except ModuleNotFoundError:
+    sys.modules.setdefault("cv2", MagicMock())
+    sys.modules.setdefault("mediapipe", MagicMock())
+    HAS_REAL_CV = False
 
 import measurement
 
@@ -92,6 +98,22 @@ def make_side_mask():
 
 
 class MeasurementGeometryTest(unittest.TestCase):
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_pose_component_is_selected_instead_of_larger_background_region(self):
+        mask = np.zeros((240, 180), dtype=np.uint8)
+        mask[10:70, 5:175] = 255
+        mask[85:225, 70:111] = 255
+        keypoints = front_pose()
+        scaled_keypoints = {
+            name: (point[0] * 0.9, point[1] * 0.55, point[2])
+            for name, point in keypoints.items()
+        }
+
+        isolated = measurement.isolate_pose_component(mask, scaled_keypoints)
+
+        self.assertEqual(0, int(isolated[30, 30]))
+        self.assertEqual(255, int(isolated[150, 90]))
+
     def test_process_measurement_samples_each_limb_instead_of_body_midline(self):
         dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
         poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
