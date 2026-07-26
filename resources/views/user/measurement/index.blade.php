@@ -1410,7 +1410,7 @@
                     { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
                     {
                         label: poseSummary.orientationOk && sideWarningOk
-                            ? `Arah tubuh sesuai foto ${this.poseLabel(pose).toLowerCase()}.`
+                            ? `Arah tubuh sesuai ${this.poseLabel(pose).toLowerCase()}.`
                             : (sideWarningOk ? 'Arah tubuh belum sesuai dengan pose yang dipilih.' : 'Mode praktis tidak disarankan pada foto samping.'),
                         ok: poseSummary.orientationOk && sideWarningOk,
                     },
