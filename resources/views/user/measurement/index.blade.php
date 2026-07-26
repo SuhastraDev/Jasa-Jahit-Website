@@ -317,14 +317,20 @@
                             <div x-show="previews.{{ $key }}" class="mt-3">
                                 <img :src="previews.{{ $key }}" class="h-48 w-full rounded-lg border border-gray-200 object-contain bg-gray-50" alt="Preview {{ $label }}">
                             </div>
-                            <div x-show="detectionReports.{{ $key }}" x-cloak class="mt-3 rounded-xl border border-gray-100 bg-white p-3">
-                                <div class="flex items-center justify-between gap-2 mb-2">
-                                    <p class="text-xs font-black text-gray-800">Deteksi visual</p>
+                            <div x-show="detectionReports.{{ $key }}" x-cloak class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                <div class="border-b border-slate-200 bg-white px-4 py-3">
+                                 <div class="flex items-center justify-between gap-2 mb-2">
+                                    <div>
+                                        <p class="text-xs font-black text-slate-900">Pemeriksaan foto</p>
+                                        <p class="mt-0.5 text-[11px] text-slate-500">Oranye mengikuti tubuh, merah mengikuti A4/KTP.</p>
+                                    </div>
                                     <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" :class="detectionReports.{{ $key }}?.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="detectionReports.{{ $key }}?.ready ? 'Siap dianalisis' : 'Perlu dicek'"></span>
+                                 </div>
                                 </div>
-                                <div class="rounded-lg border border-gray-100 bg-slate-50 overflow-hidden">
+                                <div class="bg-slate-900 p-2">
+                                <div class="overflow-hidden rounded-lg bg-slate-800">
                                     <canvas x-ref="{{ $key }}DetectionCanvas"
-                                        class="w-full cursor-move touch-none"
+                                        class="block w-full cursor-move touch-none"
                                         @mousedown="startManualReference($event, '{{ $key }}')"
                                         @mousemove="updateManualReference($event, '{{ $key }}')"
                                         @mouseup="finishManualReference($event, '{{ $key }}')"
@@ -333,30 +339,27 @@
                                         @touchmove.prevent="updateManualReference($event, '{{ $key }}')"
                                         @touchend.prevent="finishManualReference($event, '{{ $key }}')"></canvas>
                                 </div>
-                                <div class="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3">
-                                    <p class="text-xs font-bold text-sky-900">Pilih area A4/KTP manual</p>
-                                    <p class="text-[11px] text-sky-700 mt-1 leading-relaxed">Klik tombol buat kotak, geser kotak ke A4/KTP, lalu tarik bulatan sudut untuk memperbesar atau memperkecil sesuai pinggir benda patokan.</p>
+                                </div>
+                                <div class="border-t border-slate-200 bg-white p-4">
+                                    <p class="text-xs font-bold text-slate-900">Kotak merah benda patokan</p>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-slate-500">Kotak dibuat otomatis. Jika belum tepat, perbesar foto lalu geser atau tarik sudutnya sampai menempel pada empat tepi A4/KTP.</p>
                                     <div class="mt-2 flex flex-wrap gap-2">
                                         <button type="button" @click="createManualReferenceBox('{{ $key }}')"
-                                            class="rounded-lg bg-sky-600 px-3 py-1.5 text-[11px] font-bold text-white border border-sky-600">
-                                            Buat kotak manual
+                                            class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-bold text-red-700">
+                                            Deteksi ulang kotak
                                         </button>
                                         <button type="button" @click="openReferenceEditor('{{ $key }}')"
                                             class="rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white border border-slate-900">
-                                            Perbesar dan atur kotak
-                                        </button>
-                                        <button type="button" @click="useDetectedReferenceBox('{{ $key }}')" :disabled="!detectionReports.{{ $key }}?.refBox"
-                                            class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-sky-700 border border-sky-200 disabled:opacity-50">
-                                            Pakai kotak terdeteksi
+                                            Perbesar dan koreksi
                                         </button>
                                         <button type="button" @click="clearManualReferenceBox('{{ $key }}')" x-show="manualReferenceBoxes.{{ $key }}" x-cloak
                                             class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-red-600 border border-red-100">
                                             Hapus kotak manual
                                         </button>
                                     </div>
-                                    <p x-show="manualReferenceBoxes.{{ $key }}" x-cloak class="mt-2 text-[11px] font-bold text-green-700">Kotak manual aktif untuk {{ $label }}.</p>
+                                    <p x-show="manualReferenceBoxes.{{ $key }}" x-cloak class="mt-2 text-[11px] font-bold text-red-700">Kotak merah aktif dan akan dipakai sebagai skala {{ $label }}.</p>
                                 </div>
-                                <ul class="mt-3 space-y-1.5">
+                                <ul class="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3">
                                     <template x-for="item in detectionReports.{{ $key }}?.checks || []" :key="item.label">
                                         <li class="flex items-start gap-2 text-xs">
                                             <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? '✓' : '!'"></span>
@@ -456,15 +459,15 @@
 
     <div x-show="referenceEditor.open" x-cloak class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
         <div class="w-full max-w-6xl max-h-[94vh] rounded-2xl bg-white shadow-2xl border border-white/70 overflow-hidden flex flex-col">
-            <div class="bg-slate-900 px-5 py-4 text-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="bg-slate-950 px-5 py-4 text-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <p class="text-xs font-bold text-sky-200">Editor area benda patokan</p>
-                    <h3 class="text-lg font-black mt-0.5" x-text="`Perbesar foto ${poseLabel(referenceEditor.pose)}`"></h3>
-                    <p class="text-xs text-slate-300 mt-1">Geser kotak ke A4/KTP, lalu tarik bulatan sudut sampai pas dengan pinggir benda.</p>
+                    <p class="text-xs font-bold text-red-300">Koreksi benda patokan</p>
+                    <h3 class="text-lg font-black mt-0.5" x-text="`Atur kotak merah pada ${poseLabel(referenceEditor.pose)}`"></h3>
+                    <p class="text-xs text-slate-300 mt-1">Kotak sudah diarahkan otomatis. Pastikan keempat sisinya tepat menempel pada tepi A4/KTP.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="rounded-lg bg-sky-500 px-3 py-2 text-xs font-bold text-white">
-                        Buat ulang kotak
+                    <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white">
+                        Deteksi ulang
                     </button>
                     <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20">
                         Tutup
@@ -485,10 +488,10 @@
                         @touchend.prevent="finishManualReference($event, referenceEditor.pose, 'editor')"></canvas>
                 </div>
                 <div class="mx-auto mt-3 max-w-5xl grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <div class="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
-                        <span class="font-black">1.</span> Letakkan kotak tepat di area A4/KTP.
+                    <div class="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-800">
+                        <span class="font-black">1.</span> Cocokkan kotak merah dengan A4/KTP.
                     </div>
-                    <div class="rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
+                    <div class="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-800">
                         <span class="font-black">2.</span> Tarik sudut kotak untuk menyesuaikan ukuran.
                     </div>
                     <div class="rounded-xl border border-green-100 bg-green-50 p-3 text-xs text-green-800">
@@ -503,8 +506,8 @@
                     <button type="button" @click="clearManualReferenceBox(referenceEditor.pose)" class="rounded-lg border border-red-100 px-4 py-2 text-xs font-bold text-red-600">
                         Hapus kotak
                     </button>
-                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white">
-                        Simpan area
+                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white">
+                        Simpan kotak merah
                     </button>
                 </div>
             </div>
@@ -585,6 +588,7 @@
                         numPoses: 1,
                         minPoseDetectionConfidence: 0.55,
                         minPosePresenceConfidence: 0.55,
+                        outputSegmentationMasks: true,
                     });
                     this.poseDetectorReady = true;
                     this.poseDetectorError = '';
@@ -598,11 +602,40 @@
                 if (!this.poseLandmarker || !source) return null;
                 try {
                     const result = this.poseLandmarker.detect(source);
-                    return result?.landmarks?.[0] || null;
+                    const mask = result?.segmentationMasks?.[0];
+                    const silhouette = mask ? this.extractSilhouette(mask) : null;
+                    if (mask?.close) mask.close();
+                    return {
+                        landmarks: result?.landmarks?.[0] || null,
+                        silhouette,
+                    };
                 } catch (error) {
                     console.warn('Pose tidak dapat dibaca pada frame', error);
                     return null;
                 }
+            },
+            extractSilhouette(mask) {
+                const values = mask.getAsFloat32Array();
+                const maskWidth = mask.width;
+                const maskHeight = mask.height;
+                if (!values?.length || !maskWidth || !maskHeight) return null;
+
+                const left = [];
+                const right = [];
+                const rowStep = Math.max(2, Math.round(maskHeight / 90));
+                for (let y = 0; y < maskHeight; y += rowStep) {
+                    let minX = -1;
+                    let maxX = -1;
+                    for (let x = 0; x < maskWidth; x++) {
+                        if (values[y * maskWidth + x] < 0.5) continue;
+                        if (minX < 0) minX = x;
+                        maxX = x;
+                    }
+                    if (minX < 0 || maxX <= minX) continue;
+                    left.push({ x: minX / maskWidth, y: y / maskHeight });
+                    right.push({ x: maxX / maskWidth, y: y / maskHeight });
+                }
+                return left.length >= 8 ? { left, right } : null;
             },
             syncReferenceMode() {
                 if (this.refObject === 'ktp' && this.referenceMode === 'handheld') {
@@ -728,8 +761,8 @@
                         canvas.height = Math.max(1, Math.round(320 * (video.videoHeight / video.videoWidth)));
                         const ctx = canvas.getContext('2d', { willReadFrequently: true });
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        const poseLandmarks = this.detectPoseLandmarks(canvas);
-                        this.liveReport = this.buildDetectionReport(ctx, canvas.width, canvas.height, this.activePose, false, poseLandmarks);
+                        const poseAnalysis = this.detectPoseLandmarks(canvas);
+                        this.liveReport = this.buildDetectionReport(ctx, canvas.width, canvas.height, this.activePose, false, poseAnalysis);
                     } finally {
                         this.poseDetectionBusy = false;
                     }
@@ -842,14 +875,17 @@
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
                     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-                    const poseLandmarks = this.detectPoseLandmarks(canvas);
-                    const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true, poseLandmarks);
+                    const poseAnalysis = this.detectPoseLandmarks(canvas);
+                    const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true, poseAnalysis);
                     this.previewImageSource[pose] = image;
                     this.previewImageSource = { ...this.previewImageSource };
                     this.previewImageData[pose] = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     this.previewImageData = { ...this.previewImageData };
                     this.detectionReports[pose] = report;
                     this.detectionReports = { ...this.detectionReports };
+                    if (report.refBox && !this.manualReferenceBoxes[pose]) {
+                        this.setReferenceBox(pose, report.refBox, canvas);
+                    }
                     this.redrawPreviewOverlay(pose);
                     URL.revokeObjectURL(image.src);
                 };
@@ -922,6 +958,7 @@
                 if (box && box.w >= 12 && box.h >= 12) {
                     this.manualReferenceBoxes[pose] = box;
                     this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
+                    this.syncReferenceReport(pose);
                 }
                 this.redrawReferenceCanvas(pose, surface);
                 if (surface === 'editor') this.redrawPreviewOverlay(pose);
@@ -936,8 +973,21 @@
                 const canvas = this.getReferenceCanvas(pose, surface);
                 if (!canvas || !this.referenceCanvasReady(pose, surface)) return;
 
+                const detected = this.detectionReports[pose]?.refBox;
+                if (detected) {
+                    const sourceCanvas = this.$refs[`${pose}DetectionCanvas`];
+                    const detectedForCanvas = this.scaleReferenceBoxToCanvas({
+                        ...detected,
+                        image_width: sourceCanvas?.width || canvas.width,
+                        image_height: sourceCanvas?.height || canvas.height,
+                    }, canvas);
+                    this.setReferenceBox(pose, detectedForCanvas, canvas);
+                    this.redrawReferenceCanvas(pose, surface);
+                    return;
+                }
+
                 const ratio = this.refObject === 'ktp' ? 8.56 / 5.398 : 21 / 29.7;
-                const h = Math.round(canvas.height * 0.42);
+                const h = Math.round(canvas.height * 0.22);
                 const w = Math.round(h * ratio);
                 this.manualReferenceBoxes[pose] = {
                     x: Math.round(canvas.width * 0.68),
@@ -1025,17 +1075,44 @@
                 const refBox = this.detectionReports[pose]?.refBox;
                 const canvas = this.$refs[`${pose}DetectionCanvas`];
                 if (!refBox || !canvas) return;
+                this.setReferenceBox(pose, refBox, canvas);
+                this.redrawPreviewOverlay(pose);
+                if (this.referenceEditor.open && this.referenceEditor.pose === pose) this.redrawReferenceEditor();
+            },
+            setReferenceBox(pose, box, canvas) {
+                if (!box || !canvas) return;
                 this.manualReferenceBoxes[pose] = {
-                    x: Math.round(refBox.x),
-                    y: Math.round(refBox.y),
-                    w: Math.round(refBox.w),
-                    h: Math.round(refBox.h),
+                    x: Math.round(box.x),
+                    y: Math.round(box.y),
+                    w: Math.round(box.w),
+                    h: Math.round(box.h),
                     image_width: canvas.width,
                     image_height: canvas.height,
                 };
                 this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
-                this.redrawPreviewOverlay(pose);
-                if (this.referenceEditor.open && this.referenceEditor.pose === pose) this.redrawReferenceEditor();
+                this.syncReferenceReport(pose);
+            },
+            syncReferenceReport(pose) {
+                const report = this.detectionReports[pose];
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                const box = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
+                if (!report || !box || !this.referenceBoxRatioOk(box)) return;
+
+                report.refBox = { x: box.x, y: box.y, w: box.w, h: box.h };
+                if (report.checks?.[2]) {
+                    report.checks[2] = {
+                        label: `${this.refObject.toUpperCase()} ditandai oleh kotak merah.`,
+                        ok: true,
+                    };
+                }
+                if (report.checks?.[3]) {
+                    report.checks[3] = {
+                        label: 'Proporsi kotak merah sesuai benda patokan.',
+                        ok: true,
+                    };
+                }
+                report.ready = this.poseDetectorReady && report.checks.every((item) => item.ok);
+                this.detectionReports = { ...this.detectionReports };
             },
             clearManualReferenceBox(pose) {
                 this.manualReferenceBoxes[pose] = null;
@@ -1113,10 +1190,10 @@
                 }
 
                 const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
-                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#0284c7', 'MANUAL');
+                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#ef4444', this.refObject.toUpperCase());
                 if (this.referenceDrag?.pose === pose && this.referenceDrag?.surface === 'editor' && this.referenceAction === 'draw') {
                     const draft = this.normalizeReferenceBox(this.referenceDrag);
-                    if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
+                    if (draft) this.drawManualReferenceBox(ctx, draft, '#ef4444', this.refObject.toUpperCase());
                 }
             },
             redrawPreviewOverlay(pose) {
@@ -1128,10 +1205,10 @@
                 const report = this.detectionReports[pose];
                 if (report) this.drawDetectionOverlay(ctx, canvas.width, canvas.height, report);
                 const manualBox = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
-                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#0284c7', 'MANUAL');
+                if (manualBox) this.drawManualReferenceBox(ctx, manualBox, '#ef4444', this.refObject.toUpperCase());
                 if (this.referenceDrag?.pose === pose && this.referenceDrag?.surface === 'preview' && this.referenceAction === 'draw') {
                     const draft = this.normalizeReferenceBox(this.referenceDrag);
-                    if (draft) this.drawManualReferenceBox(ctx, draft, '#f97316', 'PILIH');
+                    if (draft) this.drawManualReferenceBox(ctx, draft, '#ef4444', this.refObject.toUpperCase());
                 }
             },
             summarizePose(poseLandmarks, width, height, pose) {
@@ -1160,10 +1237,17 @@
                 const detected = pairVisible(11, 12) && pairVisible(23, 24);
                 if (!detected) return fallback;
 
-                const requiredFullBody = [0, 11, 12, 23, 24, 25, 26, 27, 28];
-                const fullBody = requiredFullBody.every((index) => visible(index))
-                    && poseLandmarks[0].y > 0.01
-                    && Math.max(poseLandmarks[27].y, poseLandmarks[28].y) < 0.995;
+                const upperBodyVisible = visible(0) && pairVisible(11, 12) && pairVisible(23, 24);
+                const leftLegVisible = visible(25, 0.35) && visible(27, 0.35);
+                const rightLegVisible = visible(26, 0.35) && visible(28, 0.35);
+                const visibleAnkleYs = [27, 28]
+                    .filter((index) => visible(index, 0.35))
+                    .map((index) => poseLandmarks[index].y);
+                const fullBody = upperBodyVisible
+                    && (leftLegVisible || rightLegVisible)
+                    && poseLandmarks[0].y > 0.005
+                    && visibleAnkleYs.length > 0
+                    && Math.max(...visibleAnkleYs) < 0.998;
 
                 const visibleLandmarks = poseLandmarks.filter((_, index) => visible(index, 0.35));
                 const xs = visibleLandmarks.map((landmark) => landmark.x * width);
@@ -1195,7 +1279,7 @@
                 const expected = this.refObject === 'ktp' ? (8.56 / 5.398) : (29.7 / 21);
                 return Math.abs(ratio - expected) / expected <= 0.28;
             },
-            findReferenceCandidate(imageData, width, height) {
+            findReferenceCandidate(imageData, width, height, bodyBox = null) {
                 const step = 3;
                 const cols = Math.ceil(width / step);
                 const rows = Math.ceil(height / step);
@@ -1260,12 +1344,17 @@
                         const centerX = ((minX + maxX + 1) * step) / 2;
                         const atSide = centerX < width * 0.38 || centerX > width * 0.62;
                         const box = { x: minX * step, y: minY * step, w: boxW, h: boxH };
+                        const referenceLongCm = this.refObject === 'ktp' ? 8.56 : 29.7;
+                        const impliedStature = bodyBox
+                            ? (bodyBox.h / Math.max(boxW, boxH)) * referenceLongCm * 1.08
+                            : 165;
+                        const scalePlausible = impliedStature >= 110 && impliedStature <= 230;
 
-                        if (!touchesFrame && atSide && areaRatio >= 0.009 && areaRatio <= 0.28
-                            && fillRatio >= 0.5 && this.referenceBoxRatioOk(box)) {
+                        if (!touchesFrame && atSide && areaRatio >= 0.002 && areaRatio <= 0.12
+                            && fillRatio >= 0.38 && scalePlausible && this.referenceBoxRatioOk(box)) {
                             candidates.push({
                                 ...box,
-                                score: areaRatio * fillRatio,
+                                score: fillRatio * 0.55 + (1 - Math.abs(impliedStature - 165) / 165) * 0.45,
                             });
                         }
                     }
@@ -1276,7 +1365,7 @@
                 if (!candidate) return null;
                 return { x: candidate.x, y: candidate.y, w: candidate.w, h: candidate.h };
             },
-            buildDetectionReport(ctx, width, height, pose, includeOverlay, poseLandmarks = null) {
+            buildDetectionReport(ctx, width, height, pose, includeOverlay, poseAnalysis = null) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
                 let luminance = 0;
                 let contrastCount = 0;
@@ -1297,8 +1386,8 @@
 
                 const sampleCount = Math.ceil(width / 2) * Math.ceil(height / 2);
                 const avgLight = luminance / Math.max(1, sampleCount);
-                const poseSummary = this.summarizePose(poseLandmarks, width, height, pose);
-                const refBox = this.findReferenceCandidate(imageData, width, height);
+                const poseSummary = this.summarizePose(poseAnalysis?.landmarks, width, height, pose);
+                const refBox = this.findReferenceCandidate(imageData, width, height, poseSummary.bodyBox);
                 const lightOk = avgLight > 65 && avgLight < 220;
                 const contrastOk = contrastCount > sampleCount * 0.08;
                 const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
@@ -1335,6 +1424,7 @@
                     checks,
                     refBox,
                     bodyBox: poseSummary.bodyBox,
+                    silhouette: poseAnalysis?.silhouette || null,
                     poseDetected: poseSummary.detected,
                     fullBody: poseSummary.fullBody,
                     includeOverlay,
@@ -1343,22 +1433,27 @@
             drawDetectionOverlay(ctx, width, height, report) {
                 ctx.save();
                 ctx.lineWidth = Math.max(2, width * 0.006);
-                ctx.strokeStyle = report.ready ? '#16a34a' : '#f59e0b';
-                ctx.setLineDash([10, 7]);
-                ctx.strokeRect(report.bodyBox.x, report.bodyBox.y, report.bodyBox.w, report.bodyBox.h);
-                ctx.setLineDash([]);
+                ctx.strokeStyle = '#f59e0b';
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
 
-                if (report.refBox) {
-                    ctx.strokeStyle = report.checks[3]?.ok ? '#0284c7' : '#ef4444';
-                    ctx.strokeRect(report.refBox.x, report.refBox.y, report.refBox.w, report.refBox.h);
-                    ctx.fillStyle = report.checks[3]?.ok ? '#0284c7' : '#ef4444';
-                    ctx.fillRect(report.refBox.x, Math.max(0, report.refBox.y - 22), 76, 22);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 14px sans-serif';
-                    ctx.fillText(this.refObject.toUpperCase(), report.refBox.x + 8, Math.max(16, report.refBox.y - 7));
+                if (report.silhouette?.left?.length) {
+                    ctx.beginPath();
+                    report.silhouette.left.forEach((point, index) => {
+                        const x = point.x * width;
+                        const y = point.y * height;
+                        if (index === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    });
+                    [...report.silhouette.right].reverse().forEach((point) => {
+                        ctx.lineTo(point.x * width, point.y * height);
+                    });
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
                 } else {
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.strokeRect(width * 0.68, height * 0.14, width * 0.18, height * 0.55);
+                    ctx.setLineDash([10, 7]);
+                    ctx.strokeRect(report.bodyBox.x, report.bodyBox.y, report.bodyBox.w, report.bodyBox.h);
+                    ctx.setLineDash([]);
                 }
                 ctx.restore();
             },
@@ -1366,7 +1461,7 @@
                 ctx.save();
                 ctx.lineWidth = Math.max(3, box.image_width * 0.007);
                 ctx.strokeStyle = color;
-                ctx.fillStyle = 'rgba(2, 132, 199, 0.10)';
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
                 ctx.fillRect(box.x, box.y, box.w, box.h);
                 ctx.setLineDash([]);
                 ctx.strokeRect(box.x, box.y, box.w, box.h);
