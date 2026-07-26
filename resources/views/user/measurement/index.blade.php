@@ -411,7 +411,7 @@
                                 </form>
                             </div>
                             <dl class="grid grid-cols-3 gap-1.5">
-                                @foreach([['Dada',$m->chest],['Pinggang',$m->waist],['Pinggul',$m->hips],['Bahu',$m->shoulder_width],['Lengan',$m->arm_length],['Tinggi',$m->height]] as [$lbl,$val])
+                                @foreach([['Lingkar Dada',$m->chest],['Lingkar Pinggang',$m->waist],['Lingkar Pinggul',$m->hips],['Lebar Bahu',$m->shoulder_width],['Panjang Lengan',$m->arm_length],['Tinggi Badan',$m->height]] as [$lbl,$val])
                                 <div class="bg-gray-50 rounded-lg p-2 text-center">
                                     <dt class="text-[10px] text-gray-400 font-medium mb-0.5">{{ $lbl }}</dt>
                                     <dd class="text-xs font-bold text-gray-800">{{ $val ?? '-' }}<span class="font-normal text-gray-400">cm</span></dd>

@@ -14,27 +14,32 @@
         $qualityPct = round(($qualityScore ?? 0) * 100);
         $isGood = ($confidence ?? 0) >= 0.7 && ($qualityScore ?? 0) >= 0.7 && $refDetected;
         $topFields = [
-            ['Leher', 'neck'],
-            ['Dada', 'chest'],
-            ['Pinggang', 'waist'],
-            ['Pinggul', 'hips'],
-            ['Lebar Bahu', 'shoulder_width'],
-            ['Panjang Baju', 'shirt_length'],
-            ['Panjang Lengan', 'arm_length'],
-            ['Lengan Atas', 'upper_arm'],
-            ['Pergelangan', 'wrist'],
-            ['Tinggi', 'height'],
+            ['Lingkar Leher', 'neck', 'lingkar', 'Mengelilingi pangkal leher'],
+            ['Lingkar Dada', 'chest', 'lingkar', 'Mengelilingi bagian dada terlebar'],
+            ['Lingkar Pinggang', 'waist', 'lingkar', 'Mengelilingi pinggang badan'],
+            ['Lingkar Pinggul', 'hips', 'lingkar', 'Mengelilingi bagian pinggul terlebar'],
+            ['Lebar Bahu', 'shoulder_width', 'lebar', 'Jarak lurus bahu kiri ke bahu kanan'],
+            ['Panjang Baju', 'shirt_length', 'panjang', 'Jarak vertikal bahu ke bawah baju'],
+            ['Panjang Lengan', 'arm_length', 'panjang', 'Jarak bahu ke pergelangan tangan'],
+            ['Lingkar Lengan Atas', 'upper_arm', 'lingkar', 'Mengelilingi bagian lengan atas'],
+            ['Lingkar Pergelangan', 'wrist', 'lingkar', 'Mengelilingi pergelangan tangan'],
+            ['Tinggi Badan', 'height', 'panjang', 'Jarak vertikal kepala sampai telapak kaki'],
         ];
         $pantsFields = [
-            ['Pinggang Celana', 'pants_waist'],
-            ['Pinggul Celana', 'pants_hips'],
-            ['Paha', 'thigh'],
-            ['Lutut', 'knee'],
-            ['Betis', 'calf'],
-            ['Bukaan Bawah', 'ankle'],
-            ['Inseam', 'inseam'],
-            ['Outseam', 'outseam'],
-            ['Rise/Pesak', 'rise'],
+            ['Lingkar Pinggang Celana', 'pants_waist', 'lingkar', 'Mengelilingi posisi ban pinggang celana'],
+            ['Lingkar Pinggul Celana', 'pants_hips', 'lingkar', 'Mengelilingi bagian pinggul terlebar'],
+            ['Lingkar Paha', 'thigh', 'lingkar', 'Mengelilingi bagian paha terlebar'],
+            ['Lingkar Lutut', 'knee', 'lingkar', 'Mengelilingi area lutut'],
+            ['Lingkar Betis', 'calf', 'lingkar', 'Mengelilingi bagian betis terlebar'],
+            ['Lingkar Bukaan Bawah', 'ankle', 'lingkar', 'Mengelilingi bukaan celana di pergelangan kaki'],
+            ['Panjang Inseam', 'inseam', 'panjang', 'Jarak selangkangan ke pergelangan kaki bagian dalam'],
+            ['Panjang Outseam', 'outseam', 'panjang', 'Jarak pinggang ke pergelangan kaki bagian luar'],
+            ['Panjang Pesak', 'rise', 'panjang', 'Jarak vertikal pinggang ke selangkangan'],
+        ];
+        $typeStyles = [
+            'lingkar' => 'border-violet-200 bg-violet-50 text-violet-700',
+            'lebar' => 'border-cyan-200 bg-cyan-50 text-cyan-700',
+            'panjang' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
         ];
     @endphp
 
@@ -63,7 +68,16 @@
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" x-data="{ edited: false }">
         <div class="px-6 py-5 border-b border-gray-50">
             <h2 class="font-bold text-gray-900">Estimasi Ukuran Badan</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Field dapat diedit. Sistem akan menyimpan field yang berubah sebagai koreksi manual.</p>
+            <p class="text-sm text-gray-500 mt-0.5">Setiap nilai diberi jenis ukuran agar jelas cara meteran digunakan. Field dapat diedit sebelum disimpan.</p>
+            <div class="mt-4 flex flex-wrap items-center gap-2" aria-label="Jenis ukuran">
+                <span class="mr-1 text-xs font-bold text-slate-500">Jenis ukuran</span>
+                <span class="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">LINGKAR</span>
+                <span class="text-xs text-slate-500">mengelilingi tubuh</span>
+                <span class="inline-flex items-center rounded-md border border-cyan-200 bg-cyan-50 px-2 py-1 text-[10px] font-black text-cyan-700">LEBAR</span>
+                <span class="text-xs text-slate-500">jarak mendatar</span>
+                <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">PANJANG</span>
+                <span class="text-xs text-slate-500">jarak memanjang/vertikal</span>
+            </div>
         </div>
 
         <form action="{{ route('user.measurement.store') }}" method="POST" class="p-6">
@@ -85,13 +99,17 @@
                 <section>
                     <h3 class="text-sm font-bold text-gray-900 mb-3">Ukuran Baju</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        @foreach($topFields as [$label, $name])
+                        @foreach($topFields as [$label, $name, $type, $description])
                         @php
                             $value = $data[$name] ?? 0;
                             $fieldConfidence = $perFieldConfidence[$name] ?? null;
                         @endphp
                         <div class="bg-gray-50 rounded-xl p-4">
-                            <label class="block text-xs font-semibold text-gray-500 mb-2">{{ $label }} (cm)</label>
+                            <div class="mb-1.5 flex items-start justify-between gap-2">
+                                <label class="block text-xs font-bold text-slate-700">{{ $label }}</label>
+                                <span class="shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase {{ $typeStyles[$type] }}">{{ $type }}</span>
+                            </div>
+                            <p class="mb-2 min-h-8 text-[11px] leading-4 text-slate-500">{{ $description }}</p>
                             <input type="hidden" name="original_{{ $name }}" value="{{ $value }}">
                             <div class="flex items-center gap-2">
                                 <input type="number" step="0.01" name="{{ $name }}" value="{{ $value }}" @input="edited = true"
@@ -109,13 +127,17 @@
                 <section>
                     <h3 class="text-sm font-bold text-gray-900 mb-3">Ukuran Celana</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        @foreach($pantsFields as [$label, $name])
+                        @foreach($pantsFields as [$label, $name, $type, $description])
                         @php
                             $value = $data[$name] ?? 0;
                             $fieldConfidence = $perFieldConfidence[$name] ?? null;
                         @endphp
                         <div class="bg-gray-50 rounded-xl p-4">
-                            <label class="block text-xs font-semibold text-gray-500 mb-2">{{ $label }} (cm)</label>
+                            <div class="mb-1.5 flex items-start justify-between gap-2">
+                                <label class="block text-xs font-bold text-slate-700">{{ $label }}</label>
+                                <span class="shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase {{ $typeStyles[$type] }}">{{ $type }}</span>
+                            </div>
+                            <p class="mb-2 min-h-8 text-[11px] leading-4 text-slate-500">{{ $description }}</p>
                             <input type="hidden" name="original_{{ $name }}" value="{{ $value }}">
                             <div class="flex items-center gap-2">
                                 <input type="number" step="0.01" name="{{ $name }}" value="{{ $value }}" @input="edited = true"

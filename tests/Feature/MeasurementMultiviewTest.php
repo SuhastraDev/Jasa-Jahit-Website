@@ -140,6 +140,13 @@ class MeasurementMultiviewTest extends TestCase
 
         $analysis->assertOk();
         $analysis->assertSee('Hasil Analisis Multi-view');
+        $analysis->assertSee('Lingkar Dada');
+        $analysis->assertSee('Lebar Bahu');
+        $analysis->assertSee('Panjang Lengan');
+        $analysis->assertSee('Jenis ukuran');
+        $analysis->assertSee('LINGKAR');
+        $analysis->assertSee('LEBAR');
+        $analysis->assertSee('PANJANG');
 
         $response = $this->actingAs($user)->post(route('user.measurement.store'), [
             'front_photo_path' => 'measurements/1/front.jpg',
