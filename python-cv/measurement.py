@@ -288,6 +288,104 @@ def width_at_y(mask, y):
     return float(cols[-1] - cols[0])
 
 
+def constrained_width_at_y(mask, y, center_x, max_width_px):
+    h, w = mask.shape
+    y = int(max(0, min(h - 1, y)))
+    max_width_px = max(8.0, min(float(max_width_px), float(w)))
+    center_x = float(max(0, min(w - 1, center_x)))
+    x_min = int(max(0, round(center_x - max_width_px / 2)))
+    x_max = int(min(w - 1, round(center_x + max_width_px / 2)))
+    if x_max <= x_min:
+        return 0.0
+
+    band_top = max(0, y - 4)
+    band_bottom = min(h, y + 5)
+    rows = mask[band_top:band_bottom, x_min:x_max + 1]
+    cols = np.where(rows.max(axis=0) > 0)[0]
+    if len(cols) < 2:
+        return 0.0
+
+    segments = []
+    start = cols[0]
+    previous = cols[0]
+    for col in cols[1:]:
+        if col > previous + 1:
+            segments.append((start, previous))
+            start = col
+        previous = col
+    segments.append((start, previous))
+
+    local_center = center_x - x_min
+    best = min(
+        segments,
+        key=lambda segment: 0 if segment[0] <= local_center <= segment[1] else min(abs(local_center - segment[0]), abs(local_center - segment[1])),
+    )
+
+    return float(best[1] - best[0])
+
+
+def level_center_x(keypoints, level_name):
+    shoulder_mid = midpoint(point_xy(keypoints["left_shoulder"]), point_xy(keypoints["right_shoulder"]))
+    hip_mid = midpoint(point_xy(keypoints["left_hip"]), point_xy(keypoints["right_hip"]))
+    knee_mid = midpoint(point_xy(keypoints["left_knee"]), point_xy(keypoints["right_knee"]))
+    ankle_mid = midpoint(point_xy(keypoints["left_ankle"]), point_xy(keypoints["right_ankle"]))
+
+    if level_name in ("neck", "chest", "upper_arm"):
+        return shoulder_mid[0]
+    if level_name == "waist":
+        return midpoint(shoulder_mid, hip_mid)[0]
+    if level_name == "hips":
+        return hip_mid[0]
+    if level_name in ("thigh", "knee"):
+        return knee_mid[0]
+    if level_name in ("calf", "ankle"):
+        return midpoint(knee_mid, ankle_mid)[0]
+    if level_name == "wrist":
+        return average(keypoints["left_wrist"][0], keypoints["right_wrist"][0])
+    return average(shoulder_mid[0], hip_mid[0])
+
+
+def level_window_px(keypoints, level_name, view):
+    shoulder_px = euclidean_distance(point_xy(keypoints["left_shoulder"]), point_xy(keypoints["right_shoulder"]))
+    hip_px = euclidean_distance(point_xy(keypoints["left_hip"]), point_xy(keypoints["right_hip"]))
+    knee_span = euclidean_distance(point_xy(keypoints["left_knee"]), point_xy(keypoints["right_knee"]))
+    ankle_span = euclidean_distance(point_xy(keypoints["left_ankle"]), point_xy(keypoints["right_ankle"]))
+    torso_base = max(shoulder_px, hip_px, 1.0)
+
+    if view == "side":
+        factors = {
+            "neck": 0.45,
+            "chest": 0.9,
+            "waist": 0.85,
+            "hips": 0.95,
+            "upper_arm": 0.45,
+            "wrist": 0.25,
+            "thigh": 0.65,
+            "knee": 0.45,
+            "calf": 0.45,
+            "ankle": 0.32,
+        }
+    else:
+        factors = {
+            "neck": 0.55,
+            "chest": 1.25,
+            "waist": 1.15,
+            "hips": 1.3,
+            "upper_arm": 0.45,
+            "wrist": 0.25,
+            "thigh": 0.75,
+            "knee": 0.65,
+            "calf": 0.55,
+            "ankle": 0.42,
+        }
+
+    if level_name in ("thigh", "knee", "calf", "ankle"):
+        leg_base = max(knee_span, ankle_span, torso_base * 0.35)
+        return max(leg_base * factors.get(level_name, 0.6), torso_base * 0.28)
+
+    return torso_base * factors.get(level_name, 1.0)
+
+
 def ellipse_circumference(width_cm, depth_cm):
     if width_cm <= 0 or depth_cm <= 0:
         return 0.0
@@ -418,9 +516,26 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
     side_levels = y_levels(poses["side"]["keypoints"])
     back_levels = y_levels(poses["back"]["keypoints"])
 
+    width_debug = {}
+
     def body_width_cm(view, level_name, scale):
         levels = front_levels if view == "front" else side_levels if view == "side" else back_levels
-        return px_to_cm(width_at_y(masks[view], levels[level_name]), scale)
+        keypoints = poses[view]["keypoints"]
+        center_x = level_center_x(keypoints, level_name)
+        max_width = level_window_px(keypoints, level_name, view)
+        raw_width = width_at_y(masks[view], levels[level_name])
+        constrained_width = constrained_width_at_y(masks[view], levels[level_name], center_x, max_width)
+        if constrained_width <= 0:
+            constrained_width = min(raw_width, max_width)
+
+        width_debug[f"{view}_{level_name}"] = {
+            "raw_px": round(float(raw_width), 2),
+            "used_px": round(float(constrained_width), 2),
+            "window_px": round(float(max_width), 2),
+            "center_x": round(float(center_x), 2),
+        }
+
+        return px_to_cm(constrained_width, scale)
 
     def circumference(level_name):
         front_width = average(
@@ -490,17 +605,32 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
                 "scales": {key: round(value, 4) for key, value in scales.items()},
                 "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
                 "reference_scale_sources": scale_sources,
+                "width_samples": width_debug,
             },
         }
 
     confidence = round(average(poses["front"]["confidence"], poses["side"]["confidence"], poses["back"]["confidence"]), 2)
     scale_spread = max(scales.values()) - min(scales.values())
     scale_quality = max(0.0, 1.0 - (scale_spread / max(scales.values())))
-    quality_score = round(average(confidence, scale_quality), 2)
+    width_quality_values = []
+    for sample in width_debug.values():
+        raw_px = sample["raw_px"]
+        used_px = sample["used_px"]
+        window_px = sample["window_px"]
+        if raw_px <= 0 or used_px <= 0:
+            width_quality_values.append(0.45)
+        elif raw_px > used_px * 1.8:
+            width_quality_values.append(max(0.35, used_px / raw_px))
+        elif used_px >= window_px * 0.98:
+            width_quality_values.append(0.62)
+        else:
+            width_quality_values.append(0.9)
+    width_quality = average(*width_quality_values)
+    quality_score = round(average(confidence, scale_quality, width_quality), 2)
 
     direct_fields = {"shoulder_width", "shirt_length", "arm_length", "height", "inseam", "outseam", "rise"}
     per_field_confidence = {
-        field: round(min(0.95, quality_score + 0.08), 2) if field in direct_fields else round(max(0.45, quality_score - 0.08), 2)
+        field: round(min(0.95, quality_score + 0.08), 2) if field in direct_fields else round(max(0.35, min(0.82, quality_score - 0.08)), 2)
         for field in data.keys()
     }
 
@@ -516,7 +646,9 @@ def process_measurement(front_bytes, side_bytes, back_bytes, ref_object, ref_wid
             "duration_seconds": round(time.perf_counter() - started_at, 3),
             "image_shapes": {key: [int(v) for v in image.shape[:2]] for key, image in images.items()},
             "scales": {key: round(value, 4) for key, value in scales.items()},
+            "width_quality": round(width_quality, 4),
             "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
             "reference_scale_sources": scale_sources,
+            "width_samples": width_debug,
         },
     }
