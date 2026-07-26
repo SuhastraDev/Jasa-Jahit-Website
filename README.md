@@ -41,7 +41,7 @@ Platform manajemen jasa jahit online berbasis Laravel 13. Pelanggan dapat memesa
 | Database | MySQL |
 | Storage | Laravel Storage (public disk) |
 | WhatsApp | Fonnte API |
-| AI/CV | Google Gemini 2.0 Flash Vision (validasi foto) + Python CV service (pengukuran) |
+| AI/CV | Groq Vision API (validasi foto) + Python CV service/OpenCV/MediaPipe (pengukuran) |
 
 ---
 
@@ -52,6 +52,7 @@ Platform manajemen jasa jahit online berbasis Laravel 13. Pelanggan dapat memesa
 - Node.js >= 18 & NPM
 - MySQL 8+
 - Laragon / XAMPP / server lokal lainnya
+- VPS Linux untuk production CV: `libgl1`, `libegl1`, `libgles2`, `libglib2.0-0`
 
 ---
 
@@ -103,11 +104,15 @@ FONNTE_TOKEN=your_fonnte_token
 DANA_NUMBER=08xxxxxxxxxx
 DANA_NAME=Nama Pemilik
 
-# AI Validasi Foto (Google Gemini — gratis)
-GEMINI_API_KEY=your_gemini_api_key
+# AI Validasi Foto (Groq Vision)
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.6-27b
+GROQ_API_URL=https://api.groq.com/openai/v1/chat/completions
+GROQ_TIMEOUT=10
 
 # CV/AI Service (pengukuran badan)
 CV_SERVICE_URL=http://127.0.0.1:8000
+CV_SERVICE_TIMEOUT=120
 
 # Mail (untuk reset password)
 MAIL_MAILER=smtp
@@ -199,6 +204,20 @@ pending → confirmed → processing → done → shipped → completed
    - Development: `http://localhost:8000/auth/google/callback`
    - Production: `https://yourdomain.com/auth/google/callback`
 5. Salin Client ID dan Client Secret ke `.env`
+
+---
+
+## Dependency CV Di VPS
+
+Untuk production Ubuntu, Python CV service membutuhkan library grafis runtime agar `opencv-python` dan `mediapipe` bisa memproses foto.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libgl1 libegl1 libgles2 libglib2.0-0
+sudo systemctl restart zrinttailor-cv
+```
+
+Jika library ini belum ada, analisis foto dapat gagal dengan pesan seperti `libGLESv2.so.2: cannot open shared object file`.
 
 ---
 

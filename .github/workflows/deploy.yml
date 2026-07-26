@@ -37,6 +37,8 @@ jobs:
               git stash push -m "auto-deploy-before-pull-$(date +%Y%m%d%H%M%S)"
             fi
             git pull --ff-only origin main
+            sudo DEBIAN_FRONTEND=noninteractive apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libgl1 libegl1 libgles2 libglib2.0-0
             mkdir -p storage/logs bootstrap/cache public/build
             sudo chown -R ubuntu:www-data storage bootstrap/cache public/build
             sudo chmod -R ug+rwX storage bootstrap/cache public/build
