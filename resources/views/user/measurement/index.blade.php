@@ -697,7 +697,7 @@
                 const left = [];
                 const right = [];
                 const rgba = new Uint8ClampedArray(maskWidth * maskHeight * 4);
-                const rowStep = Math.max(2, Math.round(maskHeight / 90));
+                const rowStep = Math.max(1, Math.round(maskHeight / 130));
                 for (let y = 0; y < maskHeight; y++) {
                     let minX = -1;
                     let maxX = -1;
@@ -708,9 +708,9 @@
                             rgba[index] = 14;
                             rgba[index + 1] = 165;
                             rgba[index + 2] = 233;
-                            rgba[index + 3] = Math.round(Math.min(0.42, probability * 0.38) * 255);
+                            rgba[index + 3] = Math.round(Math.min(0.34, probability * 0.3) * 255);
                         }
-                        if (probability < 0.5) continue;
+                        if (probability < 0.46) continue;
                         if (minX < 0) minX = x;
                         maxX = x;
                     }
@@ -719,7 +719,117 @@
                         right.push({ x: maxX / maskWidth, y: y / maskHeight });
                     }
                 }
-                return left.length >= 8 ? { left, right, maskWidth, maskHeight, rgba } : null;
+                return left.length >= 8 ? {
+                    left: this.smoothSilhouettePoints(left),
+                    right: this.smoothSilhouettePoints(right),
+                    maskWidth,
+                    maskHeight,
+                    rgba,
+                    source: 'segmentation',
+                } : null;
+            },
+            smoothSilhouettePoints(points, radius = 2) {
+                if (!Array.isArray(points) || points.length < 4) return points || [];
+                return points.map((point, index) => {
+                    const start = Math.max(0, index - radius);
+                    const end = Math.min(points.length - 1, index + radius);
+                    let sumX = 0;
+                    let sumY = 0;
+                    let count = 0;
+                    for (let i = start; i <= end; i++) {
+                        sumX += points[i].x;
+                        sumY += points[i].y;
+                        count++;
+                    }
+                    return { x: sumX / count, y: sumY / count };
+                });
+            },
+            extractForegroundSilhouette(imageData, width, height, bodyBox) {
+                if (!imageData?.length || !bodyBox?.w || !bodyBox?.h) return null;
+
+                const padX = Math.max(8, bodyBox.w * 0.2);
+                const padY = Math.max(8, bodyBox.h * 0.06);
+                const x1 = Math.max(0, Math.floor(bodyBox.x - padX));
+                const y1 = Math.max(0, Math.floor(bodyBox.y - padY));
+                const x2 = Math.min(width - 1, Math.ceil(bodyBox.x + bodyBox.w + padX));
+                const y2 = Math.min(height - 1, Math.ceil(bodyBox.y + bodyBox.h + padY));
+                if (x2 - x1 < 24 || y2 - y1 < 40) return null;
+
+                const samples = [];
+                const samplePixel = (x, y) => {
+                    const index = (Math.max(0, Math.min(height - 1, y)) * width + Math.max(0, Math.min(width - 1, x))) * 4;
+                    return [imageData[index], imageData[index + 1], imageData[index + 2]];
+                };
+                const step = Math.max(4, Math.round(Math.min(width, height) / 95));
+
+                for (let x = x1; x <= x2; x += step) {
+                    samples.push(samplePixel(x, y1));
+                    samples.push(samplePixel(x, y2));
+                }
+                for (let y = y1; y <= y2; y += step) {
+                    samples.push(samplePixel(x1, y));
+                    samples.push(samplePixel(x2, y));
+                }
+                if (samples.length < 8) return null;
+
+                const median = (channel) => {
+                    const values = samples.map((rgb) => rgb[channel]).sort((a, b) => a - b);
+                    return values[Math.floor(values.length / 2)];
+                };
+                const bg = [median(0), median(1), median(2)];
+                const bgLuma = (bg[0] * 0.299) + (bg[1] * 0.587) + (bg[2] * 0.114);
+                const centerX = bodyBox.x + bodyBox.w / 2;
+                const left = [];
+                const right = [];
+                const rowStep = Math.max(2, Math.round((y2 - y1) / 120));
+
+                const colorDistance = (r, g, b) => {
+                    const dr = r - bg[0];
+                    const dg = g - bg[1];
+                    const db = b - bg[2];
+                    const luma = (r * 0.299) + (g * 0.587) + (b * 0.114);
+                    return Math.sqrt(dr * dr + dg * dg + db * db) + Math.abs(luma - bgLuma) * 0.9;
+                };
+
+                for (let y = y1; y <= y2; y += rowStep) {
+                    const segments = [];
+                    let segmentStart = -1;
+                    for (let x = x1; x <= x2; x++) {
+                        const index = (y * width + x) * 4;
+                        const r = imageData[index];
+                        const g = imageData[index + 1];
+                        const b = imageData[index + 2];
+                        const foreground = colorDistance(r, g, b) > 48;
+                        if (foreground && segmentStart < 0) segmentStart = x;
+                        if ((!foreground || x === x2) && segmentStart >= 0) {
+                            const segmentEnd = foreground && x === x2 ? x : x - 1;
+                            if (segmentEnd - segmentStart >= Math.max(5, bodyBox.w * 0.025)) {
+                                segments.push({ start: segmentStart, end: segmentEnd });
+                            }
+                            segmentStart = -1;
+                        }
+                    }
+                    if (!segments.length) continue;
+
+                    segments.sort((a, b) => {
+                        const aMid = (a.start + a.end) / 2;
+                        const bMid = (b.start + b.end) / 2;
+                        const aScore = Math.abs(aMid - centerX) - (a.end - a.start) * 0.15;
+                        const bScore = Math.abs(bMid - centerX) - (b.end - b.start) * 0.15;
+                        return aScore - bScore;
+                    });
+
+                    const chosen = segments[0];
+                    left.push({ x: chosen.start / width, y: y / height });
+                    right.push({ x: chosen.end / width, y: y / height });
+                }
+
+                if (left.length < 10) return null;
+                return {
+                    left: this.smoothSilhouettePoints(left, 3),
+                    right: this.smoothSilhouettePoints(right, 3),
+                    source: 'foreground',
+                };
             },
             landmarkPoint(landmarks, index) {
                 const point = landmarks?.[index];
@@ -1785,6 +1895,8 @@
                 const avgLight = luminance / Math.max(1, sampleCount);
                 const poseSummary = this.summarizePose(poseAnalysis?.landmarks, width, height, pose);
                 const refBox = this.findReferenceCandidate(imageData, width, height, poseSummary.bodyBox);
+                const silhouette = poseAnalysis?.silhouette
+                    || this.extractForegroundSilhouette(imageData, width, height, poseSummary.bodyBox);
                 const lightOk = avgLight > 65 && avgLight < 220;
                 const contrastOk = contrastCount > sampleCount * 0.08;
                 const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
@@ -1793,7 +1905,7 @@
                 const checks = [
                     {
                         label: poseSummary.detected
-                            ? 'Orang terdeteksi dengan landmark tubuh.'
+                            ? (silhouette ? 'Orang terdeteksi dan siluet tubuh terbaca.' : 'Orang terdeteksi, siluet tubuh sedang diperkirakan.')
                             : (detectorAvailable ? 'Orang belum terdeteksi dengan jelas.' : 'Detektor pose sedang disiapkan.'),
                         ok: poseSummary.detected,
                     },
@@ -1821,7 +1933,7 @@
                     checks,
                     refBox,
                     bodyBox: poseSummary.bodyBox,
-                    silhouette: poseAnalysis?.silhouette || null,
+                    silhouette,
                     landmarkShape: this.buildLandmarkBodyShape(poseAnalysis?.landmarks),
                     poseDetected: poseSummary.detected,
                     fullBody: poseSummary.fullBody,
@@ -1831,8 +1943,6 @@
             drawDetectionOverlay(ctx, width, height, report) {
                 ctx.save();
                 ctx.lineWidth = Math.max(2, width * 0.006);
-                ctx.strokeStyle = '#0ea5e9';
-                ctx.fillStyle = 'rgba(14, 165, 233, 0.12)';
 
                 if (report.silhouette?.left?.length) {
                     if (report.silhouette.rgba) {
@@ -1848,6 +1958,15 @@
                         ctx.drawImage(maskCanvas, 0, 0, width, height);
                     }
 
+                    const topPoint = report.silhouette.left.reduce((top, point) => point.y < top.y ? point : top, report.silhouette.left[0]);
+                    const labelX = Math.max(8, Math.min(width - 120, topPoint.x * width));
+                    const labelY = Math.max(18, topPoint.y * height - 12);
+
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(14, 165, 233, 0.32)';
+                    ctx.shadowBlur = Math.max(6, width * 0.008);
+                    ctx.strokeStyle = report.silhouette.source === 'foreground' ? '#06b6d4' : '#0ea5e9';
+                    ctx.fillStyle = 'rgba(14, 165, 233, 0.13)';
                     ctx.beginPath();
                     report.silhouette.left.forEach((point, index) => {
                         const x = point.x * width;
@@ -1859,8 +1978,18 @@
                         ctx.lineTo(point.x * width, point.y * height);
                     });
                     ctx.closePath();
-                    if (!report.silhouette.rgba) ctx.fill();
+                    ctx.fill();
                     ctx.stroke();
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.fillStyle = '#0f172a';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
+                    ctx.lineWidth = 3;
+                    ctx.font = `${Math.max(11, Math.round(width * 0.018))}px Inter, ui-sans-serif, system-ui`;
+                    ctx.strokeText('Siluet tubuh', labelX, labelY);
+                    ctx.fillText('Siluet tubuh', labelX, labelY);
+                    ctx.restore();
                 } else if (report.landmarkShape) {
                     this.drawLandmarkBodyOverlay(ctx, width, height, report.landmarkShape);
                 } else {
