@@ -677,10 +677,11 @@
                 try {
                     const result = this.poseLandmarker.detect(source);
                     const mask = result?.segmentationMasks?.[0];
-                    const silhouette = mask ? this.extractSilhouette(mask) : null;
+                    const landmarks = result?.landmarks?.[0] || null;
+                    const silhouette = mask ? this.extractSilhouette(mask, this.landmarkMaskHint(landmarks)) : null;
                     if (mask?.close) mask.close();
                     return {
-                        landmarks: result?.landmarks?.[0] || null,
+                        landmarks,
                         silhouette,
                     };
                 } catch (error) {
@@ -688,7 +689,30 @@
                     return null;
                 }
             },
-            extractSilhouette(mask) {
+            landmarkMaskHint(landmarks) {
+                if (!Array.isArray(landmarks) || landmarks.length < 29) return null;
+                const visible = landmarks.filter((point) => {
+                    const confidence = point?.visibility ?? point?.presence ?? 1;
+                    return confidence >= 0.32 && point.x >= -0.05 && point.x <= 1.05 && point.y >= -0.05 && point.y <= 1.05;
+                });
+                if (visible.length < 8) return null;
+
+                const xs = visible.map((point) => Math.max(0, Math.min(1, point.x)));
+                const ys = visible.map((point) => Math.max(0, Math.min(1, point.y)));
+                const minX = Math.max(0, Math.min(...xs) - 0.1);
+                const maxX = Math.min(1, Math.max(...xs) + 0.1);
+                const minY = Math.max(0, Math.min(...ys) - 0.06);
+                const maxY = Math.min(1, Math.max(...ys) + 0.06);
+
+                return {
+                    x1: minX,
+                    x2: maxX,
+                    y1: minY,
+                    y2: maxY,
+                    centerX: (minX + maxX) / 2,
+                };
+            },
+            extractSilhouette(mask, bodyHint = null) {
                 const values = mask.getAsFloat32Array();
                 const maskWidth = mask.width;
                 const maskHeight = mask.height;
@@ -698,25 +722,68 @@
                 const right = [];
                 const rgba = new Uint8ClampedArray(maskWidth * maskHeight * 4);
                 const rowStep = Math.max(1, Math.round(maskHeight / 130));
+                const hintX1 = bodyHint ? Math.max(0, Math.floor((bodyHint.x1 - 0.04) * maskWidth)) : 0;
+                const hintX2 = bodyHint ? Math.min(maskWidth - 1, Math.ceil((bodyHint.x2 + 0.04) * maskWidth)) : maskWidth - 1;
+                const hintCenter = bodyHint ? bodyHint.centerX * maskWidth : maskWidth / 2;
+                const hintY1 = bodyHint ? Math.max(0, Math.floor((bodyHint.y1 - 0.04) * maskHeight)) : 0;
+                const hintY2 = bodyHint ? Math.min(maskHeight - 1, Math.ceil((bodyHint.y2 + 0.04) * maskHeight)) : maskHeight - 1;
+                let rollingCenter = hintCenter;
+
                 for (let y = 0; y < maskHeight; y++) {
-                    let minX = -1;
-                    let maxX = -1;
+                    const segments = [];
+                    let segmentStart = -1;
+                    let segmentWeight = 0;
                     for (let x = 0; x < maskWidth; x++) {
                         const probability = values[y * maskWidth + x];
-                        if (probability >= 0.42) {
-                            const index = (y * maskWidth + x) * 4;
-                            rgba[index] = 14;
-                            rgba[index + 1] = 165;
-                            rgba[index + 2] = 233;
-                            rgba[index + 3] = Math.round(Math.min(0.34, probability * 0.3) * 255);
+                        if (probability >= 0.46 && segmentStart < 0) {
+                            segmentStart = x;
+                            segmentWeight = 0;
                         }
-                        if (probability < 0.46) continue;
-                        if (minX < 0) minX = x;
-                        maxX = x;
+                        if (probability >= 0.46) segmentWeight += probability;
+                        if ((probability < 0.46 || x === maskWidth - 1) && segmentStart >= 0) {
+                            const segmentEnd = probability >= 0.46 && x === maskWidth - 1 ? x : x - 1;
+                            if (segmentEnd - segmentStart >= 2) {
+                                segments.push({
+                                    start: segmentStart,
+                                    end: segmentEnd,
+                                    width: segmentEnd - segmentStart,
+                                    weight: segmentWeight,
+                                    mid: (segmentStart + segmentEnd) / 2,
+                                });
+                            }
+                            segmentStart = -1;
+                            segmentWeight = 0;
+                        }
                     }
-                    if (y % rowStep === 0 && minX >= 0 && maxX > minX) {
-                        left.push({ x: minX / maskWidth, y: y / maskHeight });
-                        right.push({ x: maxX / maskWidth, y: y / maskHeight });
+                    if (!segments.length) continue;
+
+                    segments.sort((a, b) => {
+                        const aOverlap = Math.max(0, Math.min(a.end, hintX2) - Math.max(a.start, hintX1));
+                        const bOverlap = Math.max(0, Math.min(b.end, hintX2) - Math.max(b.start, hintX1));
+                        const aOutsideY = bodyHint && (y < hintY1 || y > hintY2) ? maskWidth * 0.3 : 0;
+                        const bOutsideY = bodyHint && (y < hintY1 || y > hintY2) ? maskWidth * 0.3 : 0;
+                        const aScore = a.weight + aOverlap * 1.4 - Math.abs(a.mid - rollingCenter) * 0.95 - aOutsideY;
+                        const bScore = b.weight + bOverlap * 1.4 - Math.abs(b.mid - rollingCenter) * 0.95 - bOutsideY;
+                        return bScore - aScore;
+                    });
+
+                    const chosen = segments[0];
+                    if (!chosen) continue;
+                    rollingCenter = (rollingCenter * 0.82) + (chosen.mid * 0.18);
+
+                    for (let x = chosen.start; x <= chosen.end; x++) {
+                        const probability = values[y * maskWidth + x];
+                        if (probability < 0.42) continue;
+                        const index = (y * maskWidth + x) * 4;
+                        rgba[index] = 14;
+                        rgba[index + 1] = 165;
+                        rgba[index + 2] = 233;
+                        rgba[index + 3] = Math.round(Math.min(0.28, probability * 0.24) * 255);
+                    }
+
+                    if (y % rowStep === 0 && chosen.end > chosen.start) {
+                        left.push({ x: chosen.start / maskWidth, y: y / maskHeight });
+                        right.push({ x: chosen.end / maskWidth, y: y / maskHeight });
                     }
                 }
                 return left.length >= 8 ? {
