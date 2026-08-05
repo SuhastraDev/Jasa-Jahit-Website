@@ -696,20 +696,30 @@
 
                 const left = [];
                 const right = [];
+                const rgba = new Uint8ClampedArray(maskWidth * maskHeight * 4);
                 const rowStep = Math.max(2, Math.round(maskHeight / 90));
-                for (let y = 0; y < maskHeight; y += rowStep) {
+                for (let y = 0; y < maskHeight; y++) {
                     let minX = -1;
                     let maxX = -1;
                     for (let x = 0; x < maskWidth; x++) {
-                        if (values[y * maskWidth + x] < 0.5) continue;
+                        const probability = values[y * maskWidth + x];
+                        if (probability >= 0.42) {
+                            const index = (y * maskWidth + x) * 4;
+                            rgba[index] = 14;
+                            rgba[index + 1] = 165;
+                            rgba[index + 2] = 233;
+                            rgba[index + 3] = Math.round(Math.min(0.42, probability * 0.38) * 255);
+                        }
+                        if (probability < 0.5) continue;
                         if (minX < 0) minX = x;
                         maxX = x;
                     }
-                    if (minX < 0 || maxX <= minX) continue;
-                    left.push({ x: minX / maskWidth, y: y / maskHeight });
-                    right.push({ x: maxX / maskWidth, y: y / maskHeight });
+                    if (y % rowStep === 0 && minX >= 0 && maxX > minX) {
+                        left.push({ x: minX / maskWidth, y: y / maskHeight });
+                        right.push({ x: maxX / maskWidth, y: y / maskHeight });
+                    }
                 }
-                return left.length >= 8 ? { left, right } : null;
+                return left.length >= 8 ? { left, right, maskWidth, maskHeight, rgba } : null;
             },
             landmarkPoint(landmarks, index) {
                 const point = landmarks?.[index];
@@ -1778,10 +1788,23 @@
             drawDetectionOverlay(ctx, width, height, report) {
                 ctx.save();
                 ctx.lineWidth = Math.max(2, width * 0.006);
-                ctx.strokeStyle = '#f59e0b';
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
+                ctx.strokeStyle = '#0ea5e9';
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.12)';
 
                 if (report.silhouette?.left?.length) {
+                    if (report.silhouette.rgba) {
+                        const maskCanvas = document.createElement('canvas');
+                        maskCanvas.width = report.silhouette.maskWidth;
+                        maskCanvas.height = report.silhouette.maskHeight;
+                        const maskCtx = maskCanvas.getContext('2d');
+                        maskCtx.putImageData(
+                            new ImageData(report.silhouette.rgba, report.silhouette.maskWidth, report.silhouette.maskHeight),
+                            0,
+                            0
+                        );
+                        ctx.drawImage(maskCanvas, 0, 0, width, height);
+                    }
+
                     ctx.beginPath();
                     report.silhouette.left.forEach((point, index) => {
                         const x = point.x * width;
@@ -1793,7 +1816,7 @@
                         ctx.lineTo(point.x * width, point.y * height);
                     });
                     ctx.closePath();
-                    ctx.fill();
+                    if (!report.silhouette.rgba) ctx.fill();
                     ctx.stroke();
                 } else if (report.landmarkShape) {
                     this.drawLandmarkBodyOverlay(ctx, width, height, report.landmarkShape);

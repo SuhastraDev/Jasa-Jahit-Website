@@ -997,7 +997,7 @@ def process_measurement(
 
     bodym_result = None
     if bodym_enabled():
-        progress("bodym_features", 82, "Menyusun fitur siluet BodyM dari skala A4/KTP")
+        progress("bodym_features", 82, "Menyusun fitur siluet BodyM dari bentuk tubuh")
         try:
             bodym_result = get_bodym_service().predict_masks(
                 masks["front"],
