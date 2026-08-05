@@ -209,7 +209,7 @@ class MeasurementMultiviewTest extends TestCase
                     'wrist_girth' => 17.0,
                 ],
                 'bodym_per_field_confidence' => ['height' => 0.95],
-                'bodym_prediction_intervals_cm' => ['height' => [168.0, 171.0]],
+                'bodym_prediction_intervals_cm' => ['height' => ['lower' => 168.0, 'upper' => 171.0]],
                 'data' => [
                     'chest' => 92.4,
                     'shirt_length' => 68.5,
@@ -227,6 +227,7 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('PANJANG')
             ->assertSee('TINGGI')
             ->assertSee('Tinggi badan')
+            ->assertSee('Interval 168-171 cm')
             ->assertSee('Lingkar lengan bawah')
             ->assertDontSee('Ukuran Baju')
             ->assertDontSee('Ukuran Celana')

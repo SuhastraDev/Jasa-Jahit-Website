@@ -479,7 +479,7 @@
                     </div>
                     <div class="min-w-0">
                         <p class="text-sm font-bold text-gray-900" x-text="analysisProgress.message || 'Mengirim foto ke layanan analisis'"></p>
-                        <p class="mt-1 text-xs text-gray-500">Status berubah setelah tahap CV benar-benar selesai.</p>
+                        <p class="mt-1 text-xs text-gray-500">Status diperbarui dari layanan CV, dengan animasi estimasi saat menunggu respons.</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-2 mb-4">
@@ -859,6 +859,7 @@
                 const deadline = Date.now() + 4 * 60 * 1000;
                 while (Date.now() < deadline) {
                     await new Promise((resolve) => setTimeout(resolve, 850));
+                    this.advanceAnalysisPulse();
                     const response = await fetch(statusUrl, {
                         headers: {
                             'Accept': 'application/json',
@@ -882,6 +883,36 @@
                 }
 
                 throw new Error('Analisis melewati batas waktu. Coba gunakan foto beresolusi lebih kecil.');
+            },
+            advanceAnalysisPulse() {
+                if (!this.isAnalyzing) return;
+
+                const currentPercent = Number(this.analysisProgress.percent || 0);
+                if (currentPercent >= 94) return;
+
+                const stagePlan = [
+                    ['prepare_photos', 10, 'Menyiapkan tiga foto untuk dianalisis', null],
+                    ['reference_roi', 18, 'Membaca area A4/KTP sebagai bantuan patokan', 'front'],
+                    ['body_segmentation', 28, 'Membaca siluet tubuh foto depan', 'front'],
+                    ['reference_roi', 36, 'Mengecek patokan pada foto samping', 'side'],
+                    ['body_segmentation', 46, 'Membaca siluet tubuh foto samping', 'side'],
+                    ['reference_roi', 54, 'Mengecek patokan pada foto belakang', 'back'],
+                    ['body_segmentation', 62, 'Membaca siluet tubuh foto belakang', 'back'],
+                    ['cross_view_scale', 70, 'Menyelaraskan tiga sudut pandang tubuh', null],
+                    ['bodym_features', 82, 'Menyusun fitur siluet BodyM dari bentuk tubuh', null],
+                    ['bodym_inference', 88, 'Memprediksi indikator ukuran dengan BodyM', null],
+                    ['anatomical_validation', 92, 'Memeriksa konsistensi anatomi hasil ukuran', null],
+                ];
+                const nextStep = stagePlan.find(([, percent]) => percent > currentPercent + 1);
+                if (!nextStep) return;
+
+                const [stage, percent, message, view] = nextStep;
+                this.recordAnalysisProgress({
+                    stage,
+                    percent: Math.min(percent, currentPercent + 7),
+                    message,
+                    view,
+                });
             },
             recordAnalysisProgress(progress) {
                 const nextPercent = Math.max(
@@ -1926,35 +1957,74 @@
                 const hipHalf = bodyBox.w * 0.2;
 
                 ctx.save();
-                ctx.strokeStyle = '#f59e0b';
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.06)';
+                ctx.strokeStyle = '#0ea5e9';
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.15)';
                 ctx.lineWidth = Math.max(3, width * 0.006);
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
 
                 ctx.beginPath();
-                ctx.arc(centerX, headY, headRadius, 0, Math.PI * 2);
+                ctx.moveTo(centerX, bodyBox.y + bodyBox.h * 0.03);
+                ctx.bezierCurveTo(
+                    centerX - headRadius * 1.25,
+                    headY - headRadius * 0.9,
+                    centerX - headRadius * 1.05,
+                    headY + headRadius * 1.15,
+                    centerX - shoulderHalf,
+                    shoulderY,
+                );
+                ctx.bezierCurveTo(
+                    bodyBox.x + bodyBox.w * 0.08,
+                    bodyBox.y + bodyBox.h * 0.34,
+                    bodyBox.x + bodyBox.w * 0.17,
+                    bodyBox.y + bodyBox.h * 0.52,
+                    centerX - hipHalf,
+                    hipY,
+                );
+                ctx.bezierCurveTo(
+                    centerX - hipHalf * 1.05,
+                    kneeY,
+                    centerX - hipHalf * 0.72,
+                    ankleY,
+                    centerX - footPad(bodyBox),
+                    ankleY + headRadius * 0.18,
+                );
+                ctx.lineTo(centerX + footPad(bodyBox), ankleY + headRadius * 0.18);
+                ctx.bezierCurveTo(
+                    centerX + hipHalf * 0.72,
+                    ankleY,
+                    centerX + hipHalf * 1.05,
+                    kneeY,
+                    centerX + hipHalf,
+                    hipY,
+                );
+                ctx.bezierCurveTo(
+                    bodyBox.x + bodyBox.w * 0.83,
+                    bodyBox.y + bodyBox.h * 0.52,
+                    bodyBox.x + bodyBox.w * 0.92,
+                    bodyBox.y + bodyBox.h * 0.34,
+                    centerX + shoulderHalf,
+                    shoulderY,
+                );
+                ctx.bezierCurveTo(
+                    centerX + headRadius * 1.05,
+                    headY + headRadius * 1.15,
+                    centerX + headRadius * 1.25,
+                    headY - headRadius * 0.9,
+                    centerX,
+                    bodyBox.y + bodyBox.h * 0.03,
+                );
+                ctx.closePath();
+                ctx.shadowColor = 'rgba(14, 165, 233, 0.22)';
+                ctx.shadowBlur = Math.max(8, width * 0.015);
                 ctx.fill();
+                ctx.shadowBlur = 0;
                 ctx.stroke();
-
-                const segments = [
-                    [centerX, headY + headRadius, centerX, hipY],
-                    [centerX - shoulderHalf, shoulderY, centerX + shoulderHalf, shoulderY],
-                    [centerX - shoulderHalf, shoulderY, centerX - hipHalf * 1.2, hipY],
-                    [centerX + shoulderHalf, shoulderY, centerX + hipHalf * 1.2, hipY],
-                    [centerX - hipHalf, hipY, centerX + hipHalf, hipY],
-                    [centerX - hipHalf, hipY, centerX - hipHalf * 0.9, kneeY],
-                    [centerX - hipHalf * 0.9, kneeY, centerX - hipHalf * 0.75, ankleY],
-                    [centerX + hipHalf, hipY, centerX + hipHalf * 0.9, kneeY],
-                    [centerX + hipHalf * 0.9, kneeY, centerX + hipHalf * 0.75, ankleY],
-                ];
-                segments.forEach(([x1, y1, x2, y2]) => {
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.stroke();
-                });
                 ctx.restore();
+
+                function footPad(box) {
+                    return Math.max(10, box.w * 0.13);
+                }
             },
             drawManualReferenceBox(ctx, box, color, label) {
                 ctx.save();

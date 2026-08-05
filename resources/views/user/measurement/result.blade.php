@@ -52,6 +52,18 @@
             ->all();
         $bodymPerFieldConfidence = $bodymMetadata['per_field_confidence'] ?? [];
         $bodymPredictionIntervals = $bodymMetadata['prediction_intervals_cm'] ?? [];
+        $normalizeInterval = function ($interval) {
+            if (!is_array($interval)) {
+                return null;
+            }
+
+            $values = array_values(array_filter($interval, 'is_numeric'));
+            if (count($values) < 2) {
+                return null;
+            }
+
+            return [round((float) $values[0], 1), round((float) $values[1], 1)];
+        };
         $typeStyles = [
             'lingkar' => 'border-violet-200 bg-violet-50 text-violet-700',
             'lebar' => 'border-cyan-200 bg-cyan-50 text-cyan-700',
@@ -209,7 +221,7 @@
                     @php
                         $value = $bodymData[$name];
                         $fieldConfidence = $bodymPerFieldConfidence[$name] ?? null;
-                        $interval = $bodymPredictionIntervals[$name] ?? null;
+                        $interval = $normalizeInterval($bodymPredictionIntervals[$name] ?? null);
                     @endphp
                     <div class="rounded-xl border border-white bg-white p-4 shadow-sm">
                         <div class="mb-1.5 flex items-start justify-between gap-2">
@@ -227,8 +239,8 @@
                             @if($fieldConfidence !== null)
                             <p class="text-[11px] text-blue-600">Confidence {{ round($fieldConfidence * 100) }}%</p>
                             @endif
-                            @if(is_array($interval) && count($interval) >= 2)
-                            <p class="text-[11px] text-slate-500">Interval {{ round($interval[0], 1) }}-{{ round($interval[1], 1) }} cm</p>
+                            @if($interval)
+                            <p class="text-[11px] text-slate-500">Interval {{ $interval[0] }}-{{ $interval[1] }} cm</p>
                             @endif
                         </div>
                     </div>
