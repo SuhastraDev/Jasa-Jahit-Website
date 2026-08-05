@@ -20,6 +20,9 @@
 /storage/*.key
 /storage/pail
 /vendor
+/python-cv/venv
+__pycache__/
+*.py[cod]
 _ide_helper.php
 Homestead.json
 Homestead.yaml

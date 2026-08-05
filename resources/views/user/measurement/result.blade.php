@@ -46,7 +46,7 @@
                     'height' => 'tinggi',
                     default => 'panjang',
                 },
-                'Indikator resmi BodyM: ' . str_replace('_', ' ', $name),
+                'Indikator estimasi: ' . str_replace('_', ' ', $name),
             ])
             ->values()
             ->all();
@@ -204,15 +204,10 @@
             <section class="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
                 <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h3 class="text-sm font-bold text-gray-900">Indikator BodyM Resmi</h3>
-                        <p class="text-xs text-slate-500">Form ini hanya menampilkan 14 output BodyM. Mapping ke kebutuhan jahit tetap disimpan di belakang layar untuk kompatibilitas pesanan.</p>
+                        <h3 class="text-sm font-bold text-gray-900">Indikator Ukuran Tubuh</h3>
+                        <p class="text-xs text-slate-500">Form ini menampilkan 14 indikator utama. Mapping ke kebutuhan jahit tetap disimpan di belakang layar untuk kompatibilitas pesanan.</p>
                     </div>
-                    <div class="text-[11px] font-bold text-slate-500">
-                        {{ $bodymMetadata['contract_version'] ?? config('bodym.contract_version') }}
-                        @if(!empty($bodymMetadata['model_version']))
-                            - {{ $bodymMetadata['model_version'] }}
-                        @endif
-                    </div>
+                    <div class="text-[11px] font-bold text-slate-500">Model estimasi aktif</div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

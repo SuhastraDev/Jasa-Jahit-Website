@@ -169,7 +169,7 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('92.4');
     }
 
-    public function test_bodym_result_page_only_shows_bodym_contract_fields(): void
+    public function test_measurement_result_page_hides_internal_model_branding(): void
     {
         $user = User::factory()->create(['role' => 'user']);
         $jobId = 'job-bodym-contract-123';
@@ -221,7 +221,7 @@ class MeasurementMultiviewTest extends TestCase
         $this->actingAs($user)
             ->get(route('user.measurement.analysis-result', $jobId))
             ->assertOk()
-            ->assertSee('Indikator BodyM Resmi')
+            ->assertSee('Indikator Ukuran Tubuh')
             ->assertSee('LINGKAR')
             ->assertSee('LEBAR')
             ->assertSee('PANJANG')
@@ -229,6 +229,9 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('Tinggi badan')
             ->assertSee('Interval 168-171 cm')
             ->assertSee('Lingkar lengan bawah')
+            ->assertDontSeeText('BodyM')
+            ->assertDontSeeText('bodym.v1')
+            ->assertDontSeeText('bodym-v1')
             ->assertDontSee('Ukuran Baju')
             ->assertDontSee('Ukuran Celana')
             ->assertDontSee('Panjang Baju')

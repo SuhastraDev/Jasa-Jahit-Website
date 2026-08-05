@@ -427,7 +427,7 @@
                                     <p class="text-xs font-semibold text-gray-500">{{ $m->created_at->format('d M Y, H:i') }}</p>
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->measurement_method_label }} - {{ $m->ref_object_label }}</p>
                                     @if($m->bodym_contract_version)
-                                    <p class="text-xs text-emerald-600 mt-0.5">{{ $m->bodym_contract_version }} @if($m->bodym_model_version) - {{ $m->bodym_model_version }} @endif</p>
+                                    <p class="text-xs text-emerald-600 mt-0.5">Model estimasi aktif</p>
                                     @endif
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->reference_mode_label }}</p>
                                     @if($m->confidence_score)
@@ -899,8 +899,8 @@
                     ['reference_roi', 54, 'Mengecek patokan pada foto belakang', 'back'],
                     ['body_segmentation', 62, 'Membaca siluet tubuh foto belakang', 'back'],
                     ['cross_view_scale', 70, 'Menyelaraskan tiga sudut pandang tubuh', null],
-                    ['bodym_features', 82, 'Menyusun fitur siluet BodyM dari bentuk tubuh', null],
-                    ['bodym_inference', 88, 'Memprediksi indikator ukuran dengan BodyM', null],
+                    ['bodym_features', 82, 'Menyusun fitur siluet dari bentuk tubuh', null],
+                    ['bodym_inference', 88, 'Memprediksi indikator ukuran tubuh', null],
                     ['anatomical_validation', 92, 'Memeriksa konsistensi anatomi hasil ukuran', null],
                 ];
                 const nextStep = stagePlan.find(([, percent]) => percent > currentPercent + 1);

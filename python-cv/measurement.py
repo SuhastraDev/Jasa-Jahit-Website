@@ -997,7 +997,7 @@ def process_measurement(
 
     bodym_result = None
     if bodym_enabled():
-        progress("bodym_features", 82, "Menyusun fitur siluet BodyM dari bentuk tubuh")
+        progress("bodym_features", 82, "Menyusun fitur siluet dari bentuk tubuh")
         try:
             bodym_result = get_bodym_service().predict_masks(
                 masks["front"],
@@ -1018,11 +1018,11 @@ def process_measurement(
                 "diagnostic_details": exc.details,
             }
 
-        progress("bodym_inference", 87, "Memprediksi 14 indikator ukuran dengan BodyM v1")
+        progress("bodym_inference", 87, "Memprediksi 14 indikator ukuran tubuh")
         if bodym_result["status"] == "rejected":
             return {
                 "success": False,
-                "error": "Fitur siluet berada di luar pola BodyM atau menghasilkan ukuran yang tidak masuk akal.",
+                "error": "Fitur siluet berada di luar pola valid atau menghasilkan ukuran yang tidak masuk akal.",
                 "failed_view": "front_side",
                 "failed_reason": "bodym_prediction_rejected",
                 "correction": "Ulangi foto depan dan samping dengan pose, skala, serta siluet yang lebih jelas.",
