@@ -43,6 +43,61 @@ class FinalizationValidationError(ValueError):
         self.details = details or {}
 
 
+class BodyMHeuristicEstimator:
+    """Lightweight BodyM-compatible estimator for demo inference artifacts."""
+
+    def __init__(self, feature_order: tuple[str, ...], target_order: tuple[str, ...]) -> None:
+        self.feature_order = tuple(feature_order)
+        self.target_order = tuple(target_order)
+        self.index = {name: index for index, name in enumerate(self.feature_order)}
+
+    def _feature(self, row: np.ndarray, name: str, default: float = 0.0) -> float:
+        index = self.index.get(name)
+        if index is None:
+            return default
+        value = float(row[index])
+        return value if np.isfinite(value) and value > 0 else default
+
+    @staticmethod
+    def _clamp(value: float, minimum: float, maximum: float) -> float:
+        return float(min(max(value, minimum), maximum))
+
+    def _predict_row(self, row: np.ndarray) -> list[float]:
+        height = self._feature(row, "body_height_mean_cm", 165.0)
+        shoulder = self._feature(row, "front_shoulder_width_cm", height * 0.23)
+        chest = self._feature(row, "ellipse_chest_circumference_cm", height * 0.53)
+        waist = self._feature(row, "ellipse_waist_circumference_cm", height * 0.45)
+        hip = self._feature(row, "ellipse_hip_circumference_cm", height * 0.56)
+        thigh = self._feature(row, "ellipse_thigh_circumference_cm", height * 0.31)
+        calf = self._feature(row, "ellipse_calf_circumference_cm", height * 0.21)
+        ankle = self._feature(row, "ellipse_ankle_circumference_cm", height * 0.13)
+        neck = self._feature(row, "ellipse_neck_circumference_cm", height * 0.22)
+
+        estimates = {
+            "ankle_girth": self._clamp(ankle, 16, 34),
+            "arm_length": self._clamp(height * 0.265, 36, 62),
+            "bicep_girth": self._clamp(max(chest * 0.34, height * 0.18), 22, 48),
+            "calf_girth": self._clamp(calf, 24, 52),
+            "chest_girth": self._clamp(chest, 65, 130),
+            "forearm_girth": self._clamp(max(ankle * 1.05, height * 0.14), 18, 36),
+            "height": self._clamp(height, 135, 205),
+            "hip_girth": self._clamp(hip, 70, 140),
+            "leg_length": self._clamp(height * 0.455, 58, 105),
+            "shoulder_breadth": self._clamp(shoulder, 30, 58),
+            "shoulder_to_crotch": self._clamp(height * 0.42, 52, 92),
+            "thigh_girth": self._clamp(thigh, 34, 78),
+            "waist_girth": self._clamp(waist, 58, 125),
+            "wrist_girth": self._clamp(max(ankle * 0.72, height * 0.095), 13, 24),
+        }
+        return [estimates[name] for name in self.target_order]
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        features = np.asarray(X, dtype=np.float64)
+        if features.ndim == 1:
+            features = features.reshape(1, -1)
+        return np.asarray([self._predict_row(row) for row in features], dtype=np.float64)
+
+
 def conformal_quantile(residuals: np.ndarray, coverage: float) -> float:
     """Return the finite-sample split-conformal absolute-error quantile."""
 
