@@ -761,20 +761,20 @@
                         [rightKnee, rightAnkle],
                     ].filter(([a, b]) => a && b),
                     joints: [
-                        nose,
-                        leftShoulder,
-                        rightShoulder,
-                        leftElbow,
-                        rightElbow,
-                        leftWrist,
-                        rightWrist,
-                        leftHip,
-                        rightHip,
-                        leftKnee,
-                        rightKnee,
-                        leftAnkle,
-                        rightAnkle,
-                    ].filter(Boolean),
+                        ['nose', nose],
+                        ['leftShoulder', leftShoulder],
+                        ['rightShoulder', rightShoulder],
+                        ['leftElbow', leftElbow],
+                        ['rightElbow', rightElbow],
+                        ['leftWrist', leftWrist],
+                        ['rightWrist', rightWrist],
+                        ['leftHip', leftHip],
+                        ['rightHip', rightHip],
+                        ['leftKnee', leftKnee],
+                        ['rightKnee', rightKnee],
+                        ['leftAnkle', leftAnkle],
+                        ['rightAnkle', rightAnkle],
+                    ].filter(([, point]) => Boolean(point)).map(([name, point]) => ({ name, ...point })),
                 };
             },
             syncReferenceMode() {
@@ -979,13 +979,8 @@
                     }
 
                     const manualBox = this.manualReferenceBoxes[pose.key];
-                    if (!report.refBox && !manualBox) {
-                        nextErrors[pose.key] = `${pose.label}: ${this.refObject.toUpperCase()} belum terdeteksi. Pilih benda patokan dengan kotak manual.`;
-                        return;
-                    }
-
                     if (manualBox && !this.referenceBoxRatioOk(manualBox)) {
-                        nextErrors[pose.key] = `${pose.label}: bentuk kotak manual belum mengikuti proporsi ${this.refObject.toUpperCase()}.`;
+                        nextErrors[pose.key] = `${pose.label}: kotak ${this.refObject.toUpperCase()} kurang proporsional. Sistem tetap bisa menghitung dari bentuk tubuh, tapi patokan ini tidak dipakai sebagai skala utama.`;
                     }
                 });
 
@@ -1750,8 +1745,8 @@
                         ok: poseSummary.detected,
                     },
                     { label: poseSummary.fullBody ? 'Kepala sampai kaki masuk penuh.' : 'Mundur agar kepala sampai kaki terlihat penuh.', ok: poseSummary.fullBody },
-                    { label: refBox ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.` : `${this.refObject.toUpperCase()} belum terdeteksi. Gunakan kotak manual bila perlu.`, ok: Boolean(refBox) },
-                    { label: refBox ? 'Proporsi benda patokan sesuai.' : 'Benda patokan belum dapat diperiksa proporsinya.', ok: Boolean(refBox) },
+                    { label: refBox ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.` : `${this.refObject.toUpperCase()} belum terbaca otomatis. Sistem tetap memakai estimasi bentuk tubuh.`, ok: true },
+                    { label: refBox ? 'Proporsi benda patokan sesuai.' : 'Patokan menjadi bantuan visual, bukan penghambat proses.', ok: true },
                     { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
                     {
                         label: poseSummary.orientationOk && sideWarningOk
@@ -1813,6 +1808,46 @@
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
 
+                const joints = Object.fromEntries(shape.joints.map((joint) => [joint.name, px(joint)]));
+                const shoulderWidth = joints.leftShoulder && joints.rightShoulder
+                    ? Math.abs(joints.rightShoulder.x - joints.leftShoulder.x)
+                    : width * 0.18;
+                const limbWidth = Math.max(10, shoulderWidth * 0.18);
+                const legWidth = Math.max(12, shoulderWidth * 0.22);
+                const headRadius = Math.max(10, shoulderWidth * 0.22);
+                const headCenter = joints.nose
+                    ? { x: joints.nose.x, y: joints.nose.y + headRadius * 0.55 }
+                    : null;
+
+                const drawCapsule = (points, strokeWidth) => {
+                    const validPoints = points.filter(Boolean);
+                    if (validPoints.length < 2) return;
+                    ctx.beginPath();
+                    ctx.moveTo(validPoints[0].x, validPoints[0].y);
+                    validPoints.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+                    ctx.lineWidth = strokeWidth;
+                    ctx.strokeStyle = 'rgba(245, 158, 11, 0.24)';
+                    ctx.stroke();
+                    ctx.lineWidth = Math.max(2, strokeWidth * 0.18);
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.stroke();
+                };
+
+                if (headCenter) {
+                    ctx.beginPath();
+                    ctx.ellipse(headCenter.x, headCenter.y, headRadius * 0.74, headRadius, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = Math.max(2, width * 0.004);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                drawCapsule([joints.leftShoulder, joints.leftElbow, joints.leftWrist], limbWidth);
+                drawCapsule([joints.rightShoulder, joints.rightElbow, joints.rightWrist], limbWidth);
+                drawCapsule([joints.leftHip, joints.leftKnee, joints.leftAnkle], legWidth);
+                drawCapsule([joints.rightHip, joints.rightKnee, joints.rightAnkle], legWidth);
+
                 const torso = shape.torso.map(px);
                 ctx.beginPath();
                 torso.forEach((point, index) => {
@@ -1825,28 +1860,6 @@
                 ctx.lineWidth = Math.max(2, width * 0.006);
                 ctx.fill();
                 ctx.stroke();
-
-                ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = Math.max(3, width * 0.007);
-                shape.bones.forEach(([from, to]) => {
-                    const a = px(from);
-                    const b = px(to);
-                    ctx.beginPath();
-                    ctx.moveTo(a.x, a.y);
-                    ctx.lineTo(b.x, b.y);
-                    ctx.stroke();
-                });
-
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = Math.max(2, width * 0.004);
-                shape.joints.forEach((joint) => {
-                    const point = px(joint);
-                    ctx.beginPath();
-                    ctx.arc(point.x, point.y, Math.max(3, width * 0.006), 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                });
                 ctx.restore();
             },
             drawPoseGuideOverlay(ctx, width, height, bodyBox) {

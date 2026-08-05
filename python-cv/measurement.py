@@ -71,6 +71,7 @@ MEASUREMENT_LABELS = {
 }
 
 BODYM_RESPONSE_CONTRACT_VERSION = "bodym-response.v1"
+DEFAULT_ESTIMATED_STATURE_CM = 165.0
 BODYM_TO_LEGACY_FIELDS = {
     "ankle_girth": ("ankle",),
     "arm_length": ("arm_length",),
@@ -674,6 +675,41 @@ def px_to_cm(value, scale):
     return pixel_to_cm(value, scale)
 
 
+def estimated_scale_from_pose(points, assumed_stature_cm=DEFAULT_ESTIMATED_STATURE_CM):
+    ankle_y = average(points["left_ankle"][1], points["right_ankle"][1])
+    pose_span_px = max(0.0, ankle_y - points["nose"][1])
+    if pose_span_px <= 0:
+        return None
+    pixels_per_cm = (pose_span_px * 1.08) / assumed_stature_cm
+    if pixels_per_cm <= 0:
+        return None
+    return {
+        "scale": float(pixels_per_cm),
+        "stature_cm": float(assumed_stature_cm),
+    }
+
+
+def anthropometric_scale_result(points, reason, assumed_stature_cm=DEFAULT_ESTIMATED_STATURE_CM):
+    estimated = estimated_scale_from_pose(points, assumed_stature_cm)
+    if estimated is None:
+        return None
+    return {
+        "scale": estimated["scale"],
+        "contour": None,
+        "area": 0.0,
+        "source": "anthropometric_pose_estimate",
+        "quality": 0.56,
+        "axis_scales": [round(float(estimated["scale"]), 4), round(float(estimated["scale"]), 4)],
+        "estimated_stature_cm": round(float(estimated["stature_cm"]), 2),
+        "processing": {
+            "method": "pose_stature_fallback",
+            "reason": reason,
+            "assumed_stature_cm": assumed_stature_cm,
+            "refined": False,
+        },
+    }
+
+
 def rounded(value):
     return round(float(value), 2) if value and value > 0 else 0.0
 
@@ -767,26 +803,6 @@ def process_measurement(
             ref_height_cm,
             (reference_boxes or {}).get(view),
         )
-        if scale_result is None:
-            return {
-                "success": False,
-                "error": f"Benda patokan ukuran tidak terdeteksi pada {label}. Pilih area A4/KTP secara manual di preview, atau pastikan benda terlihat penuh, tegak, dan berada di samping tubuh.",
-                "failed_view": view,
-                "failed_reason": "reference_not_detected",
-                "correction": "Atur kotak merah tepat pada empat tepi A4/KTP di foto ini.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-            }
-        if scale_result.get("quality", 0.0) < 0.72:
-            return {
-                "success": False,
-                "error": f"Proporsi kotak A4/KTP pada {label} tidak sesuai. Atur kotak tepat pada empat tepi benda patokan, jangan menyertakan background, lalu ulangi analisis.",
-                "failed_view": view,
-                "failed_reason": "invalid_reference_proportion",
-                "correction": "Kecilkan atau geser kotak sampai hanya membungkus empat tepi A4/KTP.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-                "reference_quality": round(float(scale_result.get("quality", 0.0)), 3),
-                "reference_axis_scales": scale_result.get("axis_scales", []),
-            }
 
         progress("body_segmentation", body_percent, f"Mendeteksi pose dan siluet pada {label}", view)
         pose = detect_pose(image)
@@ -801,26 +817,41 @@ def process_measurement(
             }
 
         points = pose["keypoints"]
+        scale_reason = None
+        if scale_result is None:
+            scale_reason = "reference_not_detected"
+        elif scale_result.get("quality", 0.0) < 0.72:
+            scale_reason = "low_reference_quality"
+
+        if scale_reason:
+            fallback_scale = anthropometric_scale_result(points, scale_reason)
+            if fallback_scale is None:
+                return {
+                    "success": False,
+                    "error": f"Pose tubuh pada {label} tidak cukup lengkap untuk estimasi ukuran. Pastikan kepala sampai kaki terlihat jelas.",
+                    "failed_view": view,
+                    "failed_reason": "pose_scale_not_available",
+                    "correction": "Ambil ulang foto dengan kepala sampai kaki terlihat penuh.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                }
+            scale_result = fallback_scale
+
         ankle_y = average(points["left_ankle"][1], points["right_ankle"][1])
         pose_span_px = max(0.0, ankle_y - points["nose"][1])
         stature_cm = px_to_cm(pose_span_px * 1.08, scale_result["scale"])
         if stature_cm < 110 or stature_cm > 230:
-            return {
-                "success": False,
-                "error": (
-                    f"Ukuran kotak A4/KTP pada {label} menghasilkan skala tubuh {stature_cm:.1f} cm, "
-                    "sehingga kotak kemungkinan tidak mengikuti benda patokan. Atur kotak tepat pada "
-                    "empat tepi A4/KTP, bukan pada area kosong di sekitarnya."
-                ),
-                "failed_view": view,
-                "failed_reason": "invalid_reference_scale",
-                "correction": "Atur kotak merah tepat pada empat tepi benda patokan dan jangan menyertakan background.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-                "estimated_stature_cm": round(float(stature_cm), 2),
-                "reference_source": scale_result.get("source"),
-                "reference_processing": scale_result.get("processing", {}),
-                "reference_axis_scales": scale_result.get("axis_scales", []),
-            }
+            fallback_scale = anthropometric_scale_result(points, "invalid_reference_scale")
+            if fallback_scale is None:
+                return {
+                    "success": False,
+                    "error": f"Pose tubuh pada {label} tidak cukup lengkap untuk estimasi ukuran. Pastikan kepala sampai kaki terlihat jelas.",
+                    "failed_view": view,
+                    "failed_reason": "pose_scale_not_available",
+                    "correction": "Ambil ulang foto dengan kepala sampai kaki terlihat penuh.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                }
+            scale_result = fallback_scale
+            stature_cm = float(scale_result["estimated_stature_cm"])
 
         mask = build_body_mask(
             image,
@@ -852,7 +883,12 @@ def process_measurement(
     progress("cross_view_scale", 64, "Membandingkan skala foto depan, samping, dan belakang")
     scale_consistency = min(scales.values()) / max(scales.values())
     stature_consistency = min(pose_statures.values()) / max(pose_statures.values())
-    if scale_consistency < 0.72 or stature_consistency < 0.82:
+    calibrated_scale_count = sum(
+        1
+        for source in scale_sources.values()
+        if source != "anthropometric_pose_estimate"
+    )
+    if calibrated_scale_count >= 2 and (scale_consistency < 0.72 or stature_consistency < 0.82):
         return {
             "success": False,
             "error": (
@@ -1087,9 +1123,20 @@ def process_measurement(
             for legacy_field in legacy_fields:
                 per_field_confidence[legacy_field] = confidence
 
+    uses_estimated_scale = any(
+        source == "anthropometric_pose_estimate"
+        for source in scale_sources.values()
+    )
+    if uses_estimated_scale:
+        quality_score = round(min(quality_score, 0.72), 2)
+        per_field_confidence = {
+            field: round(min(confidence, 0.72), 2)
+            for field, confidence in per_field_confidence.items()
+        }
+
     photo_diagnostics = {
         view: {
-            "reference_detected": True,
+            "reference_detected": scale_sources[view] != "anthropometric_pose_estimate",
             "reference_source": scale_sources[view],
             "reference_quality": round(float(scale_qualities[view]), 4),
             "reference_axis_scales": reference_axis_scales[view],
@@ -1107,8 +1154,8 @@ def process_measurement(
         "data": data,
         "confidence": quality_score,
         "quality_score": quality_score,
-        "ref_detected": True,
-        "measurement_method": "bodym_ml" if bodym_result else "multiview_cv",
+        "ref_detected": not uses_estimated_scale,
+        "measurement_method": "bodym_ml" if bodym_result else ("multiview_pose_estimate" if uses_estimated_scale else "multiview_cv"),
         "per_field_confidence": per_field_confidence,
         "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
         "photo_diagnostics": photo_diagnostics,
