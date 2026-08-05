@@ -44,6 +44,9 @@ jobs:
             sudo chmod -R ug+rwX storage bootstrap/cache public/build
 
             composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            python3 -m venv .venv-cv
+            .venv-cv/bin/python -m pip install --upgrade pip
+            .venv-cv/bin/python -m pip install -r python-cv/requirements.txt
             npm ci
             npm run build
 

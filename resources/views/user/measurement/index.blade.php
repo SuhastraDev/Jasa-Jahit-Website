@@ -711,6 +711,72 @@
                 }
                 return left.length >= 8 ? { left, right } : null;
             },
+            landmarkPoint(landmarks, index) {
+                const point = landmarks?.[index];
+                if (!point) return null;
+                const confidence = point.visibility ?? point.presence ?? 1;
+                if (confidence < 0.25) return null;
+                return {
+                    x: Math.max(0, Math.min(1, point.x)),
+                    y: Math.max(0, Math.min(1, point.y)),
+                };
+            },
+            buildLandmarkBodyShape(landmarks) {
+                if (!Array.isArray(landmarks) || landmarks.length < 29) return null;
+
+                const midpoint = (a, b) => (a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null);
+                const nose = this.landmarkPoint(landmarks, 0);
+                const leftShoulder = this.landmarkPoint(landmarks, 11);
+                const rightShoulder = this.landmarkPoint(landmarks, 12);
+                const leftElbow = this.landmarkPoint(landmarks, 13);
+                const rightElbow = this.landmarkPoint(landmarks, 14);
+                const leftWrist = this.landmarkPoint(landmarks, 15);
+                const rightWrist = this.landmarkPoint(landmarks, 16);
+                const leftHip = this.landmarkPoint(landmarks, 23);
+                const rightHip = this.landmarkPoint(landmarks, 24);
+                const leftKnee = this.landmarkPoint(landmarks, 25);
+                const rightKnee = this.landmarkPoint(landmarks, 26);
+                const leftAnkle = this.landmarkPoint(landmarks, 27);
+                const rightAnkle = this.landmarkPoint(landmarks, 28);
+                const shoulderMid = midpoint(leftShoulder, rightShoulder);
+                const hipMid = midpoint(leftHip, rightHip);
+
+                if (!nose || !leftShoulder || !rightShoulder || !leftHip || !rightHip || !shoulderMid || !hipMid) {
+                    return null;
+                }
+
+                return {
+                    head: nose,
+                    torso: [leftShoulder, rightShoulder, rightHip, leftHip],
+                    bones: [
+                        [nose, shoulderMid],
+                        [shoulderMid, hipMid],
+                        [leftShoulder, leftElbow],
+                        [leftElbow, leftWrist],
+                        [rightShoulder, rightElbow],
+                        [rightElbow, rightWrist],
+                        [leftHip, leftKnee],
+                        [leftKnee, leftAnkle],
+                        [rightHip, rightKnee],
+                        [rightKnee, rightAnkle],
+                    ].filter(([a, b]) => a && b),
+                    joints: [
+                        nose,
+                        leftShoulder,
+                        rightShoulder,
+                        leftElbow,
+                        rightElbow,
+                        leftWrist,
+                        rightWrist,
+                        leftHip,
+                        rightHip,
+                        leftKnee,
+                        rightKnee,
+                        leftAnkle,
+                        rightAnkle,
+                    ].filter(Boolean),
+                };
+            },
             syncReferenceMode() {
                 if (this.refObject === 'ktp' && this.referenceMode === 'handheld') {
                     this.referenceMode = 'fixed';
@@ -1708,6 +1774,7 @@
                     refBox,
                     bodyBox: poseSummary.bodyBox,
                     silhouette: poseAnalysis?.silhouette || null,
+                    landmarkShape: this.buildLandmarkBodyShape(poseAnalysis?.landmarks),
                     poseDetected: poseSummary.detected,
                     fullBody: poseSummary.fullBody,
                     includeOverlay,
@@ -1733,11 +1800,95 @@
                     ctx.closePath();
                     ctx.fill();
                     ctx.stroke();
+                } else if (report.landmarkShape) {
+                    this.drawLandmarkBodyOverlay(ctx, width, height, report.landmarkShape);
                 } else {
-                    ctx.setLineDash([10, 7]);
-                    ctx.strokeRect(report.bodyBox.x, report.bodyBox.y, report.bodyBox.w, report.bodyBox.h);
-                    ctx.setLineDash([]);
+                    this.drawPoseGuideOverlay(ctx, width, height, report.bodyBox);
                 }
+                ctx.restore();
+            },
+            drawLandmarkBodyOverlay(ctx, width, height, shape) {
+                const px = (point) => ({ x: point.x * width, y: point.y * height });
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                const torso = shape.torso.map(px);
+                ctx.beginPath();
+                torso.forEach((point, index) => {
+                    if (index === 0) ctx.moveTo(point.x, point.y);
+                    else ctx.lineTo(point.x, point.y);
+                });
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = Math.max(2, width * 0.006);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = Math.max(3, width * 0.007);
+                shape.bones.forEach(([from, to]) => {
+                    const a = px(from);
+                    const b = px(to);
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b.x, b.y);
+                    ctx.stroke();
+                });
+
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = Math.max(2, width * 0.004);
+                shape.joints.forEach((joint) => {
+                    const point = px(joint);
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, Math.max(3, width * 0.006), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+                ctx.restore();
+            },
+            drawPoseGuideOverlay(ctx, width, height, bodyBox) {
+                const centerX = bodyBox.x + bodyBox.w / 2;
+                const headRadius = Math.max(8, bodyBox.w * 0.16);
+                const headY = bodyBox.y + headRadius * 1.2;
+                const shoulderY = bodyBox.y + bodyBox.h * 0.24;
+                const hipY = bodyBox.y + bodyBox.h * 0.55;
+                const kneeY = bodyBox.y + bodyBox.h * 0.76;
+                const ankleY = bodyBox.y + bodyBox.h * 0.96;
+                const shoulderHalf = bodyBox.w * 0.28;
+                const hipHalf = bodyBox.w * 0.2;
+
+                ctx.save();
+                ctx.strokeStyle = '#f59e0b';
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.06)';
+                ctx.lineWidth = Math.max(3, width * 0.006);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+                ctx.arc(centerX, headY, headRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                const segments = [
+                    [centerX, headY + headRadius, centerX, hipY],
+                    [centerX - shoulderHalf, shoulderY, centerX + shoulderHalf, shoulderY],
+                    [centerX - shoulderHalf, shoulderY, centerX - hipHalf * 1.2, hipY],
+                    [centerX + shoulderHalf, shoulderY, centerX + hipHalf * 1.2, hipY],
+                    [centerX - hipHalf, hipY, centerX + hipHalf, hipY],
+                    [centerX - hipHalf, hipY, centerX - hipHalf * 0.9, kneeY],
+                    [centerX - hipHalf * 0.9, kneeY, centerX - hipHalf * 0.75, ankleY],
+                    [centerX + hipHalf, hipY, centerX + hipHalf * 0.9, kneeY],
+                    [centerX + hipHalf * 0.9, kneeY, centerX + hipHalf * 0.75, ankleY],
+                ];
+                segments.forEach(([x1, y1, x2, y2]) => {
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                });
                 ctx.restore();
             },
             drawManualReferenceBox(ctx, box, color, label) {
