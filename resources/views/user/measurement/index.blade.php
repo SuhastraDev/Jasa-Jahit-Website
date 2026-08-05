@@ -160,7 +160,7 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <template x-for="item in liveReport.checks" :key="item.label">
                                     <div class="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs" :class="item.ok ? 'border-green-100 bg-green-50 text-green-800' : 'border-amber-100 bg-amber-50 text-amber-800'">
-                                        <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? '✓' : '!'"></span>
+                                        <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? 'OK' : '!'"></span>
                                         <span x-text="item.label"></span>
                                     </div>
                                 </template>
@@ -384,7 +384,7 @@
                                 <ul class="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3">
                                     <template x-for="item in detectionReports.{{ $key }}?.checks || []" :key="item.label">
                                         <li class="flex items-start gap-2 text-xs">
-                                            <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? '✓' : '!'"></span>
+                                            <span class="mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-black" :class="item.ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="item.ok ? 'OK' : '!'"></span>
                                             <span class="text-gray-600" x-text="item.label"></span>
                                         </li>
                                     </template>
@@ -426,6 +426,9 @@
                                 <div>
                                     <p class="text-xs font-semibold text-gray-500">{{ $m->created_at->format('d M Y, H:i') }}</p>
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->measurement_method_label }} - {{ $m->ref_object_label }}</p>
+                                    @if($m->bodym_contract_version)
+                                    <p class="text-xs text-emerald-600 mt-0.5">{{ $m->bodym_contract_version }} @if($m->bodym_model_version) - {{ $m->bodym_model_version }} @endif</p>
+                                    @endif
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->reference_mode_label }}</p>
                                     @if($m->confidence_score)
                                     <p class="text-xs text-blue-600 mt-1">Confidence {{ round((float) $m->confidence_score * 100) }}%</p>
@@ -490,7 +493,7 @@
                 <div class="space-y-2">
                     <template x-for="item in analysisTimeline" :key="item.stage">
                         <div class="flex items-start gap-3 rounded-xl border p-3" :class="item.current ? 'border-sky-200 bg-sky-50' : 'border-green-100 bg-green-50/60'">
-                            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black" :class="item.current ? 'bg-sky-600 text-white' : 'bg-green-100 text-green-700'" x-text="item.current ? '...' : '✓'"></span>
+                            <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black" :class="item.current ? 'bg-sky-600 text-white' : 'bg-green-100 text-green-700'" x-text="item.current ? '...' : 'OK'"></span>
                             <div class="min-w-0">
                                 <p class="text-xs font-bold text-slate-800" x-text="item.label"></p>
                                 <p class="mt-0.5 text-[11px] leading-4 text-slate-500" x-text="item.message"></p>
@@ -503,33 +506,33 @@
         </div>
     </div>
 
-    <div x-show="referenceEditor.open" x-cloak class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
-        <div class="w-full max-w-6xl max-h-[94vh] rounded-2xl bg-white shadow-2xl border border-white/70 overflow-hidden flex flex-col">
+    <div x-show="referenceEditor.open" x-cloak class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-0 sm:p-5">
+        <div class="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl sm:border sm:border-white/70">
             <div class="bg-slate-950 px-5 py-4 text-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <p class="text-xs font-bold text-red-300">Koreksi benda patokan</p>
                     <h3 class="text-lg font-black mt-0.5" x-text="`Atur kotak merah pada ${poseLabel(referenceEditor.pose)}`"></h3>
                     <p class="text-xs text-slate-300 mt-1">Kotak sudah diarahkan otomatis. Pastikan keempat sisinya tepat menempel pada tepi A4/KTP.</p>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                     <button type="button" @click="toggleReferenceContrast()"
-                        class="rounded-lg border px-3 py-2 text-xs font-bold"
+                        class="min-h-11 touch-manipulation rounded-lg border px-3 py-2 text-xs font-bold"
                         :class="referenceEditor.contrast ? 'border-amber-300 bg-amber-300 text-slate-950' : 'border-white/20 bg-white/10 text-white'">
                         <span x-text="referenceEditor.contrast ? 'Kontras aktif' : 'Naikkan kontras'"></span>
                     </button>
-                    <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white">
+                    <button type="button" @click="createManualReferenceBox(referenceEditor.pose, 'editor')" class="min-h-11 touch-manipulation rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white">
                         Deteksi ulang
                     </button>
-                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20">
+                    <button type="button" @click="closeReferenceEditor()" class="col-span-2 min-h-11 touch-manipulation rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20 sm:col-span-1">
                         Tutup
                     </button>
                 </div>
             </div>
 
-            <div class="flex-1 overflow-auto bg-slate-100 p-3 sm:p-5">
+            <div class="flex-1 overflow-auto bg-slate-100 p-2 sm:p-5">
                 <div class="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                     <canvas x-ref="referenceEditorCanvas"
-                        class="w-full max-h-[68vh] cursor-move touch-none rounded-lg bg-slate-50"
+                        class="block w-full max-h-[72dvh] cursor-move touch-none rounded-lg bg-slate-50 sm:max-h-[68vh]"
                         @mousedown="startManualReference($event, referenceEditor.pose, 'editor')"
                         @mousemove="updateManualReference($event, referenceEditor.pose, 'editor')"
                         @mouseup="finishManualReference($event, referenceEditor.pose, 'editor')"
@@ -554,13 +557,14 @@
                 </div>
             </div>
 
-            <div class="border-t border-slate-200 bg-white px-5 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
                 <p class="text-xs text-slate-500" x-text="manualReferenceBoxes[referenceEditor.pose] ? 'Kotak manual aktif dan akan dipakai untuk menghitung skala.' : 'Belum ada kotak manual untuk foto ini.'"></p>
-                <div class="flex gap-2">
-                    <button type="button" @click="clearManualReferenceBox(referenceEditor.pose)" class="rounded-lg border border-red-100 px-4 py-2 text-xs font-bold text-red-600">
+                <div class="grid grid-cols-2 gap-2 sm:flex">
+                    <button type="button" @click="clearManualReferenceBox(referenceEditor.pose)" class="min-h-11 touch-manipulation rounded-lg border border-red-100 px-4 py-2 text-xs font-bold text-red-600">
                         Hapus kotak
                     </button>
-                    <button type="button" @click="closeReferenceEditor()" class="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white">
+                    <button type="button" @click="closeReferenceEditor()" class="min-h-11 touch-manipulation rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white">
                         Simpan kotak merah
                     </button>
                 </div>
@@ -1343,6 +1347,9 @@
                 }
                 report.ready = this.poseDetectorReady && report.checks.every((item) => item.ok);
                 this.detectionReports = { ...this.detectionReports };
+                delete this.uploadErrors[pose];
+                this.uploadErrors = { ...this.uploadErrors };
+                if (Object.keys(this.uploadErrors).length === 0) this.totalUploadError = '';
             },
             clearManualReferenceBox(pose) {
                 this.manualReferenceBoxes[pose] = null;

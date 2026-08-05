@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "completed_on": "2026-08-05",
+  "experiment_version": "bodym-experiment.v1",
+  "model_version": "bodym-phase3.v1",
+  "random_seed": 20260805,
+  "matrix_sha256": "fb7a552cb09dfcb996bed0afad6f44255693596504281ad1ed4a398858675e2c",
+  "split_rows": {
+    "train": 6132,
+    "validation": 1684,
+    "test": 1150
+  },
+  "split_subjects": {
+    "train": 2018,
+    "validation": 87,
+    "test": 399
+  },
+  "excluded_cross_split_rows": 7,
+  "cross_split_subjects_after_policy": 0,
+  "selection_metric": "validation subject-level macro MAE",
+  "validation_macro_mae_cm": {
+    "median": 4.058373,
+    "nearest_neighbor": 1.925096,
+    "random_forest": 1.617621,
+    "extra_trees": 1.60495,
+    "hist_gradient_boosting": 1.234006,
+    "mlp": 1.177448
+  },
+  "selected_model": "mlp",
+  "validation_improvement_over_best_baseline_percent": 38.83692,
+  "validation_targets_beating_best_baseline": 14,
+  "test_subject_level_macro_mae_cm": 1.637153,
+  "test_subject_level_per_target": {
+    "ankle_girth": { "mae_cm": 0.8418, "rmse_cm": 1.104729, "bias_cm": -0.161004 },
+    "arm_length": { "mae_cm": 1.004481, "rmse_cm": 1.439196, "bias_cm": -0.131962 },
+    "bicep_girth": { "mae_cm": 1.591325, "rmse_cm": 2.110358, "bias_cm": -0.716709 },
+    "calf_girth": { "mae_cm": 1.265576, "rmse_cm": 1.708369, "bias_cm": -0.211442 },
+    "chest_girth": { "mae_cm": 2.875831, "rmse_cm": 4.064446, "bias_cm": -0.108114 },
+    "forearm_girth": { "mae_cm": 1.010977, "rmse_cm": 1.313677, "bias_cm": -0.336862 },
+    "height": { "mae_cm": 1.86533, "rmse_cm": 3.35713, "bias_cm": -0.645076 },
+    "hip_girth": { "mae_cm": 2.597398, "rmse_cm": 3.560164, "bias_cm": -0.665037 },
+    "leg_length": { "mae_cm": 1.445826, "rmse_cm": 2.189943, "bias_cm": 0.002406 },
+    "shoulder_breadth": { "mae_cm": 0.910365, "rmse_cm": 1.227108, "bias_cm": -0.237257 },
+    "shoulder_to_crotch": { "mae_cm": 1.382915, "rmse_cm": 2.032552, "bias_cm": -0.105559 },
+    "thigh_girth": { "mae_cm": 2.031065, "rmse_cm": 2.705561, "bias_cm": -0.587322 },
+    "waist_girth": { "mae_cm": 3.470597, "rmse_cm": 4.805264, "bias_cm": 1.11148 },
+    "wrist_girth": { "mae_cm": 0.626657, "rmse_cm": 0.824277, "bias_cm": -0.124155 }
+  },
+  "selected_model_bytes": 432683,
+  "selected_model_sha256": "ac8b8e79302b363f37fdda1b951239dc4569ca413d617712cdd6f92d4f03eb07",
+  "acceptance_passed": true
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "accessed_on": "2026-08-04",
+  "source": "https://registry.opendata.aws/bodym/",
+  "bucket": "s3://amazon-bodym",
+  "region": "us-west-2",
+  "license_policy": "CC BY-NC 4.0 (conservative interpretation; see PHASE_1_DATASET_AUDIT.md)",
+  "inventory": {
+    "object_count": 17965,
+    "total_bytes": 91438277,
+    "png_count": 17956,
+    "csv_count": 9
+  },
+  "splits": {
+    "train": {
+      "subject_rows": 2018,
+      "photo_ids": 6134,
+      "front_masks": 6134,
+      "side_masks": 6134
+    },
+    "testA": {
+      "subject_rows": 87,
+      "photo_ids": 1684,
+      "front_masks": 1684,
+      "side_masks": 1684
+    },
+    "testB": {
+      "subject_rows": 400,
+      "photo_ids": 1160,
+      "front_masks": 1160,
+      "side_masks": 1160
+    }
+  },
+  "quality": {
+    "missing_csv_values": 0,
+    "duplicate_rows_within_splits": 0,
+    "missing_view_pairs": 0,
+    "orphan_masks": 0,
+    "corrupt_png_headers": 0,
+    "image_dimensions": "720x960",
+    "train_test_subject_overlap": 0,
+    "testA_testB_subject_overlap": 1,
+    "cross_split_photo_overlap": 0,
+    "nominal_subject_rows": 2505,
+    "global_unique_subject_ids": 2504
+  },
+  "measurement_columns": [
+    "ankle",
+    "arm-length",
+    "bicep",
+    "calf",
+    "chest",
+    "forearm",
+    "height",
+    "hip",
+    "leg-length",
+    "shoulder-breadth",
+    "shoulder-to-crotch",
+    "thigh",
+    "waist",
+    "wrist"
+  ]
+}

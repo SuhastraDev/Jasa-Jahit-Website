@@ -1,0 +1,31 @@
+{
+  "phase": 5,
+  "status": "implemented",
+  "service_version": "2.0.0",
+  "response_contract_version": "bodym-response.v1",
+  "model_version": "bodym-v1",
+  "contract_version": "bodym.v1",
+  "preprocessing_version": "bodym-preprocess.v1",
+  "feature_count": 224,
+  "target_count": 14,
+  "runtime": {
+    "health_endpoint": "GET /health",
+    "feature_endpoint": "POST /bodym/predict",
+    "photo_endpoint": "POST /measure",
+    "async_photo_endpoint": "POST /measure/jobs"
+  },
+  "diagnostics": {
+    "views": ["front", "side", "back"],
+    "failure_fields": ["failed_view", "failed_reason", "correction"],
+    "guard_statuses": ["accepted", "review", "rejected"],
+    "silent_clipping": false
+  },
+  "activation": {
+    "default_enabled": false,
+    "required_environment": [
+      "BODYM_ENABLED=true",
+      "BODYM_MODEL_VERSION=bodym-v1",
+      "BODYM_MODEL_PATH=<absolute artifact path>"
+    ]
+  }
+}

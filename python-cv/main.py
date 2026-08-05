@@ -8,15 +8,19 @@ Endpoint:
 import threading
 import time
 import uuid
+from typing import Literal
 
 from fastapi import BackgroundTasks, FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from bodym_inference import BodyMInferenceError, get_bodym_service
+from bodym_preprocessing import feature_names
 from measurement import process_measurement
 
 app = FastAPI(
     title="ZRINTTAILOR CV Measurement Service",
     description="Estimasi ukuran badan menggunakan Computer Vision",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # Allow Laravel to call this service
@@ -29,6 +33,11 @@ app.add_middleware(
 
 measurement_jobs = {}
 measurement_jobs_lock = threading.Lock()
+
+
+class BodyMFeatureRequest(BaseModel):
+    features: list[float] = Field(..., min_length=len(feature_names()), max_length=len(feature_names()))
+    coverage: Literal[0.80, 0.90, 0.95] = 0.90
 
 
 def update_job(job_id, **values):
@@ -87,7 +96,27 @@ def run_measurement_job(job_id, front_bytes, side_bytes, back_bytes, options):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "zrinttailor-cv"}
+    return {
+        "status": "ok",
+        "service": "zrinttailor-cv",
+        "service_version": app.version,
+        "bodym": get_bodym_service().status(load=True),
+    }
+
+
+@app.post("/bodym/predict")
+async def predict_bodym_features(payload: BodyMFeatureRequest):
+    """Versioned inference endpoint for an already extracted BodyM feature vector."""
+    try:
+        return {
+            "success": True,
+            **get_bodym_service().predict_features(payload.features, coverage=payload.coverage),
+        }
+    except BodyMInferenceError as exc:
+        raise HTTPException(
+            status_code=503 if exc.code in ("model_file_missing", "model_load_failed") else 422,
+            detail={"code": exc.code, "message": str(exc), "details": exc.details},
+        ) from exc
 
 
 @app.post("/measure")

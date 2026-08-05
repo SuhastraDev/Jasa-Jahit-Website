@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "completed_on": "2026-08-05",
+  "pipeline_version": "bodym-features.v1",
+  "preprocessing_version": "bodym-preprocess.v1",
+  "feature_spec": "docs/bodym/feature-spec-v1.json",
+  "input_pairs": 8978,
+  "valid_rows": 8973,
+  "invalid_pairs": 5,
+  "invalid_rate_percent": 0.05569,
+  "valid_by_split": {
+    "train": 6132,
+    "testA": 1684,
+    "testB": 1157
+  },
+  "invalid_by_split": {
+    "train": 2,
+    "testA": 0,
+    "testB": 3
+  },
+  "invalid_by_code": {
+    "incomplete_silhouette": 5
+  },
+  "feature_count": 224,
+  "target_count": 14,
+  "matrix_bytes": 25472118,
+  "matrix_sha256": "fb7a552cb09dfcb996bed0afad6f44255693596504281ad1ed4a398858675e2c",
+  "matrix_verification_errors": 0,
+  "visual_qa_samples": 9,
+  "visual_qa_by_split": 3
+}

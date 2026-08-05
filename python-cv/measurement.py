@@ -16,6 +16,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
+from bodym_inference import BodyMInferenceError, get_bodym_service
 from utils import euclidean_distance, get_reference_dimensions, midpoint, pixel_to_cm
 
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pose_landmarker_lite.task")
@@ -68,6 +69,25 @@ MEASUREMENT_LABELS = {
     "outseam": "outseam",
     "rise": "rise/pesak",
 }
+
+BODYM_RESPONSE_CONTRACT_VERSION = "bodym-response.v1"
+BODYM_TO_LEGACY_FIELDS = {
+    "ankle_girth": ("ankle",),
+    "arm_length": ("arm_length",),
+    "bicep_girth": ("upper_arm",),
+    "calf_girth": ("calf",),
+    "chest_girth": ("chest",),
+    "height": ("height",),
+    "hip_girth": ("hips", "pants_hips"),
+    "shoulder_breadth": ("shoulder_width",),
+    "thigh_girth": ("thigh",),
+    "waist_girth": ("waist", "pants_waist"),
+    "wrist_girth": ("wrist",),
+}
+
+
+def bodym_enabled():
+    return os.getenv("BODYM_ENABLED", "false").lower() in ("1", "true", "yes", "on")
 
 
 def decode_image(image_bytes):
@@ -703,8 +723,16 @@ def process_measurement(
         "back": decode_image(back_bytes),
     }
 
-    if any(image is None for image in images.values()):
-        return {"success": False, "error": "Gagal membaca salah satu gambar. Pastikan format gambar benar."}
+    invalid_views = [view for view, image in images.items() if image is None]
+    if invalid_views:
+        return {
+            "success": False,
+            "error": f"Gagal membaca {', '.join(VIEW_LABELS[view] for view in invalid_views)}.",
+            "failed_view": invalid_views[0] if len(invalid_views) == 1 else "multiple",
+            "failed_reason": "invalid_image",
+            "correction": "Gunakan gambar JPG, PNG, atau WEBP yang tidak rusak.",
+            "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+        }
 
     images = {
         view: resize_for_measurement(image)
@@ -744,6 +772,9 @@ def process_measurement(
                 "success": False,
                 "error": f"Benda patokan ukuran tidak terdeteksi pada {label}. Pilih area A4/KTP secara manual di preview, atau pastikan benda terlihat penuh, tegak, dan berada di samping tubuh.",
                 "failed_view": view,
+                "failed_reason": "reference_not_detected",
+                "correction": "Atur kotak merah tepat pada empat tepi A4/KTP di foto ini.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             }
         if scale_result.get("quality", 0.0) < 0.72:
             return {
@@ -751,6 +782,8 @@ def process_measurement(
                 "error": f"Proporsi kotak A4/KTP pada {label} tidak sesuai. Atur kotak tepat pada empat tepi benda patokan, jangan menyertakan background, lalu ulangi analisis.",
                 "failed_view": view,
                 "failed_reason": "invalid_reference_proportion",
+                "correction": "Kecilkan atau geser kotak sampai hanya membungkus empat tepi A4/KTP.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
                 "reference_quality": round(float(scale_result.get("quality", 0.0)), 3),
                 "reference_axis_scales": scale_result.get("axis_scales", []),
             }
@@ -762,6 +795,9 @@ def process_measurement(
                 "success": False,
                 "error": f"Pose tubuh tidak terdeteksi pada {label}. Pastikan seluruh badan terlihat jelas.",
                 "failed_view": view,
+                "failed_reason": "pose_not_detected",
+                "correction": "Ambil ulang foto dengan kepala sampai kaki terlihat dan tangan tidak menutup badan.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             }
 
         points = pose["keypoints"]
@@ -778,6 +814,8 @@ def process_measurement(
                 ),
                 "failed_view": view,
                 "failed_reason": "invalid_reference_scale",
+                "correction": "Atur kotak merah tepat pada empat tepi benda patokan dan jangan menyertakan background.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
                 "estimated_stature_cm": round(float(stature_cm), 2),
                 "reference_source": scale_result.get("source"),
                 "reference_processing": scale_result.get("processing", {}),
@@ -796,6 +834,9 @@ def process_measurement(
                 "success": False,
                 "error": f"Siluet tubuh tidak terbaca pada {label}. Gunakan background polos dan pencahayaan cukup.",
                 "failed_view": view,
+                "failed_reason": "silhouette_not_detected",
+                "correction": "Ambil ulang foto dengan kontras tubuh dan background yang lebih jelas.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             }
 
         scales[view] = scale_result["scale"]
@@ -820,6 +861,9 @@ def process_measurement(
                 "mengikuti tepi A4/KTP pada setiap foto."
             ),
             "failed_reason": "inconsistent_multiview_scale",
+            "failed_view": "multiple",
+            "correction": "Gunakan kamera dan titik berdiri yang sama pada foto depan, samping, dan belakang.",
+            "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             "scale_consistency": round(float(scale_consistency), 4),
             "stature_consistency": round(float(stature_consistency), 4),
         }
@@ -915,6 +959,46 @@ def process_measurement(
         "rise": rounded(px_to_cm(max(0, outseam_px - inseam_px), front_scale)),
     }
 
+    bodym_result = None
+    if bodym_enabled():
+        progress("bodym_features", 82, "Menyusun fitur siluet BodyM dari skala A4/KTP")
+        try:
+            bodym_result = get_bodym_service().predict_masks(
+                masks["front"],
+                masks["side"],
+                front_pixels_per_cm=scales["front"],
+                side_pixels_per_cm=scales["side"],
+                coverage=0.90,
+            )
+        except BodyMInferenceError as exc:
+            failed_view = exc.details.get("failed_view", "front_side")
+            return {
+                "success": False,
+                "error": str(exc),
+                "failed_view": failed_view,
+                "failed_reason": exc.code,
+                "correction": "Periksa kotak A4/KTP dan pastikan siluet depan serta samping utuh.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                "diagnostic_details": exc.details,
+            }
+
+        progress("bodym_inference", 87, "Memprediksi 14 indikator ukuran dengan BodyM v1")
+        if bodym_result["status"] == "rejected":
+            return {
+                "success": False,
+                "error": "Fitur siluet berada di luar pola BodyM atau menghasilkan ukuran yang tidak masuk akal.",
+                "failed_view": "front_side",
+                "failed_reason": "bodym_prediction_rejected",
+                "correction": "Ulangi foto depan dan samping dengan pose, skala, serta siluet yang lebih jelas.",
+                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                "bodym": bodym_result,
+            }
+
+        for bodym_field, legacy_fields in BODYM_TO_LEGACY_FIELDS.items():
+            value = rounded(bodym_result["predictions_cm"][bodym_field])
+            for legacy_field in legacy_fields:
+                data[legacy_field] = value
+
     invalid_measurements = impossible_measurements(data)
     progress("anatomical_validation", 88, "Memeriksa konsistensi anatomi hasil ukuran")
     if invalid_measurements:
@@ -923,6 +1007,9 @@ def process_measurement(
             "success": False,
             "error": f"Hasil ukuran tidak masuk akal ({fields}). Periksa kembali kotak A4/KTP manual, pastikan kotak hanya mengikuti pinggir benda patokan, lalu ulangi analisis.",
             "failed_reason": "unrealistic_measurements",
+            "failed_view": "multiple",
+            "correction": "Periksa kembali kotak A4/KTP dan siluet pada ketiga foto.",
+            "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             "invalid_measurements": invalid_measurements,
             "debug": {
                 "duration_seconds": round(time.perf_counter() - started_at, 3),
@@ -994,14 +1081,37 @@ def process_measurement(
         else:
             per_field_confidence[field] = direct_confidence
 
+    if bodym_result:
+        for bodym_field, legacy_fields in BODYM_TO_LEGACY_FIELDS.items():
+            confidence = round(float(bodym_result["per_field_confidence"][bodym_field]), 4)
+            for legacy_field in legacy_fields:
+                per_field_confidence[legacy_field] = confidence
+
+    photo_diagnostics = {
+        view: {
+            "reference_detected": True,
+            "reference_source": scale_sources[view],
+            "reference_quality": round(float(scale_qualities[view]), 4),
+            "reference_axis_scales": reference_axis_scales[view],
+            "reference_processing": reference_processing[view],
+            "pixels_per_cm": round(float(scales[view]), 6),
+            "pose_confidence": poses[view]["confidence"],
+            "body_bounds": [int(value) for value in bounds[view]],
+            "used_by_bodym": view in ("front", "side"),
+        }
+        for view in ("front", "side", "back")
+    }
+
     result = {
         "success": True,
         "data": data,
         "confidence": quality_score,
         "quality_score": quality_score,
         "ref_detected": True,
-        "measurement_method": "multiview_cv",
+        "measurement_method": "bodym_ml" if bodym_result else "multiview_cv",
         "per_field_confidence": per_field_confidence,
+        "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+        "photo_diagnostics": photo_diagnostics,
         "debug": {
             "duration_seconds": round(time.perf_counter() - started_at, 3),
             "image_shapes": {key: [int(v) for v in image.shape[:2]] for key, image in images.items()},
@@ -1019,5 +1129,18 @@ def process_measurement(
             "width_samples": width_debug,
         },
     }
+    if bodym_result:
+        result["bodym_data"] = bodym_result["predictions_cm"]
+        result["bodym_per_field_confidence"] = bodym_result["per_field_confidence"]
+        result["bodym_prediction_intervals_cm"] = bodym_result["prediction_intervals_cm"]
+        result["bodym"] = {
+            key: value
+            for key, value in bodym_result.items()
+            if key not in ("predictions_cm", "per_field_confidence", "prediction_intervals_cm")
+        }
+        result["bodym"]["silent_clipping"] = bodym_result["silent_clipping"]
+        result["legacy_fallback_fields"] = sorted(
+            set(data) - {legacy for fields in BODYM_TO_LEGACY_FIELDS.values() for legacy in fields}
+        )
     progress("completed", 100, "Analisis selesai dan hasil siap diperiksa")
     return result

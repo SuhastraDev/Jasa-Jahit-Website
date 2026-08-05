@@ -297,6 +297,81 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertEqual("manual", result["reference_source"])
         self.assertFalse(result["reference_processing"]["refined"])
 
+    def test_bodym_enabled_uses_model_output_and_returns_versioned_diagnostics(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
+        scale_result = {
+            "scale": 2.0,
+            "contour": None,
+            "area": 1200.0,
+            "source": "manual_refined",
+            "quality": 0.95,
+            "axis_scales": [2.0, 2.0],
+            "processing": {"method": "canny", "refined": True},
+        }
+        predictions = {
+            "ankle_girth": 22.0,
+            "arm_length": 58.0,
+            "bicep_girth": 31.0,
+            "calf_girth": 36.0,
+            "chest_girth": 91.5,
+            "forearm_girth": 25.0,
+            "height": 174.0,
+            "hip_girth": 94.0,
+            "leg_length": 99.0,
+            "shoulder_breadth": 42.0,
+            "shoulder_to_crotch": 67.0,
+            "thigh_girth": 54.0,
+            "waist_girth": 79.0,
+            "wrist_girth": 17.0,
+        }
+        bodym_result = {
+            "model_version": "bodym-v1",
+            "contract_version": "bodym.v1",
+            "preprocessing_version": "bodym-preprocess.v1",
+            "measurement_method": "bodym_ml",
+            "status": "accepted",
+            "diagnostic_codes": [],
+            "implausible_fields": [],
+            "ood": {"distance": 1.0, "validation_percentile": 0.4},
+            "predictions_cm": predictions,
+            "prediction_intervals_cm": {
+                field: {"lower": value - 2, "upper": value + 2}
+                for field, value in predictions.items()
+            },
+            "per_field_confidence": {field: 0.91954 for field in predictions},
+            "confidence_definition": "empirical BodyM validation coverage",
+            "coverage": 0.9,
+            "silent_clipping": False,
+            "feature_count": 224,
+            "views": {"front": {}, "side": {}},
+        }
+        service = MagicMock()
+        service.predict_masks.return_value = bodym_result
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", side_effect=[scale_result.copy() for _ in range(3)]),
+            patch.object(measurement, "detect_pose", side_effect=poses),
+            patch.object(measurement, "build_body_mask", side_effect=masks),
+            patch.object(measurement, "largest_body_bounds", return_value=(40, 30, 120, 360)),
+            patch.object(measurement, "bodym_enabled", return_value=True),
+            patch.object(measurement, "get_bodym_service", return_value=service),
+        ):
+            result = measurement.process_measurement(
+                b"front", b"side", b"back", "a4", 21.0, 29.7
+            )
+
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual(result["measurement_method"], "bodym_ml")
+        self.assertEqual(result["data"]["chest"], 91.5)
+        self.assertEqual(result["bodym_data"]["forearm_girth"], 25.0)
+        self.assertEqual(result["bodym"]["model_version"], "bodym-v1")
+        self.assertEqual(result["response_contract_version"], "bodym-response.v1")
+        self.assertFalse(result["bodym"]["silent_clipping"])
+
 
 if __name__ == "__main__":
     unittest.main()

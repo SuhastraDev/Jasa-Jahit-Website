@@ -38,6 +38,37 @@ class MeasurementController extends Controller
         'rise',
     ];
 
+    private const BODYM_FIELDS = [
+        'ankle_girth',
+        'arm_length',
+        'bicep_girth',
+        'calf_girth',
+        'chest_girth',
+        'forearm_girth',
+        'height',
+        'hip_girth',
+        'leg_length',
+        'shoulder_breadth',
+        'shoulder_to_crotch',
+        'thigh_girth',
+        'waist_girth',
+        'wrist_girth',
+    ];
+
+    private const BODYM_TO_LEGACY_FIELDS = [
+        'ankle_girth' => 'ankle',
+        'arm_length' => 'arm_length',
+        'bicep_girth' => 'upper_arm',
+        'calf_girth' => 'calf',
+        'chest_girth' => 'chest',
+        'height' => 'height',
+        'hip_girth' => 'hips',
+        'shoulder_breadth' => 'shoulder_width',
+        'thigh_girth' => 'thigh',
+        'waist_girth' => 'waist',
+        'wrist_girth' => 'wrist',
+    ];
+
     /**
      * Halaman ukur badan — panduan + form upload
      */
@@ -198,11 +229,14 @@ class MeasurementController extends Controller
             $result['reference_mode_adjustment'] = 'Confidence dikurangi untuk mode praktis karena A4 dipegang tangan.';
         }
 
-        $data = $result['data'];
+        $data = $this->legacyDataFromResult($result);
+        $bodymData = $this->bodymDataFromResult($result);
         $refSize = $refWidthCm && $refHeightCm ? "{$refWidthCm}x{$refHeightCm}cm" : null;
 
         return view('user.measurement.result', [
             'data' => $data,
+            'bodymData' => $bodymData,
+            'bodymMetadata' => $this->bodymMetadataFromResult($result),
             'confidence' => $confidence,
             'qualityScore' => $qualityScore,
             'refDetected' => $result['ref_detected'] ?? false,
@@ -344,12 +378,25 @@ class MeasurementController extends Controller
             'confidence_score' => 'nullable|numeric|min:0|max:1',
             'quality_score' => 'nullable|numeric|min:0|max:1',
             'raw_cv_json' => 'nullable|string',
+            'bodym_data_json' => 'nullable|string',
+            'bodym_per_field_confidence_json' => 'nullable|string',
+            'bodym_prediction_intervals_cm_json' => 'nullable|string',
+            'bodym_diagnostics_json' => 'nullable|string',
+            'bodym_contract_version' => 'nullable|string|max:40',
+            'bodym_response_contract_version' => 'nullable|string|max:40',
+            'bodym_model_version' => 'nullable|string|max:80',
+            'bodym_status' => 'nullable|string|max:40',
             'is_edited' => 'nullable|boolean',
         ];
 
         foreach (self::MEASUREMENT_FIELDS as $field) {
             $rules[$field] = 'nullable|numeric|min:0|max:400';
             $rules["original_{$field}"] = 'nullable|numeric|min:0|max:400';
+        }
+
+        foreach (self::BODYM_FIELDS as $field) {
+            $rules["bodym_{$field}"] = 'nullable|numeric|min:0|max:400';
+            $rules["original_bodym_{$field}"] = 'nullable|numeric|min:0|max:400';
         }
 
         $validated = $request->validate($rules);
@@ -365,11 +412,28 @@ class MeasurementController extends Controller
             }
         }
 
+        foreach (self::BODYM_FIELDS as $field) {
+            $key = "bodym_{$field}";
+            $current = (float) ($validated[$key] ?? 0);
+            $original = (float) ($validated["original_{$key}"] ?? $current);
+            if (abs($current - $original) >= 0.01) {
+                $editedFields[$key] = [
+                    'original' => $original,
+                    'current' => $current,
+                ];
+            }
+        }
+
         $rawCv = null;
         if (!empty($validated['raw_cv_json'])) {
             $decoded = json_decode($validated['raw_cv_json'], true);
             $rawCv = is_array($decoded) ? $decoded : null;
         }
+
+        $bodymData = $this->decodeJsonInput($validated['bodym_data_json'] ?? null);
+        $bodymConfidence = $this->decodeJsonInput($validated['bodym_per_field_confidence_json'] ?? null);
+        $bodymIntervals = $this->decodeJsonInput($validated['bodym_prediction_intervals_cm_json'] ?? null);
+        $bodymDiagnostics = $this->decodeJsonInput($validated['bodym_diagnostics_json'] ?? null);
 
         $payload = [
             'user_id' => auth()->id(),
@@ -382,16 +446,43 @@ class MeasurementController extends Controller
             'ref_width_cm' => $validated['ref_width_cm'] ?? null,
             'ref_height_cm' => $validated['ref_height_cm'] ?? null,
             'reference_mode' => $validated['reference_mode'] ?? 'fixed',
-            'measurement_method' => 'multiview_cv',
+            'measurement_method' => ($validated['bodym_status'] ?? null) === 'ok' ? 'bodym_ml' : 'multiview_cv',
+            'bodym_contract_version' => $validated['bodym_contract_version'] ?? null,
+            'bodym_response_contract_version' => $validated['bodym_response_contract_version'] ?? null,
+            'bodym_model_version' => $validated['bodym_model_version'] ?? null,
+            'bodym_status' => $validated['bodym_status'] ?? null,
             'confidence_score' => $validated['confidence_score'] ?? null,
             'quality_score' => $validated['quality_score'] ?? null,
             'raw_cv_json' => $rawCv,
+            'bodym_data' => $bodymData,
+            'bodym_per_field_confidence' => $bodymConfidence,
+            'bodym_prediction_intervals_cm' => $bodymIntervals,
+            'bodym_diagnostics' => $bodymDiagnostics,
             'edited_fields_json' => $editedFields,
             'is_edited' => $request->boolean('is_edited', false) || $editedFields !== [],
         ];
 
         foreach (self::MEASUREMENT_FIELDS as $field) {
             $payload[$field] = $validated[$field] ?? null;
+        }
+
+        foreach (self::BODYM_FIELDS as $field) {
+            $payload["bodym_{$field}"] = $validated["bodym_{$field}"] ?? ($bodymData[$field] ?? null);
+        }
+
+        foreach (self::BODYM_TO_LEGACY_FIELDS as $bodymField => $legacyField) {
+            $bodymKey = "bodym_{$bodymField}";
+            if (array_key_exists($bodymKey, $validated) && $validated[$bodymKey] !== null) {
+                $payload[$legacyField] = $validated[$bodymKey];
+            }
+        }
+
+        if (array_key_exists('bodym_waist_girth', $validated) && $validated['bodym_waist_girth'] !== null) {
+            $payload['pants_waist'] = $validated['bodym_waist_girth'];
+        }
+
+        if (array_key_exists('bodym_hip_girth', $validated) && $validated['bodym_hip_girth'] !== null) {
+            $payload['pants_hips'] = $validated['bodym_hip_girth'];
         }
 
         Measurement::create($payload);
@@ -499,7 +590,9 @@ class MeasurementController extends Controller
         $refHeightCm = $context['ref_height_cm'];
 
         return [
-            'data' => $result['data'],
+            'data' => $this->legacyDataFromResult($result),
+            'bodymData' => $this->bodymDataFromResult($result),
+            'bodymMetadata' => $this->bodymMetadataFromResult($result),
             'confidence' => (float) ($result['confidence'] ?? 0),
             'qualityScore' => (float) ($result['quality_score'] ?? 0),
             'refDetected' => $result['ref_detected'] ?? false,
@@ -519,5 +612,80 @@ class MeasurementController extends Controller
     private function analysisCacheKey(string $jobId): string
     {
         return 'measurement_analysis:' . auth()->id() . ':' . $jobId;
+    }
+
+    private function bodymDataFromResult(array $result): array
+    {
+        $data = is_array($result['bodym_data'] ?? null) ? $result['bodym_data'] : [];
+        if ($data === [] && ($result['measurement_method'] ?? null) === 'bodym_ml') {
+            $data = is_array($result['data'] ?? null) ? $result['data'] : [];
+        }
+
+        $bodymData = [];
+        foreach (self::BODYM_FIELDS as $field) {
+            if (isset($data[$field]) && is_numeric($data[$field])) {
+                $bodymData[$field] = round((float) $data[$field], 2);
+            }
+        }
+
+        return $bodymData;
+    }
+
+    private function legacyDataFromResult(array $result): array
+    {
+        $data = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $bodymData = $this->bodymDataFromResult($result);
+
+        foreach (self::BODYM_TO_LEGACY_FIELDS as $bodymField => $legacyField) {
+            if (isset($bodymData[$bodymField])) {
+                $data[$legacyField] = $bodymData[$bodymField];
+            }
+        }
+
+        if (isset($bodymData['waist_girth'])) {
+            $data['pants_waist'] = $bodymData['waist_girth'];
+        }
+        if (isset($bodymData['hip_girth'])) {
+            $data['pants_hips'] = $bodymData['hip_girth'];
+        }
+        return $data;
+    }
+
+    private function bodymMetadataFromResult(array $result): array
+    {
+        return [
+            'contract_version' => $result['bodym_contract_version']
+                ?? $result['contract_version']
+                ?? config('bodym.contract_version'),
+            'response_contract_version' => $result['response_contract_version']
+                ?? config('bodym.response_contract_version'),
+            'model_version' => $result['bodym_model_version']
+                ?? $result['model_version']
+                ?? config('bodym.model_version'),
+            'status' => $result['bodym_status']
+                ?? (($result['measurement_method'] ?? null) === 'bodym_ml' ? 'ok' : null),
+            'per_field_confidence' => $result['bodym_per_field_confidence']
+                ?? $result['per_field_confidence']
+                ?? [],
+            'prediction_intervals_cm' => $result['bodym_prediction_intervals_cm']
+                ?? $result['prediction_intervals_cm']
+                ?? [],
+            'diagnostics' => [
+                'photo_diagnostics' => $result['photo_diagnostics'] ?? null,
+                'model_diagnostics' => $result['bodym_diagnostics'] ?? null,
+                'legacy_fallback_fields' => $result['legacy_fallback_fields'] ?? [],
+            ],
+        ];
+    }
+
+    private function decodeJsonInput(?string $value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 }

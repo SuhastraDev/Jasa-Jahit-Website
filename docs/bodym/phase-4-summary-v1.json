@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "completed_on": "2026-08-05",
+  "model_version": "bodym-v1",
+  "selected_model": "mlp",
+  "selected_seed": 20260805,
+  "stability_seed_count": 3,
+  "validation_macro_mae_mean_cm": 1.21518,
+  "validation_macro_mae_std_cm": 0.029558,
+  "selected_validation_macro_mae_cm": 1.177448,
+  "test_macro_mae_cm": 1.637153,
+  "model_only_p95_ms": 1.22908,
+  "guarded_p95_ms": 6.36202,
+  "serialized_estimator_bytes": 472039,
+  "bundle_bytes": 1988210,
+  "bundle_sha256": "bbc12f57766076ed12fb914b168f1f9df63de96506fbb82390ff4c74b4f5f247",
+  "validation_empirical_coverage_90": 0.91954,
+  "test_empirical_coverage_90": 0.825636,
+  "test_interval_nominal_coverage_met": false,
+  "test_diagnostics": {
+    "accepted": 990,
+    "review": 96,
+    "rejected": 64
+  },
+  "silent_clipping": false,
+  "artifact_verification_errors": []
+}

@@ -36,11 +36,29 @@
             ['Panjang Outseam', 'outseam', 'panjang', 'Jarak pinggang ke pergelangan kaki bagian luar'],
             ['Panjang Pesak', 'rise', 'panjang', 'Jarak vertikal pinggang ke selangkangan'],
         ];
+        $bodymFields = collect(config('bodym.measurements'))
+            ->map(fn ($meta, $name) => [
+                $meta['label'],
+                $name,
+                match ($meta['type']) {
+                    'circumference' => 'lingkar',
+                    'breadth' => 'lebar',
+                    'height' => 'tinggi',
+                    default => 'panjang',
+                },
+                'Indikator resmi BodyM: ' . str_replace('_', ' ', $name),
+            ])
+            ->values()
+            ->all();
+        $bodymPerFieldConfidence = $bodymMetadata['per_field_confidence'] ?? [];
+        $bodymPredictionIntervals = $bodymMetadata['prediction_intervals_cm'] ?? [];
         $typeStyles = [
             'lingkar' => 'border-violet-200 bg-violet-50 text-violet-700',
             'lebar' => 'border-cyan-200 bg-cyan-50 text-cyan-700',
             'panjang' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            'tinggi' => 'border-amber-200 bg-amber-50 text-amber-700',
         ];
+        $hasBodymResult = !empty($bodymData);
     @endphp
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -77,6 +95,8 @@
                 <span class="text-xs text-slate-500">jarak mendatar</span>
                 <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">PANJANG</span>
                 <span class="text-xs text-slate-500">jarak memanjang/vertikal</span>
+                <span class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">TINGGI</span>
+                <span class="text-xs text-slate-500">tinggi badan</span>
             </div>
         </div>
 
@@ -93,8 +113,22 @@
             <input type="hidden" name="confidence_score" value="{{ $confidence }}">
             <input type="hidden" name="quality_score" value="{{ $qualityScore }}">
             <input type="hidden" name="raw_cv_json" value='@json($rawCvJson)'>
+            <input type="hidden" name="bodym_data_json" value='@json($bodymData ?? [])'>
+            <input type="hidden" name="bodym_per_field_confidence_json" value='@json($bodymPerFieldConfidence)'>
+            <input type="hidden" name="bodym_prediction_intervals_cm_json" value='@json($bodymPredictionIntervals)'>
+            <input type="hidden" name="bodym_diagnostics_json" value='@json($bodymMetadata["diagnostics"] ?? [])'>
+            <input type="hidden" name="bodym_contract_version" value="{{ $bodymMetadata['contract_version'] ?? config('bodym.contract_version') }}">
+            <input type="hidden" name="bodym_response_contract_version" value="{{ $bodymMetadata['response_contract_version'] ?? config('bodym.response_contract_version') }}">
+            <input type="hidden" name="bodym_model_version" value="{{ $bodymMetadata['model_version'] ?? config('bodym.model_version') }}">
+            <input type="hidden" name="bodym_status" value="{{ $bodymMetadata['status'] ?? '' }}">
             <input type="hidden" name="is_edited" x-bind:value="edited ? 1 : 0">
 
+            @if($hasBodymResult)
+                @foreach(array_merge($topFields, $pantsFields) as [$label, $name])
+                <input type="hidden" name="{{ $name }}" value="{{ $data[$name] ?? '' }}">
+                <input type="hidden" name="original_{{ $name }}" value="{{ $data[$name] ?? '' }}">
+                @endforeach
+            @else
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <section>
                     <h3 class="text-sm font-bold text-gray-900 mb-3">Ukuran Baju</h3>
@@ -152,6 +186,56 @@
                     </div>
                 </section>
             </div>
+            @endif
+
+            @if($hasBodymResult)
+            <section class="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+                <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900">Indikator BodyM Resmi</h3>
+                        <p class="text-xs text-slate-500">Form ini hanya menampilkan 14 output BodyM. Mapping ke kebutuhan jahit tetap disimpan di belakang layar untuk kompatibilitas pesanan.</p>
+                    </div>
+                    <div class="text-[11px] font-bold text-slate-500">
+                        {{ $bodymMetadata['contract_version'] ?? config('bodym.contract_version') }}
+                        @if(!empty($bodymMetadata['model_version']))
+                            - {{ $bodymMetadata['model_version'] }}
+                        @endif
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    @foreach($bodymFields as [$label, $name, $type, $description])
+                    @continue(!array_key_exists($name, $bodymData))
+                    @php
+                        $value = $bodymData[$name];
+                        $fieldConfidence = $bodymPerFieldConfidence[$name] ?? null;
+                        $interval = $bodymPredictionIntervals[$name] ?? null;
+                    @endphp
+                    <div class="rounded-xl border border-white bg-white p-4 shadow-sm">
+                        <div class="mb-1.5 flex items-start justify-between gap-2">
+                            <label class="block text-xs font-bold text-slate-700">{{ $label }}</label>
+                            <span class="shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase {{ $typeStyles[$type] }}">{{ $type }}</span>
+                        </div>
+                        <p class="mb-2 min-h-8 text-[11px] leading-4 text-slate-500">{{ $description }}</p>
+                        <input type="hidden" name="original_bodym_{{ $name }}" value="{{ $value }}">
+                        <div class="flex items-center gap-2">
+                            <input type="number" step="0.01" name="bodym_{{ $name }}" value="{{ $value }}" @input="edited = true"
+                                class="flex-1 bg-white rounded-lg border-gray-200 text-base font-bold focus:border-blue-500 focus:ring-blue-500">
+                            <span class="text-sm text-gray-400 font-medium">cm</span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            @if($fieldConfidence !== null)
+                            <p class="text-[11px] text-blue-600">Confidence {{ round($fieldConfidence * 100) }}%</p>
+                            @endif
+                            @if(is_array($interval) && count($interval) >= 2)
+                            <p class="text-[11px] text-slate-500">Interval {{ round($interval[0], 1) }}-{{ round($interval[1], 1) }} cm</p>
+                            @endif
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </section>
+            @endif
 
             <div class="flex items-center justify-between pt-5 mt-6 border-t border-gray-50">
                 <p class="text-xs text-amber-600 font-medium" x-show="edited" x-cloak>Nilai telah diedit manual.</p>

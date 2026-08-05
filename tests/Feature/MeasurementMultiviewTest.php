@@ -169,6 +169,71 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('92.4');
     }
 
+    public function test_bodym_result_page_only_shows_bodym_contract_fields(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+        $jobId = 'job-bodym-contract-123';
+
+        Cache::put("measurement_analysis:{$user->id}:{$jobId}", [
+            'user_id' => $user->id,
+            'front_photo_path' => 'measurements/1/front.jpg',
+            'side_photo_path' => 'measurements/1/side.jpg',
+            'back_photo_path' => 'measurements/1/back.jpg',
+            'ref_object' => 'a4',
+            'ref_width_cm' => 21.0,
+            'ref_height_cm' => 29.7,
+            'reference_mode' => 'fixed',
+            'result' => [
+                'success' => true,
+                'measurement_method' => 'bodym_ml',
+                'confidence' => 0.89,
+                'quality_score' => 0.87,
+                'ref_detected' => true,
+                'bodym_contract_version' => 'bodym.v1',
+                'bodym_model_version' => 'bodym-v1',
+                'bodym_status' => 'ok',
+                'bodym_data' => [
+                    'ankle_girth' => 22.0,
+                    'arm_length' => 57.2,
+                    'bicep_girth' => 31.4,
+                    'calf_girth' => 36.4,
+                    'chest_girth' => 92.4,
+                    'forearm_girth' => 25.0,
+                    'height' => 169.8,
+                    'hip_girth' => 96.1,
+                    'leg_length' => 94.0,
+                    'shoulder_breadth' => 44.0,
+                    'shoulder_to_crotch' => 63.0,
+                    'thigh_girth' => 55.5,
+                    'waist_girth' => 78.2,
+                    'wrist_girth' => 17.0,
+                ],
+                'bodym_per_field_confidence' => ['height' => 0.95],
+                'bodym_prediction_intervals_cm' => ['height' => [168.0, 171.0]],
+                'data' => [
+                    'chest' => 92.4,
+                    'shirt_length' => 68.5,
+                    'pants_waist' => 78.2,
+                ],
+            ],
+        ], now()->addMinutes(10));
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.analysis-result', $jobId))
+            ->assertOk()
+            ->assertSee('Indikator BodyM Resmi')
+            ->assertSee('LINGKAR')
+            ->assertSee('LEBAR')
+            ->assertSee('PANJANG')
+            ->assertSee('TINGGI')
+            ->assertSee('Tinggi badan')
+            ->assertSee('Lingkar lengan bawah')
+            ->assertDontSee('Ukuran Baju')
+            ->assertDontSee('Ukuran Celana')
+            ->assertDontSee('Panjang Baju')
+            ->assertDontSee('Panjang Inseam');
+    }
+
     public function test_failed_background_analysis_keeps_the_problematic_photo_detail(): void
     {
         $user = User::factory()->create(['role' => 'user']);
@@ -294,7 +359,30 @@ class MeasurementMultiviewTest extends TestCase
             'reference_mode' => 'fixed',
             'confidence_score' => 0.86,
             'quality_score' => 0.82,
-            'raw_cv_json' => json_encode(['success' => true]),
+            'raw_cv_json' => json_encode(['success' => true, 'measurement_method' => 'bodym_ml']),
+            'bodym_contract_version' => 'bodym.v1',
+            'bodym_response_contract_version' => 'bodym-response.v1',
+            'bodym_model_version' => 'bodym-v1',
+            'bodym_status' => 'ok',
+            'bodym_data_json' => json_encode([
+                'ankle_girth' => 22.0,
+                'arm_length' => 57.2,
+                'bicep_girth' => 31.4,
+                'calf_girth' => 36.4,
+                'chest_girth' => 92.4,
+                'forearm_girth' => 25.0,
+                'height' => 169.8,
+                'hip_girth' => 96.1,
+                'leg_length' => 94.0,
+                'shoulder_breadth' => 44.0,
+                'shoulder_to_crotch' => 63.0,
+                'thigh_girth' => 55.5,
+                'waist_girth' => 78.2,
+                'wrist_girth' => 17.0,
+            ]),
+            'bodym_per_field_confidence_json' => json_encode(['chest_girth' => 0.91]),
+            'bodym_prediction_intervals_cm_json' => json_encode(['chest_girth' => [90.4, 94.4]]),
+            'bodym_diagnostics_json' => json_encode(['legacy_fallback_fields' => ['shirt_length']]),
             'neck' => 38.2,
             'original_neck' => 38.2,
             'chest' => 93.0,
@@ -333,19 +421,38 @@ class MeasurementMultiviewTest extends TestCase
             'original_outseam' => 98.5,
             'rise' => 22.2,
             'original_rise' => 22.2,
+            'bodym_chest_girth' => 93.0,
+            'original_bodym_chest_girth' => 92.4,
+            'bodym_waist_girth' => 79.2,
+            'original_bodym_waist_girth' => 78.2,
+            'bodym_leg_length' => 94.0,
+            'original_bodym_leg_length' => 94.0,
         ]);
 
         $response->assertRedirect(route('user.measurement.index'));
         $this->assertDatabaseHas('measurements', [
             'user_id' => $user->id,
-            'measurement_method' => 'multiview_cv',
+            'measurement_method' => 'bodym_ml',
             'reference_mode' => 'fixed',
+            'bodym_contract_version' => 'bodym.v1',
+            'bodym_response_contract_version' => 'bodym-response.v1',
+            'bodym_model_version' => 'bodym-v1',
+            'bodym_status' => 'ok',
             'chest' => 93.0,
+            'waist' => 79.2,
+            'pants_waist' => 79.2,
             'thigh' => 55.5,
+            'bodym_chest_girth' => 93.0,
+            'bodym_waist_girth' => 79.2,
+            'bodym_leg_length' => 94.0,
         ]);
 
         $measurement = Measurement::firstOrFail();
         $this->assertArrayHasKey('chest', $measurement->edited_fields_json);
+        $this->assertArrayHasKey('bodym_chest_girth', $measurement->edited_fields_json);
+        $this->assertSame(92.4, $measurement->bodym_data['chest_girth']);
+        $this->assertSame(0.91, $measurement->bodym_per_field_confidence['chest_girth']);
+        $this->assertSame([90.4, 94.4], $measurement->bodym_prediction_intervals_cm['chest_girth']);
     }
 
     public function test_ktp_reference_uses_fixed_dimensions_without_manual_input(): void

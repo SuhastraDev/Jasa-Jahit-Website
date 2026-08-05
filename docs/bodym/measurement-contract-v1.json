@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zrinttailor.duckdns.org/schemas/bodym-measurement-v1.json",
+  "title": "ZRINTTAILOR BodyM Measurement Response v1",
+  "type": "object",
+  "required": [
+    "success",
+    "contract_version",
+    "model_version",
+    "measurement_method",
+    "data",
+    "per_field_confidence",
+    "quality_score"
+  ],
+  "properties": {
+    "success": { "const": true },
+    "contract_version": { "const": "bodym.v1" },
+    "model_version": { "type": "string", "minLength": 1 },
+    "measurement_method": { "const": "bodym_ml" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ankle_girth",
+        "arm_length",
+        "bicep_girth",
+        "calf_girth",
+        "chest_girth",
+        "forearm_girth",
+        "height",
+        "hip_girth",
+        "leg_length",
+        "shoulder_breadth",
+        "shoulder_to_crotch",
+        "thigh_girth",
+        "waist_girth",
+        "wrist_girth"
+      ],
+      "properties": {
+        "ankle_girth": { "$ref": "#/$defs/centimeters" },
+        "arm_length": { "$ref": "#/$defs/centimeters" },
+        "bicep_girth": { "$ref": "#/$defs/centimeters" },
+        "calf_girth": { "$ref": "#/$defs/centimeters" },
+        "chest_girth": { "$ref": "#/$defs/centimeters" },
+        "forearm_girth": { "$ref": "#/$defs/centimeters" },
+        "height": { "$ref": "#/$defs/centimeters" },
+        "hip_girth": { "$ref": "#/$defs/centimeters" },
+        "leg_length": { "$ref": "#/$defs/centimeters" },
+        "shoulder_breadth": { "$ref": "#/$defs/centimeters" },
+        "shoulder_to_crotch": { "$ref": "#/$defs/centimeters" },
+        "thigh_girth": { "$ref": "#/$defs/centimeters" },
+        "waist_girth": { "$ref": "#/$defs/centimeters" },
+        "wrist_girth": { "$ref": "#/$defs/centimeters" }
+      }
+    },
+    "per_field_confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ankle_girth",
+        "arm_length",
+        "bicep_girth",
+        "calf_girth",
+        "chest_girth",
+        "forearm_girth",
+        "height",
+        "hip_girth",
+        "leg_length",
+        "shoulder_breadth",
+        "shoulder_to_crotch",
+        "thigh_girth",
+        "waist_girth",
+        "wrist_girth"
+      ],
+      "properties": {
+        "ankle_girth": { "$ref": "#/$defs/confidence" },
+        "arm_length": { "$ref": "#/$defs/confidence" },
+        "bicep_girth": { "$ref": "#/$defs/confidence" },
+        "calf_girth": { "$ref": "#/$defs/confidence" },
+        "chest_girth": { "$ref": "#/$defs/confidence" },
+        "forearm_girth": { "$ref": "#/$defs/confidence" },
+        "height": { "$ref": "#/$defs/confidence" },
+        "hip_girth": { "$ref": "#/$defs/confidence" },
+        "leg_length": { "$ref": "#/$defs/confidence" },
+        "shoulder_breadth": { "$ref": "#/$defs/confidence" },
+        "shoulder_to_crotch": { "$ref": "#/$defs/confidence" },
+        "thigh_girth": { "$ref": "#/$defs/confidence" },
+        "waist_girth": { "$ref": "#/$defs/confidence" },
+        "wrist_girth": { "$ref": "#/$defs/confidence" }
+      }
+    },
+    "quality_score": { "$ref": "#/$defs/confidence" },
+    "diagnostics": { "type": "object" },
+    "debug": { "type": "object" }
+  },
+  "$defs": {
+    "centimeters": { "type": "number", "exclusiveMinimum": 0 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "additionalProperties": true
+}
