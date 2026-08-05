@@ -1013,7 +1013,7 @@ def process_measurement(
                 "error": str(exc),
                 "failed_view": failed_view,
                 "failed_reason": exc.code,
-                "correction": "Periksa kotak A4/KTP dan pastikan siluet depan serta samping utuh.",
+                "correction": "Pastikan siluet foto depan dan samping utuh, tubuh penuh terlihat, serta background cukup kontras.",
                 "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
                 "diagnostic_details": exc.details,
             }
@@ -1041,10 +1041,10 @@ def process_measurement(
         fields = ", ".join(f"{MEASUREMENT_LABELS.get(item['field'], item['field'])} {item['value']}cm" for item in invalid_measurements[:5])
         return {
             "success": False,
-            "error": f"Hasil ukuran tidak masuk akal ({fields}). Periksa kembali kotak A4/KTP manual, pastikan kotak hanya mengikuti pinggir benda patokan, lalu ulangi analisis.",
+            "error": f"Hasil ukuran tidak masuk akal ({fields}). Ulangi foto dengan tubuh penuh, pose tegak, dan background yang membuat siluet terbaca jelas.",
             "failed_reason": "unrealistic_measurements",
             "failed_view": "multiple",
-            "correction": "Periksa kembali kotak A4/KTP dan siluet pada ketiga foto.",
+            "correction": "Periksa kembali siluet pada ketiga foto. A4/KTP hanya menjadi bantuan visual, bukan syarat utama pengukuran.",
             "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
             "invalid_measurements": invalid_measurements,
             "debug": {

@@ -344,7 +344,7 @@
                                  <div class="flex items-center justify-between gap-2 mb-2">
                                     <div>
                                         <p class="text-xs font-black text-slate-900">Pemeriksaan foto</p>
-                                        <p class="mt-0.5 text-[11px] text-slate-500">Oranye mengikuti tubuh, merah mengikuti A4/KTP.</p>
+                                        <p class="mt-0.5 text-[11px] text-slate-500">Biru mengikuti siluet tubuh, merah hanya bantuan A4/KTP.</p>
                                     </div>
                                     <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" :class="detectionReports.{{ $key }}?.ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="detectionReports.{{ $key }}?.ready ? 'Siap dianalisis' : 'Perlu dicek'"></span>
                                  </div>
@@ -379,7 +379,7 @@
                                             Hapus kotak manual
                                         </button>
                                     </div>
-                                    <p x-show="manualReferenceBoxes.{{ $key }}" x-cloak class="mt-2 text-[11px] font-bold text-red-700">Kotak merah aktif dan akan dipakai sebagai skala {{ $label }}.</p>
+                                    <p x-show="manualReferenceBoxes.{{ $key }}" x-cloak class="mt-2 text-[11px] font-bold text-red-700">Kotak merah aktif sebagai bantuan patokan. Ukuran utama tetap dihitung dari bentuk tubuh.</p>
                                 </div>
                                 <ul class="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3">
                                     <template x-for="item in detectionReports.{{ $key }}?.checks || []" :key="item.label">
@@ -559,7 +559,7 @@
 
             <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
-                <p class="text-xs text-slate-500" x-text="manualReferenceBoxes[referenceEditor.pose] ? 'Kotak manual aktif dan akan dipakai untuk menghitung skala.' : 'Belum ada kotak manual untuk foto ini.'"></p>
+                <p class="text-xs text-slate-500" x-text="manualReferenceBoxes[referenceEditor.pose] ? 'Kotak manual aktif sebagai bantuan patokan, bukan syarat utama analisis.' : 'Belum ada kotak manual untuk foto ini.'"></p>
                 <div class="grid grid-cols-2 gap-2 sm:flex">
                     <button type="button" @click="clearManualReferenceBox(referenceEditor.pose)" class="min-h-11 touch-manipulation rounded-lg border border-red-100 px-4 py-2 text-xs font-bold text-red-600">
                         Hapus kotak
@@ -972,7 +972,12 @@
                 this.poseList.forEach((pose) => {
                     const file = this.$refs[`${pose.key}Input`]?.files?.[0];
                     const report = this.detectionReports[pose.key];
-                    if (!file || nextErrors[pose.key]) return;
+                    if (!file) return;
+
+                    const existingError = nextErrors[pose.key] || '';
+                    const referenceOnlyError = /A4|KTP|patokan|kotak|skala tubuh|proporsional/i.test(existingError);
+                    if (existingError && !referenceOnlyError) return;
+
                     if (!report) {
                         nextErrors[pose.key] = `${pose.label}: pemeriksaan foto belum selesai. Tunggu preview dan kotak patokan muncul.`;
                         return;
@@ -988,13 +993,14 @@
                         return;
                     }
 
-                    const manualBox = this.manualReferenceBoxes[pose.key];
-                    if (manualBox && !this.referenceBoxRatioOk(manualBox)) {
-                        nextErrors[pose.key] = `${pose.label}: kotak ${this.refObject.toUpperCase()} kurang proporsional. Sistem tetap bisa menghitung dari bentuk tubuh, tapi patokan ini tidak dipakai sebagai skala utama.`;
-                    }
+                    delete nextErrors[pose.key];
                 });
 
                 this.uploadErrors = nextErrors;
+                if (Object.keys(this.uploadErrors).length === 0
+                    && /A4|KTP|patokan|kotak|skala tubuh|proporsional|perlu diperbaiki/i.test(this.totalUploadError || '')) {
+                    this.totalUploadError = '';
+                }
             },
             async startCamera() {
                 this.cameraError = '';
@@ -1192,6 +1198,7 @@
                         this.setReferenceBox(pose, report.refBox, canvas);
                     }
                     this.redrawPreviewOverlay(pose);
+                    this.validateDetectionReports();
                     URL.revokeObjectURL(image.src);
                 };
                 image.src = URL.createObjectURL(file);
@@ -1401,24 +1408,29 @@
                 const report = this.detectionReports[pose];
                 const canvas = this.$refs[`${pose}DetectionCanvas`];
                 const box = this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], canvas);
-                if (!report || !box || !this.referenceBoxRatioOk(box)) return;
+                if (!report || !box) return;
 
                 report.refBox = { x: box.x, y: box.y, w: box.w, h: box.h };
                 if (report.checks?.[2]) {
                     report.checks[2] = {
-                        label: `${this.refObject.toUpperCase()} ditandai oleh kotak merah.`,
+                        label: `${this.refObject.toUpperCase()} ditandai sebagai bantuan patokan.`,
                         ok: true,
                     };
                 }
                 if (report.checks?.[3]) {
+                    const ratioOk = this.referenceBoxRatioOk(box);
                     report.checks[3] = {
-                        label: 'Proporsi kotak merah sesuai benda patokan.',
+                        label: ratioOk
+                            ? 'Proporsi kotak merah sesuai benda patokan.'
+                            : 'Proporsi patokan kurang pas, tetapi analisis tetap memakai bentuk tubuh.',
                         ok: true,
                     };
                 }
                 report.ready = this.poseDetectorReady && report.checks.every((item) => item.ok);
                 this.detectionReports = { ...this.detectionReports };
-                delete this.uploadErrors[pose];
+                if (/A4|KTP|patokan|kotak|skala tubuh|proporsional/i.test(this.uploadErrors[pose] || '')) {
+                    delete this.uploadErrors[pose];
+                }
                 this.uploadErrors = { ...this.uploadErrors };
                 if (Object.keys(this.uploadErrors).length === 0) this.totalUploadError = '';
             },
@@ -1832,56 +1844,73 @@
                 ctx.lineJoin = 'round';
 
                 const joints = Object.fromEntries(shape.joints.map((joint) => [joint.name, px(joint)]));
-                const shoulderWidth = joints.leftShoulder && joints.rightShoulder
-                    ? Math.abs(joints.rightShoulder.x - joints.leftShoulder.x)
-                    : width * 0.18;
-                const limbWidth = Math.max(10, shoulderWidth * 0.18);
-                const legWidth = Math.max(12, shoulderWidth * 0.22);
-                const headRadius = Math.max(10, shoulderWidth * 0.22);
-                const headCenter = joints.nose
-                    ? { x: joints.nose.x, y: joints.nose.y + headRadius * 0.55 }
+                const midpointPx = (a, b) => a && b
+                    ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
                     : null;
+                const offsetPoint = (point, dx = 0, dy = 0) => point
+                    ? { x: point.x + dx, y: point.y + dy }
+                    : null;
+                const valid = (points) => points.filter(Boolean);
+                const shoulderWidth = joints.leftShoulder && joints.rightShoulder
+                    ? Math.max(18, Math.abs(joints.rightShoulder.x - joints.leftShoulder.x))
+                    : width * 0.18;
+                const ankleMid = midpointPx(joints.leftAnkle, joints.rightAnkle);
+                const bodyHeight = ankleMid && joints.nose ? Math.max(80, ankleMid.y - joints.nose.y) : height * 0.72;
+                const headHalf = Math.max(10, shoulderWidth * 0.22);
+                const armPad = Math.max(8, shoulderWidth * 0.12);
+                const calfPad = Math.max(7, shoulderWidth * 0.10);
+                const footPad = Math.max(10, shoulderWidth * 0.16);
+                const shoulderMid = midpointPx(joints.leftShoulder, joints.rightShoulder);
+                const headTop = joints.nose
+                    ? offsetPoint(joints.nose, 0, -bodyHeight * 0.055)
+                    : offsetPoint(shoulderMid, 0, -bodyHeight * 0.18);
 
-                const drawCapsule = (points, strokeWidth) => {
-                    const validPoints = points.filter(Boolean);
-                    if (validPoints.length < 2) return;
-                    ctx.beginPath();
-                    ctx.moveTo(validPoints[0].x, validPoints[0].y);
-                    validPoints.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-                    ctx.lineWidth = strokeWidth;
-                    ctx.strokeStyle = 'rgba(245, 158, 11, 0.24)';
-                    ctx.stroke();
-                    ctx.lineWidth = Math.max(2, strokeWidth * 0.18);
-                    ctx.strokeStyle = '#f59e0b';
-                    ctx.stroke();
-                };
+                const leftOutline = valid([
+                    offsetPoint(headTop, -headHalf * 0.35, headHalf * 0.1),
+                    offsetPoint(joints.nose, -headHalf, headHalf * 0.7),
+                    offsetPoint(joints.leftShoulder, -armPad, 0),
+                    offsetPoint(joints.leftElbow, -armPad * 0.95, 0),
+                    offsetPoint(joints.leftWrist, -armPad * 0.65, 0),
+                    offsetPoint(joints.leftHip, -armPad * 0.55, 0),
+                    offsetPoint(joints.leftKnee, -calfPad, 0),
+                    offsetPoint(joints.leftAnkle, -footPad * 0.8, footPad * 0.15),
+                ]);
+                const rightOutline = valid([
+                    offsetPoint(joints.rightAnkle, footPad * 0.8, footPad * 0.15),
+                    offsetPoint(joints.rightKnee, calfPad, 0),
+                    offsetPoint(joints.rightHip, armPad * 0.55, 0),
+                    offsetPoint(joints.rightWrist, armPad * 0.65, 0),
+                    offsetPoint(joints.rightElbow, armPad * 0.95, 0),
+                    offsetPoint(joints.rightShoulder, armPad, 0),
+                    offsetPoint(joints.nose, headHalf, headHalf * 0.7),
+                    offsetPoint(headTop, headHalf * 0.35, headHalf * 0.1),
+                ]);
+                const outline = [...leftOutline, ...rightOutline];
 
-                if (headCenter) {
-                    ctx.beginPath();
-                    ctx.ellipse(headCenter.x, headCenter.y, headRadius * 0.74, headRadius, 0, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
-                    ctx.strokeStyle = '#f59e0b';
-                    ctx.lineWidth = Math.max(2, width * 0.004);
-                    ctx.fill();
-                    ctx.stroke();
+                if (outline.length < 6) {
+                    ctx.restore();
+                    this.drawPoseGuideOverlay(ctx, width, height, shape.bodyBox || { x: width * 0.35, y: height * 0.08, w: width * 0.3, h: height * 0.85 });
+                    return;
                 }
 
-                drawCapsule([joints.leftShoulder, joints.leftElbow, joints.leftWrist], limbWidth);
-                drawCapsule([joints.rightShoulder, joints.rightElbow, joints.rightWrist], limbWidth);
-                drawCapsule([joints.leftHip, joints.leftKnee, joints.leftAnkle], legWidth);
-                drawCapsule([joints.rightHip, joints.rightKnee, joints.rightAnkle], legWidth);
-
-                const torso = shape.torso.map(px);
                 ctx.beginPath();
-                torso.forEach((point, index) => {
-                    if (index === 0) ctx.moveTo(point.x, point.y);
-                    else ctx.lineTo(point.x, point.y);
-                });
+                ctx.moveTo(outline[0].x, outline[0].y);
+                for (let index = 1; index < outline.length; index += 1) {
+                    const previous = outline[index - 1];
+                    const current = outline[index];
+                    const controlX = (previous.x + current.x) / 2;
+                    const controlY = (previous.y + current.y) / 2;
+                    ctx.quadraticCurveTo(previous.x, previous.y, controlX, controlY);
+                }
+                ctx.quadraticCurveTo(outline[outline.length - 1].x, outline[outline.length - 1].y, outline[0].x, outline[0].y);
                 ctx.closePath();
-                ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
-                ctx.strokeStyle = '#f59e0b';
-                ctx.lineWidth = Math.max(2, width * 0.006);
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.16)';
+                ctx.strokeStyle = '#0ea5e9';
+                ctx.lineWidth = Math.max(2, width * 0.005);
+                ctx.shadowColor = 'rgba(14, 165, 233, 0.22)';
+                ctx.shadowBlur = Math.max(8, width * 0.015);
                 ctx.fill();
+                ctx.shadowBlur = 0;
                 ctx.stroke();
                 ctx.restore();
             },
