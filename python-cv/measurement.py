@@ -7,6 +7,7 @@ body pose cannot be detected, because guessing scale from image height makes
 tailoring measurements unstable.
 """
 import math
+import multiprocessing
 import os
 import time
 import json
@@ -24,7 +25,7 @@ if not os.path.exists(MODEL_PATH):
     url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
     urllib.request.urlretrieve(url, MODEL_PATH)
 
-_POSE_LANDMARKER = None
+POSE_SUBPROCESS_TIMEOUT_SECONDS = 30
 
 MEASUREMENT_LIMITS_CM = {
     "neck": (20, 70),
@@ -351,42 +352,102 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, ma
     }
 
 
-def detect_pose(image):
-    global _POSE_LANDMARKER
+def _pose_worker(image, model_path, want_segmentation, queue):
+    """Runs in a separate process. MediaPipe's segmentation output has a
+    known upstream crash on some photos on the Linux CPU delegate
+    (SIGABRT: "Check failed: 1 == ChannelSize()",
+    google-ai-edge/mediapipe#5394, #4757) that Python cannot catch as an
+    exception because it aborts the whole process. Isolating detection here
+    means that abort only kills this worker, not the FastAPI service.
+    """
+    try:
+        BaseOptions = mp.tasks.BaseOptions
+        PoseLandmarker = mp.tasks.vision.PoseLandmarker
+        PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
+        VisionRunningMode = mp.tasks.vision.RunningMode
 
-    BaseOptions = mp.tasks.BaseOptions
-    PoseLandmarker = mp.tasks.vision.PoseLandmarker
-    PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-    VisionRunningMode = mp.tasks.vision.RunningMode
-
-    if _POSE_LANDMARKER is None:
-        # output_segmentation_masks is left off: MediaPipe's Pose Landmarker
-        # segmentation output has a long-standing upstream crash
-        # ("Check failed: 1 == ChannelSize()") on CPU delegate across
-        # platforms (google-ai-edge/mediapipe#5394, #4757). build_body_mask()
-        # already falls back to OpenCV GrabCut when no segmentation mask is
-        # available, so we skip the crashing feature entirely.
         options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=MODEL_PATH),
+            base_options=BaseOptions(model_asset_path=model_path),
             running_mode=VisionRunningMode.IMAGE,
             num_poses=1,
-            output_segmentation_masks=False,
+            output_segmentation_masks=want_segmentation,
         )
-        _POSE_LANDMARKER = PoseLandmarker.create_from_options(options)
+        landmarker = PoseLandmarker.create_from_options(options)
 
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-    result = _POSE_LANDMARKER.detect(mp_image)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        result = landmarker.detect(mp_image)
 
-    if not result.pose_landmarks:
+        if not result.pose_landmarks:
+            queue.put(("ok", None))
+            return
+
+        landmarks = [(lm.x, lm.y, lm.visibility) for lm in result.pose_landmarks[0]]
+        mask = None
+        if result.segmentation_masks:
+            mask = np.array(result.segmentation_masks[0].numpy_view(), copy=True)
+        queue.put(("ok", {"landmarks": landmarks, "mask": mask}))
+    except Exception as exc:  # noqa: BLE001 - report back instead of losing the worker silently
+        queue.put(("error", str(exc)))
+
+
+def _run_pose_detection(image, want_segmentation):
+    ctx = multiprocessing.get_context("spawn")
+    queue = ctx.Queue()
+    process = ctx.Process(target=_pose_worker, args=(image, MODEL_PATH, want_segmentation, queue))
+    process.start()
+
+    # Drain the queue before join(): a large payload (segmentation mask, a
+    # few MB) can exceed the OS pipe buffer, so the child's feeder thread
+    # may still be flushing after the child process itself has exited.
+    # join()-then-get_nowait() can race and miss data that arrives moments
+    # later, which looks exactly like a crash. Poll get() with a short
+    # timeout instead of one long blocking call, so a genuine crash (no
+    # data will ever arrive) is noticed in ~1s rather than the full
+    # timeout, while a slow-but-alive worker still gets the full budget.
+    status, payload = None, None
+    deadline = time.time() + POSE_SUBPROCESS_TIMEOUT_SECONDS
+    while time.time() < deadline:
+        try:
+            status, payload = queue.get(timeout=0.5)
+            break
+        except Exception:
+            if not process.is_alive():
+                try:
+                    status, payload = queue.get(timeout=0.5)
+                except Exception:
+                    status, payload = None, None
+                break
+
+    process.join(5)
+    if process.is_alive():
+        process.terminate()
+        process.join()
+
+    if status != "ok":
+        return None
+
+    return payload
+
+
+def detect_pose(image):
+    # Try with segmentation first for the best silhouette quality (the
+    # BodyM ML model is trained on it). If the worker process crashes or
+    # times out, retry without segmentation - build_body_mask() falls back
+    # to OpenCV GrabCut when no mask is available.
+    payload = _run_pose_detection(image, want_segmentation=True)
+    if payload is None:
+        payload = _run_pose_detection(image, want_segmentation=False)
+
+    if payload is None:
         return None
 
     h, w = image.shape[:2]
-    landmarks = result.pose_landmarks[0]
+    landmarks = payload["landmarks"]
 
     def point(idx):
-        lm = landmarks[idx]
-        return (lm.x * w, lm.y * h, lm.visibility)
+        x, y, visibility = landmarks[idx]
+        return (x * w, y * h, visibility)
 
     keypoints = {
         "nose": point(0),
@@ -403,15 +464,12 @@ def detect_pose(image):
         "left_ankle": point(27),
         "right_ankle": point(28),
     }
-    visible_count = sum(1 for lm in landmarks if lm.visibility > 0.5)
-    segmentation_mask = None
-    if result.segmentation_masks:
-        segmentation_mask = np.array(result.segmentation_masks[0].numpy_view(), copy=True)
+    visible_count = sum(1 for _, _, visibility in landmarks if visibility > 0.5)
 
     return {
         "keypoints": keypoints,
         "confidence": round(visible_count / 33, 2),
-        "segmentation_mask": segmentation_mask,
+        "segmentation_mask": payload["mask"],
     }
 
 
