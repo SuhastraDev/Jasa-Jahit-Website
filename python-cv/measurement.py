@@ -1460,14 +1460,15 @@ def process_measurement(
     )
     uses_silhouette_fallback = bool(pose_fallback_views)
     uses_model_fallback = model_fallback_diagnostics is not None
-    if uses_estimated_scale or uses_silhouette_fallback or uses_model_fallback:
-        confidence_cap = (
-            0.72
-            if uses_estimated_scale
-            else 0.68
-            if uses_model_fallback
-            else 0.78
-        )
+    confidence_caps = []
+    if uses_estimated_scale:
+        confidence_caps.append(0.72)
+    if uses_silhouette_fallback:
+        confidence_caps.append(0.78)
+    if uses_model_fallback:
+        confidence_caps.append(0.68)
+    if confidence_caps:
+        confidence_cap = min(confidence_caps)
         quality_score = round(min(quality_score, confidence_cap), 2)
         per_field_confidence = {
             field: round(min(confidence, confidence_cap), 2)
