@@ -98,6 +98,18 @@ def make_side_mask():
 
 
 class MeasurementGeometryTest(unittest.TestCase):
+    def test_pose_detection_does_not_request_native_segmentation_mask(self):
+        image = np.zeros((32, 32, 3), dtype=np.uint8)
+
+        with patch.object(measurement, "_run_pose_detection", return_value=None) as runner:
+            result = measurement.detect_pose(image)
+
+        self.assertIsNone(result)
+        runner.assert_called_once()
+        args, kwargs = runner.call_args
+        self.assertIs(args[0], image)
+        self.assertFalse(kwargs["want_segmentation"])
+
     @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
     def test_manual_reference_roi_refines_a4_edges_after_contrast_processing(self):
         image = np.full((500, 400, 3), 185, dtype=np.uint8)

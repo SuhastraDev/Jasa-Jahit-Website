@@ -435,9 +435,10 @@ def detect_pose(image):
     # BodyM ML model is trained on it). If the worker process crashes or
     # times out, retry without segmentation - build_body_mask() falls back
     # to OpenCV GrabCut when no mask is available.
-    payload = _run_pose_detection(image, want_segmentation=True)
-    if payload is None:
-        payload = _run_pose_detection(image, want_segmentation=False)
+    # The Linux CPU delegate can abort inside MediaPipe when native
+    # segmentation output is requested. The downstream OpenCV mask builder
+    # already handles the no-mask case, so pose detection only needs landmarks.
+    payload = _run_pose_detection(image, want_segmentation=False)
 
     if payload is None:
         return None

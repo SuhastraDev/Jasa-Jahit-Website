@@ -116,6 +116,19 @@ class Measurement extends Model
         ];
     }
 
+    /**
+     * PostgreSQL does not accept PDO's integer binding for a boolean column.
+     * Keep the public model value boolean while binding PostgreSQL literals.
+     */
+    public function setIsEditedAttribute(mixed $value): void
+    {
+        $normalized = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+
+        $this->attributes['is_edited'] = $this->getConnection()->getDriverName() === 'pgsql'
+            ? ($normalized ? 'true' : 'false')
+            : $normalized;
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

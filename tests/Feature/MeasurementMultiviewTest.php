@@ -41,6 +41,23 @@ class MeasurementMultiviewTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_measurement_boolean_uses_database_compatible_value_for_postgres(): void
+    {
+        $previousDriver = config('database.default');
+
+        try {
+            config(['database.default' => 'pgsql']);
+            $measurement = new Measurement(['is_edited' => false]);
+
+            $this->assertSame('false', $measurement->getAttributes()['is_edited']);
+
+            $measurement->is_edited = true;
+            $this->assertSame('true', $measurement->getAttributes()['is_edited']);
+        } finally {
+            config(['database.default' => $previousDriver]);
+        }
+    }
+
     public function test_measurement_analysis_requires_front_side_and_back_photos(): void
     {
         $user = User::factory()->create(['role' => 'user']);
