@@ -360,11 +360,17 @@ def detect_pose(image):
     VisionRunningMode = mp.tasks.vision.RunningMode
 
     if _POSE_LANDMARKER is None:
+        # output_segmentation_masks is left off: MediaPipe's Pose Landmarker
+        # segmentation output has a long-standing upstream crash
+        # ("Check failed: 1 == ChannelSize()") on CPU delegate across
+        # platforms (google-ai-edge/mediapipe#5394, #4757). build_body_mask()
+        # already falls back to OpenCV GrabCut when no segmentation mask is
+        # available, so we skip the crashing feature entirely.
         options = PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
             running_mode=VisionRunningMode.IMAGE,
             num_poses=1,
-            output_segmentation_masks=True,
+            output_segmentation_masks=False,
         )
         _POSE_LANDMARKER = PoseLandmarker.create_from_options(options)
 
