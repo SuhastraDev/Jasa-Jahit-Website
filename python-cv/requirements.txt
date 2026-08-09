@@ -1,9 +1,9 @@
 fastapi
 uvicorn
-mediapipe
-opencv-python
-numpy
-pillow
+mediapipe==0.10.33
+opencv-python==4.13.0.92
+numpy==2.4.4
+pillow==12.2.0
 python-multipart
 diskcache
 joblib==1.5.3
