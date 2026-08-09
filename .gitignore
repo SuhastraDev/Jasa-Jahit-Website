@@ -21,6 +21,7 @@
 /storage/pail
 /vendor
 /python-cv/venv
+/python-cv/.job_cache
 __pycache__/
 *.py[cod]
 _ide_helper.php

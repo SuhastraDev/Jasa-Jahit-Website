@@ -5,5 +5,6 @@ opencv-python
 numpy
 pillow
 python-multipart
+diskcache
 joblib==1.5.3
 scikit-learn==1.7.1

@@ -5,11 +5,12 @@ Endpoint:
     POST /measure — Accept front, side, back photos + reference info, return measurements.
     GET  /health  — Health check endpoint.
 """
-import threading
 import time
 import uuid
+from pathlib import Path
 from typing import Literal
 
+from diskcache import Cache
 from fastapi import BackgroundTasks, FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -31,8 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-measurement_jobs = {}
-measurement_jobs_lock = threading.Lock()
+# Persisted to disk (not in-process memory) so in-flight jobs survive a
+# service restart (e.g. the deploy pipeline restarting zrinttailor-cv).
+JOB_CACHE_DIR = Path(__file__).resolve().parent / ".job_cache"
+JOB_TTL_SECONDS = 3600
+measurement_jobs = Cache(str(JOB_CACHE_DIR))
 
 
 class BodyMFeatureRequest(BaseModel):
@@ -41,22 +45,15 @@ class BodyMFeatureRequest(BaseModel):
 
 
 def update_job(job_id, **values):
-    with measurement_jobs_lock:
-        if job_id in measurement_jobs:
-            measurement_jobs[job_id].update(values)
-            measurement_jobs[job_id]["updated_at"] = time.time()
+    job = measurement_jobs.get(job_id)
+    if job is not None:
+        job.update(values)
+        job["updated_at"] = time.time()
+        measurement_jobs.set(job_id, job, expire=JOB_TTL_SECONDS)
 
 
 def cleanup_jobs():
-    cutoff = time.time() - 3600
-    with measurement_jobs_lock:
-        expired = [
-            job_id
-            for job_id, job in measurement_jobs.items()
-            if job.get("updated_at", job.get("created_at", 0)) < cutoff
-        ]
-        for job_id in expired:
-            measurement_jobs.pop(job_id, None)
+    measurement_jobs.expire()
 
 
 def run_measurement_job(job_id, front_bytes, side_bytes, back_bytes, options):
@@ -208,8 +205,9 @@ async def create_measurement_job(
     cleanup_jobs()
     job_id = uuid.uuid4().hex
     now = time.time()
-    with measurement_jobs_lock:
-        measurement_jobs[job_id] = {
+    measurement_jobs.set(
+        job_id,
+        {
             "job_id": job_id,
             "status": "queued",
             "progress": {
@@ -220,7 +218,9 @@ async def create_measurement_job(
             },
             "created_at": now,
             "updated_at": now,
-        }
+        },
+        expire=JOB_TTL_SECONDS,
+    )
 
     background_tasks.add_task(
         run_measurement_job,
@@ -245,11 +245,10 @@ async def create_measurement_job(
 @app.get("/measure/jobs/{job_id}")
 async def measurement_job_status(job_id: str):
     cleanup_jobs()
-    with measurement_jobs_lock:
-        job = measurement_jobs.get(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="Pekerjaan analisis tidak ditemukan")
-        return dict(job)
+    job = measurement_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Pekerjaan analisis tidak ditemukan")
+    return dict(job)
 
 
 if __name__ == "__main__":
