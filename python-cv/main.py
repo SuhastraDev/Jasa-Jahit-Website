@@ -56,6 +56,24 @@ def cleanup_jobs():
     measurement_jobs.expire()
 
 
+INTERRUPTED_JOB_MESSAGE = "Analisis terhenti karena server sedang diperbarui. Silakan ulangi proses pengukuran."
+
+
+@app.on_event("startup")
+def recover_interrupted_jobs():
+    """Jobs left 'queued'/'processing' belonged to a background task on the
+    previous process — that task is gone after a restart and will never
+    finish, so mark them failed instead of leaving clients polling forever.
+    """
+    for job_id in list(measurement_jobs.iterkeys()):
+        job = measurement_jobs.get(job_id)
+        if job and job.get("status") in ("queued", "processing"):
+            job["status"] = "failed"
+            job["error"] = INTERRUPTED_JOB_MESSAGE
+            job["updated_at"] = time.time()
+            measurement_jobs.set(job_id, job, expire=JOB_TTL_SECONDS)
+
+
 def run_measurement_job(job_id, front_bytes, side_bytes, back_bytes, options):
     update_job(job_id, status="processing")
 
