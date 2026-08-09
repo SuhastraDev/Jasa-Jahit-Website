@@ -252,8 +252,7 @@ class MeasurementController extends Controller
 
     public function startAnalysis(
         Request $request,
-        CVMeasurementService $cvService,
-        PhotoValidationService $validator
+        CVMeasurementService $cvService
     ) {
         $request->validate($this->analysisRules(), $this->analysisMessages());
 
@@ -269,14 +268,6 @@ class MeasurementController extends Controller
             $request->ref_width_cm,
             $request->ref_height_cm,
         );
-
-        $validations = $validator->validateMany([
-            'front_photo' => ['photo' => $request->file('front_photo'), 'orientation' => 'front'],
-            'side_photo' => ['photo' => $request->file('side_photo'), 'orientation' => 'side'],
-            'back_photo' => ['photo' => $request->file('back_photo'), 'orientation' => 'back'],
-        ], $request->ref_object, $request->reference_mode);
-
-        $photoWarnings = $this->collectPhotoIssues($validations);
 
         $job = $cvService->startMeasurementJob(
             $request->file('front_photo'),
@@ -309,7 +300,7 @@ class MeasurementController extends Controller
             'ref_width_cm' => $refWidthCm,
             'ref_height_cm' => $refHeightCm,
             'reference_mode' => $request->reference_mode,
-            'photo_validation_warnings' => $photoWarnings,
+            'photo_validation_warnings' => [],
             'result' => null,
         ];
         Cache::put($this->analysisCacheKey($job['job_id']), $context, now()->addMinutes(45));

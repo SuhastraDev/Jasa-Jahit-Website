@@ -96,13 +96,6 @@ class MeasurementMultiviewTest extends TestCase
         Storage::fake('public');
         $user = User::factory()->create(['role' => 'user']);
 
-        $this->mock(PhotoValidationService::class, function ($mock): void {
-            $mock->shouldReceive('validateMany')->once()->andReturn([
-                'front_photo' => ['valid' => true, 'issues' => []],
-                'side_photo' => ['valid' => true, 'issues' => []],
-                'back_photo' => ['valid' => true, 'issues' => []],
-            ]);
-        });
         $this->mock(CVMeasurementService::class, function ($mock): void {
             $mock->shouldReceive('startMeasurementJob')->once()->andReturn([
                 'success' => true,
@@ -132,17 +125,13 @@ class MeasurementMultiviewTest extends TestCase
         $this->assertTrue(Cache::has("measurement_analysis:{$user->id}:job-mobile-123"));
     }
 
-    public function test_photo_preflight_warning_does_not_block_background_measurement_analysis(): void
+    public function test_background_measurement_analysis_skips_photo_preflight(): void
     {
         Storage::fake('public');
         $user = User::factory()->create(['role' => 'user']);
 
         $this->mock(PhotoValidationService::class, function ($mock): void {
-            $mock->shouldReceive('validateMany')->once()->andReturn([
-                'front_photo' => ['valid' => false, 'issues' => ['Patokan tidak terbaca']],
-                'side_photo' => ['valid' => false, 'issues' => ['Pose tidak terbaca']],
-                'back_photo' => ['valid' => false, 'issues' => ['Patokan tidak terbaca']],
-            ]);
+            $mock->shouldNotReceive('validateMany');
         });
         $this->mock(CVMeasurementService::class, function ($mock): void {
             $mock->shouldReceive('startMeasurementJob')->once()->andReturn([
