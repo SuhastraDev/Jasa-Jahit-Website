@@ -1,10 +1,10 @@
 """
 Multi-view body measurement estimation for ZRINTTAILOR.
 
-The service requires front, side, and back photos. Each photo must contain a
-standing calibration marker. The system rejects the request when the marker or
-body pose cannot be detected, because guessing scale from image height makes
-tailoring measurements unstable.
+The service uses front, side, and back photos. A calibration marker improves
+scale, while the body silhouette remains the primary input for the estimator.
+MediaPipe landmarks are an accelerator, not a hard dependency: OpenCV can
+recover a silhouette and an approximate pose when the landmark worker fails.
 """
 import math
 import multiprocessing
@@ -14,8 +14,12 @@ import json
 import urllib.request
 
 import cv2
-import mediapipe as mp
 import numpy as np
+
+try:
+    import mediapipe as mp
+except ModuleNotFoundError:  # OpenCV silhouette fallback remains usable without it.
+    mp = None
 
 from bodym_inference import BodyMInferenceError, get_bodym_service
 from utils import euclidean_distance, get_reference_dimensions, midpoint, pixel_to_cm
@@ -25,7 +29,13 @@ if not os.path.exists(MODEL_PATH):
     url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
     urllib.request.urlretrieve(url, MODEL_PATH)
 
-POSE_SUBPROCESS_TIMEOUT_SECONDS = 30
+try:
+    POSE_SUBPROCESS_TIMEOUT_SECONDS = max(
+        3,
+        min(20, int(os.getenv("POSE_SUBPROCESS_TIMEOUT_SECONDS", "8"))),
+    )
+except ValueError:
+    POSE_SUBPROCESS_TIMEOUT_SECONDS = 8
 
 MEASUREMENT_LIMITS_CM = {
     "neck": (20, 70),
@@ -361,6 +371,10 @@ def _pose_worker(image, model_path, want_segmentation, queue):
     means that abort only kills this worker, not the FastAPI service.
     """
     try:
+        if mp is None:
+            queue.put(("error", "mediapipe_unavailable"))
+            return
+
         BaseOptions = mp.tasks.BaseOptions
         PoseLandmarker = mp.tasks.vision.PoseLandmarker
         PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
@@ -534,6 +548,202 @@ def build_body_mask(image, keypoints, ref_contour=None, pose_segmentation=None):
     body_mask = cv2.morphologyEx(body_mask, cv2.MORPH_OPEN, kernel, iterations=1)
     body_mask = cv2.morphologyEx(body_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
     return isolate_pose_component(body_mask, keypoints)
+
+
+def _select_silhouette_component(candidate, ref_contour=None):
+    """Keep the most plausible full-body component from an OpenCV mask."""
+    if candidate is None or candidate.size == 0:
+        return np.zeros((0, 0), dtype=np.uint8)
+
+    mask = np.where(candidate > 0, 255, 0).astype(np.uint8)
+    h, w = mask.shape[:2]
+    if ref_contour is not None:
+        cv2.drawContours(mask, [ref_contour], -1, 0, thickness=cv2.FILLED)
+
+    kernel_size = max(3, int(round(min(h, w) * 0.012)))
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    if count <= 1:
+        return np.zeros_like(mask)
+
+    image_area = float(max(1, h * w))
+    best_label = 0
+    best_score = 0.0
+    for label in range(1, count):
+        x, y, bound_w, bound_h, area = stats[label]
+        height_ratio = bound_h / max(1.0, float(h))
+        area_ratio = area / image_area
+        center_x = (x + bound_w / 2) / max(1.0, float(w))
+        center_quality = max(0.0, 1.0 - abs(center_x - 0.5) * 2.0)
+        edge_penalty = 0.35 if x <= 1 or x + bound_w >= w - 1 else 1.0
+
+        if area_ratio < 0.002 or height_ratio < 0.28:
+            continue
+        score = (
+            min(1.0, height_ratio / 0.82) * 0.55
+            + min(1.0, area_ratio / 0.18) * 0.25
+            + center_quality * 0.20
+        ) * edge_penalty
+        if score > best_score:
+            best_label = label
+            best_score = score
+
+    if best_label == 0:
+        return np.zeros_like(mask)
+
+    selected = np.where(labels == best_label, 255, 0).astype(np.uint8)
+    return cv2.morphologyEx(selected, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+
+def extract_silhouette_without_pose(image, ref_contour=None):
+    """Extract a full-body silhouette without relying on landmark detection.
+
+    The normal protocol keeps the person near the center of the frame. GrabCut
+    uses that geometry first, then a border-color contrast mask is used for
+    plain backgrounds where GrabCut cannot separate the subject reliably.
+    """
+    if image is None or image.ndim != 3 or image.shape[0] < 32 or image.shape[1] < 32:
+        return np.zeros((0, 0), dtype=np.uint8)
+
+    height, width = image.shape[:2]
+    candidates = []
+    rect_x = max(1, int(round(width * 0.08)))
+    rect_y = max(1, int(round(height * 0.015)))
+    rect_w = max(2, min(width - rect_x - 1, int(round(width * 0.84))))
+    rect_h = max(2, min(height - rect_y - 1, int(round(height * 0.965))))
+    grabcut_mask = np.zeros((height, width), dtype=np.uint8)
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+    try:
+        cv2.grabCut(
+            image,
+            grabcut_mask,
+            (rect_x, rect_y, rect_w, rect_h),
+            bgd_model,
+            fgd_model,
+            4,
+            cv2.GC_INIT_WITH_RECT,
+        )
+        candidates.append(np.where((grabcut_mask == 1) | (grabcut_mask == 3), 255, 0).astype(np.uint8))
+    except cv2.error:
+        pass
+
+    border = np.concatenate(
+        (
+            image[0, :, :],
+            image[-1, :, :],
+            image[:, 0, :],
+            image[:, -1, :],
+        ),
+        axis=0,
+    ).astype(np.float32)
+    background_color = np.median(border, axis=0)
+    color_distance = np.linalg.norm(image.astype(np.float32) - background_color, axis=2)
+    distance_threshold = max(12.0, float(np.percentile(color_distance, 68)))
+    contrast_mask = np.where(color_distance >= distance_threshold, 255, 0).astype(np.uint8)
+    candidates.append(contrast_mask)
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
+    _, dark_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    candidates.append(dark_mask)
+
+    best = np.zeros((height, width), dtype=np.uint8)
+    best_area = 0
+    best_height = 0
+    for candidate in candidates:
+        selected = _select_silhouette_component(candidate, ref_contour)
+        if selected.size == 0:
+            continue
+        body_bounds = largest_body_bounds(selected)
+        if body_bounds is None:
+            continue
+        _, _, bound_w, bound_h = body_bounds
+        area = cv2.countNonZero(selected)
+        # Prefer a tall subject, then prefer the larger clean component.
+        if bound_h > best_height or (bound_h == best_height and area > best_area):
+            best = selected
+            best_area = area
+            best_height = bound_h
+
+    return best
+
+
+def _silhouette_row_span(mask, y, band=4):
+    """Return the outer foreground span around one body level."""
+    if mask is None or mask.size == 0:
+        return None
+    height, _ = mask.shape[:2]
+    y = int(max(0, min(height - 1, round(y))))
+    top = max(0, y - band)
+    bottom = min(height, y + band + 1)
+    columns = np.where(mask[top:bottom, :].max(axis=0) > 0)[0]
+    if len(columns) < 2:
+        return None
+    return float(columns[0]), float(columns[-1])
+
+
+def infer_pose_from_silhouette(mask, view):
+    """Build stable proxy landmarks from a valid silhouette.
+
+    These points are used only for level sampling and scale fallback. The
+    learned estimator still receives the complete front/side masks.
+    """
+    body_bounds = largest_body_bounds(mask)
+    if body_bounds is None:
+        return None
+
+    x, y, width, height = body_bounds
+    center_x = x + width / 2.0
+
+    def span_at(ratio, default_width):
+        span = _silhouette_row_span(mask, y + height * ratio)
+        if span is None:
+            half = default_width / 2.0
+            return center_x - half, center_x + half
+        return span
+
+    def point_from_span(ratio, side, default_width):
+        left, right = span_at(ratio, default_width)
+        return (left if side == "left" else right, y + height * ratio, 0.58)
+
+    shoulder_span = span_at(0.18, max(8.0, width * 0.36))
+    hip_span = span_at(0.49, max(8.0, width * 0.28))
+    knee_span = span_at(0.74, max(6.0, width * 0.14))
+    ankle_span = span_at(0.98, max(4.0, width * 0.10))
+    elbow_span = span_at(0.35, max(8.0, width * 0.32))
+    wrist_span = span_at(0.49, max(6.0, width * 0.28))
+
+    # A side view still needs two x positions for the existing width sampler;
+    # the narrow span correctly represents body depth rather than inventing a
+    # front-view shoulder width.
+    keypoints = {
+        "nose": (center_x, y + height * 0.08, 0.58),
+        "left_shoulder": (shoulder_span[0], y + height * 0.18, 0.58),
+        "right_shoulder": (shoulder_span[1], y + height * 0.18, 0.58),
+        "left_elbow": (elbow_span[0], y + height * 0.35, 0.58),
+        "right_elbow": (elbow_span[1], y + height * 0.35, 0.58),
+        "left_wrist": (wrist_span[0], y + height * 0.49, 0.58),
+        "right_wrist": (wrist_span[1], y + height * 0.49, 0.58),
+        "left_hip": (hip_span[0], y + height * 0.49, 0.58),
+        "right_hip": (hip_span[1], y + height * 0.49, 0.58),
+        "left_knee": (knee_span[0], y + height * 0.74, 0.58),
+        "right_knee": (knee_span[1], y + height * 0.74, 0.58),
+        "left_ankle": (ankle_span[0], y + height * 0.98, 0.58),
+        "right_ankle": (ankle_span[1], y + height * 0.98, 0.58),
+    }
+    return {
+        "keypoints": keypoints,
+        "confidence": 0.58,
+        "segmentation_mask": None,
+        "detector": "opencv_silhouette",
+        "view": view,
+    }
 
 
 def isolate_pose_component(mask, keypoints):
@@ -850,6 +1060,7 @@ def process_measurement(
     masks = {}
     bounds = {}
     pose_statures = {}
+    pose_fallback_views = []
 
     view_progress = {
         "front": (16, 25),
@@ -871,15 +1082,32 @@ def process_measurement(
 
         progress("body_segmentation", body_percent, f"Mendeteksi pose dan siluet pada {label}", view)
         pose = detect_pose(image)
+        mask = None
         if pose is None:
-            return {
-                "success": False,
-                "error": f"Pose tubuh tidak terdeteksi pada {label}. Pastikan seluruh badan terlihat jelas.",
-                "failed_view": view,
-                "failed_reason": "pose_not_detected",
-                "correction": "Ambil ulang foto dengan kepala sampai kaki terlihat dan tangan tidak menutup badan.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-            }
+            mask = extract_silhouette_without_pose(
+                image,
+                scale_result.get("contour") if scale_result else None,
+            )
+            if largest_body_bounds(mask) is None:
+                return {
+                    "success": False,
+                    "error": f"Tubuh dan siluet tidak terbaca pada {label}. Pastikan seluruh badan terlihat jelas dan background cukup kontras.",
+                    "failed_view": view,
+                    "failed_reason": "pose_not_detected",
+                    "correction": "Ambil ulang foto dengan kepala sampai kaki terlihat, tubuh berada di tengah, dan background tidak menyatu dengan pakaian.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                }
+            pose = infer_pose_from_silhouette(mask, view)
+            if pose is None:
+                return {
+                    "success": False,
+                    "error": f"Siluet tubuh tidak cukup utuh pada {label} untuk menghitung ukuran.",
+                    "failed_view": view,
+                    "failed_reason": "silhouette_not_detected",
+                    "correction": "Pastikan kepala sampai kaki terlihat penuh dan tidak tertutup benda lain.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                }
+            pose_fallback_views.append(view)
 
         points = pose["keypoints"]
         scale_reason = None
@@ -918,22 +1146,33 @@ def process_measurement(
             scale_result = fallback_scale
             stature_cm = float(scale_result["estimated_stature_cm"])
 
-        mask = build_body_mask(
-            image,
-            points,
-            scale_result["contour"],
-            pose.get("segmentation_mask"),
-        )
+        if mask is None:
+            mask = build_body_mask(
+                image,
+                points,
+                scale_result["contour"],
+                pose.get("segmentation_mask"),
+            )
         body_bounds = largest_body_bounds(mask)
         if body_bounds is None:
-            return {
-                "success": False,
-                "error": f"Siluet tubuh tidak terbaca pada {label}. Gunakan background polos dan pencahayaan cukup.",
-                "failed_view": view,
-                "failed_reason": "silhouette_not_detected",
-                "correction": "Ambil ulang foto dengan kontras tubuh dan background yang lebih jelas.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-            }
+            fallback_mask = extract_silhouette_without_pose(
+                image,
+                scale_result.get("contour") if scale_result else None,
+            )
+            fallback_bounds = largest_body_bounds(fallback_mask)
+            if fallback_bounds is None:
+                return {
+                    "success": False,
+                    "error": f"Siluet tubuh tidak terbaca pada {label}. Gunakan background polos dan pencahayaan cukup.",
+                    "failed_view": view,
+                    "failed_reason": "silhouette_not_detected",
+                    "correction": "Ambil ulang foto dengan kontras tubuh dan background yang lebih jelas.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                }
+            mask = fallback_mask
+            body_bounds = fallback_bounds
+            if view not in pose_fallback_views:
+                pose_fallback_views.append(view)
 
         scales[view] = scale_result["scale"]
         scale_sources[view] = scale_result["source"]
@@ -1192,10 +1431,12 @@ def process_measurement(
         source == "anthropometric_pose_estimate"
         for source in scale_sources.values()
     )
-    if uses_estimated_scale:
-        quality_score = round(min(quality_score, 0.72), 2)
+    uses_silhouette_fallback = bool(pose_fallback_views)
+    if uses_estimated_scale or uses_silhouette_fallback:
+        confidence_cap = 0.72 if uses_estimated_scale else 0.78
+        quality_score = round(min(quality_score, confidence_cap), 2)
         per_field_confidence = {
-            field: round(min(confidence, 0.72), 2)
+            field: round(min(confidence, confidence_cap), 2)
             for field, confidence in per_field_confidence.items()
         }
 
@@ -1208,6 +1449,8 @@ def process_measurement(
             "reference_processing": reference_processing[view],
             "pixels_per_cm": round(float(scales[view]), 6),
             "pose_confidence": poses[view]["confidence"],
+            "pose_detector": poses[view].get("detector", "mediapipe"),
+            "pose_fallback": view in pose_fallback_views,
             "body_bounds": [int(value) for value in bounds[view]],
             "used_by_bodym": view in ("front", "side"),
         }
@@ -1236,6 +1479,11 @@ def process_measurement(
             "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
             "reference_scale_sources": scale_sources,
             "reference_processing": reference_processing,
+            "pose_detectors": {
+                key: poses[key].get("detector", "mediapipe")
+                for key in poses
+            },
+            "pose_fallback_views": pose_fallback_views,
             "scale_consistency": round(float(scale_consistency), 4),
             "stature_consistency": round(float(stature_consistency), 4),
             "width_samples": width_debug,

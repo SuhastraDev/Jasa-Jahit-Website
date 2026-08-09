@@ -111,6 +111,132 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertFalse(kwargs["want_segmentation"])
 
     @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_opencv_silhouette_fallback_builds_full_body_proxy_pose(self):
+        mask = make_front_mask()
+
+        result = measurement.infer_pose_from_silhouette(mask, "front")
+
+        self.assertIsNotNone(result)
+        self.assertEqual("opencv_silhouette", result["detector"])
+        self.assertEqual(13, len(result["keypoints"]))
+        self.assertLess(result["keypoints"]["nose"][1], result["keypoints"]["left_ankle"][1])
+        self.assertLess(result["keypoints"]["left_shoulder"][1], result["keypoints"]["left_hip"][1])
+        self.assertGreater(result["keypoints"]["left_ankle"][1], 350)
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_opencv_silhouette_fallback_separates_subject_from_plain_background(self):
+        image = np.full((420, 220, 3), 220, dtype=np.uint8)
+        cv2.circle(image, (110, 62), 20, (35, 35, 35), -1)
+        cv2.ellipse(image, (110, 145), (42, 78), 0, 0, 360, (35, 35, 35), -1)
+        cv2.line(image, (78, 115), (60, 230), (35, 35, 35), 18)
+        cv2.line(image, (142, 115), (160, 230), (35, 35, 35), 18)
+        cv2.line(image, (98, 205), (92, 380), (35, 35, 35), 23)
+        cv2.line(image, (122, 205), (128, 380), (35, 35, 35), 23)
+
+        mask = measurement.extract_silhouette_without_pose(image)
+        bounds = measurement.largest_body_bounds(mask)
+
+        self.assertIsNotNone(bounds)
+        _, _, _, body_height = bounds
+        self.assertGreater(body_height, 300)
+        self.assertLess(cv2.countNonZero(mask), image.shape[0] * image.shape[1] * 0.7)
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_process_measurement_continues_when_landmark_worker_is_unavailable(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
+        progress_events = []
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", return_value=None),
+            patch.object(measurement, "detect_pose", return_value=None),
+            patch.object(measurement, "extract_silhouette_without_pose", side_effect=masks),
+            patch.object(measurement, "bodym_enabled", return_value=False),
+        ):
+            result = measurement.process_measurement(
+                b"front",
+                b"side",
+                b"back",
+                "a4",
+                21.0,
+                29.7,
+                progress_callback=progress_events.append,
+            )
+
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual("multiview_pose_estimate", result["measurement_method"])
+        self.assertEqual(["opencv_silhouette"] * 3, [
+            result["photo_diagnostics"][view]["pose_detector"]
+            for view in ("front", "side", "back")
+        ])
+        self.assertEqual(["front", "side", "back"], result["debug"]["pose_fallback_views"])
+        self.assertIn("confidence", [event["stage"] for event in progress_events])
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_model_receives_opencv_masks_when_landmark_worker_is_unavailable(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
+        prediction_fields = {
+            "ankle_girth": 22.0,
+            "arm_length": 58.0,
+            "bicep_girth": 31.0,
+            "calf_girth": 36.0,
+            "chest_girth": 91.5,
+            "forearm_girth": 25.0,
+            "height": 174.0,
+            "hip_girth": 94.0,
+            "leg_length": 99.0,
+            "shoulder_breadth": 42.0,
+            "shoulder_to_crotch": 67.0,
+            "thigh_girth": 54.0,
+            "waist_girth": 79.0,
+            "wrist_girth": 17.0,
+        }
+        bodym_result = {
+            "model_version": "bodym-v1",
+            "contract_version": "bodym.v1",
+            "preprocessing_version": "bodym-preprocess.v1",
+            "measurement_method": "bodym_ml",
+            "status": "accepted",
+            "diagnostic_codes": [],
+            "implausible_fields": [],
+            "ood": {"distance": 1.0, "validation_percentile": 0.4},
+            "predictions_cm": prediction_fields,
+            "prediction_intervals_cm": {
+                field: {"lower": value - 2, "upper": value + 2}
+                for field, value in prediction_fields.items()
+            },
+            "per_field_confidence": {field: 0.84 for field in prediction_fields},
+            "confidence_definition": "empirical validation coverage",
+            "coverage": 0.9,
+            "silent_clipping": False,
+            "feature_count": 224,
+            "views": {"front": {}, "side": {}},
+        }
+        service = MagicMock()
+        service.predict_masks.return_value = bodym_result
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", return_value=None),
+            patch.object(measurement, "detect_pose", return_value=None),
+            patch.object(measurement, "extract_silhouette_without_pose", side_effect=masks),
+            patch.object(measurement, "bodym_enabled", return_value=True),
+            patch.object(measurement, "get_bodym_service", return_value=service),
+        ):
+            result = measurement.process_measurement(
+                b"front", b"side", b"back", "a4", 21.0, 29.7
+            )
+
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual("bodym_ml", result["measurement_method"])
+        self.assertEqual(91.5, result["data"]["chest"])
+        service.predict_masks.assert_called_once()
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
     def test_manual_reference_roi_refines_a4_edges_after_contrast_processing(self):
         image = np.full((500, 400, 3), 185, dtype=np.uint8)
         cv2.rectangle(image, (245, 130), (329, 249), (245, 245, 245), -1)
@@ -243,8 +369,10 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertLessEqual(result["per_field_confidence"]["thigh"], 0.9)
         self.assertGreater(result["per_field_confidence"]["thigh"], 0.5)
 
-    def test_process_measurement_rejects_reference_box_with_wrong_proportion(self):
+    def test_process_measurement_uses_pose_scale_when_reference_proportion_is_unreliable(self):
         dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
         distorted_scale = {
             "scale": 3.0,
             "contour": None,
@@ -258,6 +386,9 @@ class MeasurementGeometryTest(unittest.TestCase):
             patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
             patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
             patch.object(measurement, "calculate_scale", return_value=distorted_scale),
+            patch.object(measurement, "detect_pose", side_effect=poses),
+            patch.object(measurement, "build_body_mask", side_effect=masks),
+            patch.object(measurement, "bodym_enabled", return_value=False),
         ):
             result = measurement.process_measurement(
                 b"front",
@@ -268,12 +399,17 @@ class MeasurementGeometryTest(unittest.TestCase):
                 29.7,
             )
 
-        self.assertFalse(result["success"])
-        self.assertEqual("front", result["failed_view"])
-        self.assertEqual("invalid_reference_proportion", result["failed_reason"])
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual("multiview_pose_estimate", result["measurement_method"])
+        self.assertEqual(
+            ["anthropometric_pose_estimate"] * 3,
+            list(result["debug"]["reference_scale_sources"].values()),
+        )
 
-    def test_process_measurement_rejects_reference_scale_that_makes_body_too_small(self):
+    def test_process_measurement_uses_pose_scale_when_reference_scale_is_implausible(self):
         dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
         oversized_reference = {
             "scale": 8.0,
             "contour": None,
@@ -291,7 +427,9 @@ class MeasurementGeometryTest(unittest.TestCase):
             patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
             patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
             patch.object(measurement, "calculate_scale", return_value=oversized_reference),
-            patch.object(measurement, "detect_pose", return_value=pose(front_pose())),
+            patch.object(measurement, "detect_pose", side_effect=poses),
+            patch.object(measurement, "build_body_mask", side_effect=masks),
+            patch.object(measurement, "bodym_enabled", return_value=False),
         ):
             result = measurement.process_measurement(
                 b"front",
@@ -302,12 +440,12 @@ class MeasurementGeometryTest(unittest.TestCase):
                 29.7,
             )
 
-        self.assertFalse(result["success"])
-        self.assertEqual("front", result["failed_view"])
-        self.assertEqual("invalid_reference_scale", result["failed_reason"])
-        self.assertLess(result["estimated_stature_cm"], 110)
-        self.assertEqual("manual", result["reference_source"])
-        self.assertFalse(result["reference_processing"]["refined"])
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual("multiview_pose_estimate", result["measurement_method"])
+        self.assertEqual(
+            ["anthropometric_pose_estimate"] * 3,
+            list(result["debug"]["reference_scale_sources"].values()),
+        )
 
     def test_bodym_enabled_uses_model_output_and_returns_versioned_diagnostics(self):
         dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
