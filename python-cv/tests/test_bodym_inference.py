@@ -23,6 +23,23 @@ class ConstantEstimator:
         return np.tile(values, (len(X), 1))
 
 
+class DiagnosticConstantEstimator(ConstantEstimator):
+    def predict_with_diagnostics(self, X: np.ndarray):
+        predictions = self.predict(X)
+        return predictions, [
+            {
+                "method": "test-retrieval",
+                "neighbors_used": 3,
+                "base_predictions_cm": row.tolist(),
+                "retrieval_predictions_cm": row.tolist(),
+                "corrections_cm": np.zeros_like(row).tolist(),
+                "correction_modes": ["base"] * len(row),
+                "correction_strengths": [0.0] * len(row),
+            }
+            for row in predictions
+        ]
+
+
 class PassthroughTransformer:
     def transform(self, X: np.ndarray) -> np.ndarray:
         return np.asarray(X, dtype=np.float64)
@@ -35,7 +52,7 @@ class ZeroDistanceNeighbors:
         return (distances, indexes) if return_distance else indexes
 
 
-def write_bundle(path: Path) -> None:
+def write_bundle(path: Path, estimator=None) -> None:
     calibration = {
         key: {
             "nominal_coverage": coverage,
@@ -55,7 +72,7 @@ def write_bundle(path: Path) -> None:
             "random_seed": 7,
             "feature_names": feature_names(),
             "target_names": MEASUREMENT_FIELDS,
-            "estimator": ConstantEstimator(),
+            "estimator": estimator or ConstantEstimator(),
             "diagnostics": {
                 "calibration_subject_count": 10,
                 "calibration": calibration,
@@ -115,6 +132,34 @@ class BodyMInferenceTest(unittest.TestCase):
         self.assertEqual(result["feature_names"], feature_names())
         self.assertAlmostEqual(result["views"]["front"]["body_height_cm"], 160.0)
         self.assertAlmostEqual(result["views"]["side"]["body_height_cm"], 160.0)
+
+    def test_service_preserves_retrieval_diagnostics(self) -> None:
+        from bodym_inference import BodyMModelService
+
+        with tempfile.TemporaryDirectory() as directory:
+            model_path = Path(directory) / "bodym-v1.joblib"
+            write_bundle(model_path, DiagnosticConstantEstimator())
+            result = BodyMModelService(model_path).predict_features(
+                np.zeros(len(feature_names()))
+            )
+
+        self.assertEqual(result["retrieval"]["method"], "test-retrieval")
+        self.assertEqual(result["retrieval"]["neighbors_used"], 3)
+
+    def test_committed_artifact_loads_hybrid_estimator(self) -> None:
+        from bodym_inference import BodyMModelService
+
+        model_path = PYTHON_CV_ROOT / "models" / "bodym-v1.joblib"
+        result = BodyMModelService(model_path).predict_features(
+            np.zeros(len(feature_names()), dtype=np.float32)
+        )
+
+        self.assertEqual(
+            result["retrieval"]["method"],
+            "subject-centroid-retrieval+calibrated-residual",
+        )
+        self.assertEqual(result["retrieval"]["reference_subject_count"], 2018)
+        self.assertEqual(result["confidence_definition"], "empirical validation coverage")
 
 
 if __name__ == "__main__":

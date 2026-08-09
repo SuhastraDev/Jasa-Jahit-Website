@@ -18,6 +18,24 @@ class FirstFeaturesEstimator:
         return values[:, :2]
 
 
+class DiagnosticFirstFeaturesEstimator(FirstFeaturesEstimator):
+    def predict_with_diagnostics(self, X: np.ndarray):
+        predictions = self.predict(X)
+        diagnostics = [
+            {
+                "method": "test-retrieval",
+                "neighbors_used": 2,
+                "base_predictions_cm": [float(value) for value in row],
+                "retrieval_predictions_cm": [float(value + 1.0) for value in row],
+                "corrections_cm": [0.0 for _ in row],
+                "correction_modes": ["base" for _ in row],
+                "correction_strengths": [0.0 for _ in row],
+            }
+            for row in predictions
+        ]
+        return predictions, diagnostics
+
+
 class BodyMCalibrationTest(unittest.TestCase):
     def test_conformal_quantile_uses_finite_sample_higher_rule(self) -> None:
         from bodym_finalization import conformal_quantile
@@ -83,6 +101,38 @@ class BodyMCalibrationTest(unittest.TestCase):
         self.assertIn("out_of_distribution", result["rows"][0]["diagnostic_codes"])
         self.assertIn("implausible_prediction", result["rows"][0]["diagnostic_codes"])
         self.assertFalse(result["silent_clipping"])
+
+    def test_prediction_maps_retrieval_diagnostics_to_measurement_names(self) -> None:
+        from bodym_finalization import fit_diagnostics, predict_with_guardrails
+
+        rng = np.random.default_rng(17)
+        train_X = rng.normal(size=(80, 4))
+        train_y = train_X[:, :2]
+        validation_X = rng.normal(size=(30, 4))
+        validation_y = validation_X[:, :2]
+        estimator = DiagnosticFirstFeaturesEstimator()
+        diagnostics = fit_diagnostics(
+            estimator,
+            train_X,
+            train_y,
+            validation_X,
+            validation_y,
+            np.asarray([f"subject-{index}" for index in range(30)]),
+            ("first", "second"),
+        )
+        bundle = {
+            "estimator": estimator,
+            "feature_names": ("a", "b", "c", "d"),
+            "target_names": ("first", "second"),
+            "diagnostics": diagnostics,
+        }
+
+        result = predict_with_guardrails(bundle, np.zeros((1, 4)), coverage=0.90)
+
+        retrieval = result["rows"][0]["retrieval"]
+        self.assertEqual(retrieval["method"], "test-retrieval")
+        self.assertEqual(retrieval["base_predictions_cm"], {"first": 0.0, "second": 0.0})
+        self.assertEqual(retrieval["correction_modes"], {"first": "base", "second": "base"})
 
 
 if __name__ == "__main__":

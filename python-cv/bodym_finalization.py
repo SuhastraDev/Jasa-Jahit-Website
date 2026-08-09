@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 import hashlib
 import json
 import math
@@ -19,6 +20,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
 from bodym_contract import CONTRACT_VERSION, MEASUREMENT_FIELDS
+from bodym_hybrid import SilhouetteRetrievalResidualRegressor
 from bodym_modeling import (
     EXPERIMENT_VERSION,
     RANDOM_SEED,
@@ -30,8 +32,9 @@ from bodym_modeling import (
 from bodym_preprocessing import PREPROCESSING_VERSION, feature_names
 
 
-FINALIZATION_VERSION = "bodym-finalization.v1"
+FINALIZATION_VERSION = "bodym-finalization.v2"
 FINAL_MODEL_VERSION = "bodym-v1"
+HYBRID_ESTIMATOR_VERSION = "silhouette-retrieval-residual.v1"
 SUPPORTED_COVERAGES = (0.80, 0.90, 0.95)
 DEFAULT_STABILITY_SEEDS = (20260803, 20260804, 20260805)
 
@@ -270,7 +273,18 @@ def predict_with_guardrails(
             {"coverage": coverage},
         )
     calibration = diagnostics["calibration"][calibration_key]
-    predictions = np.asarray(bundle["estimator"].predict(features), dtype=np.float64)
+    estimator = bundle["estimator"]
+    retrieval_rows: list[dict[str, Any]] | None = None
+    if hasattr(estimator, "predict_with_diagnostics"):
+        raw_predictions, retrieval_rows = estimator.predict_with_diagnostics(features)
+        predictions = np.asarray(raw_predictions, dtype=np.float64)
+        if len(retrieval_rows) != len(features):
+            raise FinalizationValidationError(
+                "retrieval_diagnostic_shape_mismatch",
+                "Jumlah diagnosis retrieval tidak cocok dengan jumlah prediksi.",
+            )
+    else:
+        predictions = np.asarray(estimator.predict(features), dtype=np.float64)
     if predictions.shape != (features.shape[0], len(target_names)) or not np.isfinite(predictions).all():
         raise FinalizationValidationError(
             "invalid_prediction",
@@ -309,8 +323,7 @@ def predict_with_guardrails(
 
         bands = calibration["error_band_cm"]
         empirical = calibration["empirical_coverage"]
-        rows.append(
-            {
+        result_row = {
                 "status": status,
                 "diagnostic_codes": codes,
                 "implausible_fields": implausible_fields,
@@ -333,10 +346,32 @@ def predict_with_guardrails(
                     name: float(empirical[name]) for name in target_names
                 },
             }
-        )
+        if retrieval_rows is not None:
+            retrieval = dict(retrieval_rows[row_index])
+            for key in (
+                "base_predictions_cm",
+                "retrieval_predictions_cm",
+                "corrections_cm",
+                "correction_modes",
+                "correction_strengths",
+            ):
+                values = retrieval.get(key)
+                if values is None:
+                    continue
+                if len(values) != len(target_names):
+                    raise FinalizationValidationError(
+                        "retrieval_target_shape_mismatch",
+                        "Diagnosis retrieval tidak cocok dengan daftar target.",
+                        {"field": key},
+                    )
+                retrieval[key] = {
+                    name: values[index] for index, name in enumerate(target_names)
+                }
+            result_row["retrieval"] = retrieval
+        rows.append(result_row)
     return {
         "coverage": coverage,
-        "confidence_definition": "empirical BodyM validation coverage",
+        "confidence_definition": "empirical validation coverage",
         "silent_clipping": False,
         "rows": rows,
     }
@@ -423,13 +458,19 @@ def _write_model_card(report: dict[str, Any], path: Path) -> None:
     selected = report["selection"]
     test_metrics = report["final_test"]["metrics"]["subject_level"]
     calibration = report["calibration"]
+    corrected_targets = [
+        name
+        for name, details in report["retrieval"]["per_target"].items()
+        if details["mode"] != "base"
+    ]
     content = f"""# Model Card BodyM v1
 
 ## Ringkasan
 
-BodyM v1 adalah model regresi MLP ringan untuk memprediksi 14 indikator ukuran
-tubuh dari 224 fitur siluet terstruktur. Model final memakai seed
-`{selected['random_seed']}` dan dipilih hanya dari validation split BodyM.
+BodyM v1 memakai regresi MLP ringan, pencarian centroid siluet terdekat, dan
+koreksi residual tervalidasi untuk memprediksi 14 indikator ukuran tubuh dari
+224 fitur siluet terstruktur. Model dasar memakai seed
+`{selected['random_seed']}` dan koreksi dipilih hanya dari validation split BodyM.
 
 Model ini belum merupakan bukti akurasi foto pengguna ZRINTTAILOR. Angka di
 bawah berlaku untuk dataset BodyM terkontrol dan pipeline fitur Fase 2.
@@ -446,10 +487,18 @@ bawah berlaku untuk dataset BodyM terkontrol dan pipeline fitur Fase 2.
 
 - Kandidat: MLP dengan arsitektur yang sama pada {len(report['stability']['runs'])} seed.
 - Validation macro MAE terpilih: {selected['validation_subject_macro_mae_cm']:.3f} cm.
+- Validation macro MAE model dasar: {selected['validation_base_subject_macro_mae_cm']:.3f} cm.
 - Rata-rata antar seed: {report['stability']['validation_macro_mae_mean_cm']:.3f} cm.
 - Deviasi standar antar seed: {report['stability']['validation_macro_mae_std_cm']:.3f} cm.
 - Model-only latency p95: {selected['model_latency']['p95_ms']:.3f} ms.
 - Ukuran estimator tanpa kompresi: {selected['serialized_estimator_bytes']} byte.
+
+## Retrieval dan koreksi residual
+
+- Referensi retrieval: {report['retrieval']['reference_subject_count']} centroid subject training.
+- Neighbor per prediksi: {report['retrieval']['neighbors']}.
+- Target dengan koreksi aktif: {', '.join(corrected_targets)}.
+- Target lain tetap memakai prediksi model dasar karena koreksi tidak memperbaiki MAE validation.
 
 ## Hasil final test
 
@@ -525,6 +574,16 @@ def run_phase4_finalization(
             {"selected_model": selected_algorithm},
         )
 
+    phase3_model_path = Path(phase3_report["artifacts"]["selected_model"]).resolve()
+    phase3_bundle = joblib.load(phase3_model_path)
+    phase3_seed = int(phase3_bundle.get("random_seed", phase3_report["random_seed"]))
+    if phase3_seed not in stability_seeds:
+        raise FinalizationValidationError(
+            "phase3_seed_missing_from_stability",
+            "Seed model terpilih Fase 3 wajib disertakan dalam uji stabilitas.",
+            {"phase3_seed": phase3_seed, "stability_seeds": list(stability_seeds)},
+        )
+
     dataset = load_modeling_dataset(matrix_path, manifest_path)
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -533,19 +592,64 @@ def run_phase4_finalization(
     for seed in stability_seeds:
         if progress:
             progress("seed_started", seed, None)
-        estimator, configuration = build_model(selected_algorithm, random_seed=seed)
+        base_is_prefit = seed == phase3_seed
+        if base_is_prefit:
+            base_estimator = phase3_bundle["estimator"]
+            configuration = {
+                "algorithm": selected_algorithm,
+                "source": "verified-phase3-selected-artifact",
+                "artifact": str(phase3_model_path),
+                "random_seed": phase3_seed,
+            }
+        else:
+            base_estimator, configuration = build_model(selected_algorithm, random_seed=seed)
+        estimator = SilhouetteRetrievalResidualRegressor(
+            base_estimator,
+            base_is_prefit=base_is_prefit,
+            n_neighbors=12,
+            pca_components=32,
+            distance_power=2.0,
+            correction_grid=(0.25, 0.5, 0.75, 1.0),
+            minimum_improvement_cm=0.01,
+            random_state=seed,
+        )
         started = time.perf_counter()
-        estimator.fit(dataset.train.X, dataset.train.y)
+        estimator.fit(
+            dataset.train.X,
+            dataset.train.y,
+            subject_ids=dataset.train.subject_ids,
+        )
+        estimator.calibrate(
+            dataset.validation.X,
+            dataset.validation.y,
+            subject_ids=dataset.validation.subject_ids,
+        )
         fit_seconds = time.perf_counter() - started
         validation_predictions = estimator.predict(dataset.validation.X)
         validation_metrics = evaluate_predictions(dataset.validation, validation_predictions)
+        validation_base_metrics = evaluate_predictions(
+            dataset.validation,
+            estimator.base_estimator_.predict(dataset.validation.X),
+        )
         latency = _benchmark(estimator.predict, dataset.validation.X[:1])
         serialized_bytes = _serialized_size(estimator)
         run = {
             "random_seed": seed,
-            "configuration": configuration,
+            "configuration": {
+                "base": configuration,
+                "hybrid": estimator.correction_summary(dataset.target_names),
+            },
+            "base_source": (
+                "verified-phase3-selected-artifact" if base_is_prefit else "retrained-stability-run"
+            ),
             "fit_seconds": round(fit_seconds, 6),
             "validation_subject_macro_mae_cm": validation_metrics["subject_level"]["macro_mae_cm"],
+            "validation_base_subject_macro_mae_cm": validation_base_metrics["subject_level"]["macro_mae_cm"],
+            "validation_macro_mae_delta_cm": round(
+                validation_metrics["subject_level"]["macro_mae_cm"]
+                - validation_base_metrics["subject_level"]["macro_mae_cm"],
+                6,
+            ),
             "validation_subject_macro_rmse_cm": validation_metrics["subject_level"]["macro_rmse_cm"],
             "model_latency": latency,
             "serialized_estimator_bytes": serialized_bytes,
@@ -559,7 +663,7 @@ def run_phase4_finalization(
         run
         for run in stability_runs
         if run["model_latency"]["p95_ms"] <= 50.0
-        and run["serialized_estimator_bytes"] <= 1_000_000
+        and run["serialized_estimator_bytes"] <= 3_000_000
     ]
     if not eligible_runs:
         raise FinalizationValidationError(
@@ -594,7 +698,9 @@ def run_phase4_finalization(
         "contract_version": CONTRACT_VERSION,
         "preprocessing_version": PREPROCESSING_VERSION,
         "matrix_sha256": dataset.matrix_sha256,
-        "selected_model": selected_algorithm,
+        "selected_model": "mlp+retrieval_residual",
+        "base_model": selected_algorithm,
+        "estimator_version": HYBRID_ESTIMATOR_VERSION,
         "random_seed": selected_seed,
         "feature_names": dataset.feature_names,
         "target_names": dataset.target_names,
@@ -604,6 +710,10 @@ def run_phase4_finalization(
 
     test_predictions = estimator.predict(dataset.test.X)
     test_metrics = evaluate_predictions(dataset.test, test_predictions)
+    base_test_metrics = evaluate_predictions(
+        dataset.test,
+        estimator.base_estimator_.predict(dataset.test.X),
+    )
     subject_actual, subject_predicted = _aggregate_by_subject(
         dataset.test.subject_ids,
         dataset.test.y,
@@ -640,7 +750,7 @@ def run_phase4_finalization(
         "schema_version": 1,
         "finalization_version": FINALIZATION_VERSION,
         "model_version": FINAL_MODEL_VERSION,
-        "completed_on": "2026-08-05",
+        "completed_on": date.today().isoformat(),
         "data": {
             "matrix_sha256": dataset.matrix_sha256,
             "feature_count": len(dataset.feature_names),
@@ -659,13 +769,13 @@ def run_phase4_finalization(
             "cross_split_subjects_after_policy": len(dataset.cross_split_subjects),
         },
         "selection_policy": {
-            "algorithm_source": "Phase 3 validation winner",
+            "algorithm_source": "Phase 3 MLP winner with validation-calibrated retrieval residual",
             "seed_selection_split": "testA/validation",
             "testB_used_for_selection": False,
             "ordering": ["validation MAE", "p95 latency", "serialized bytes", "seed"],
             "eligibility": {
                 "maximum_model_p95_latency_ms": 50.0,
-                "maximum_serialized_estimator_bytes": 1000000,
+                "maximum_serialized_estimator_bytes": 3000000,
                 "eligible_seed_count": len(eligible_runs),
             },
             "ram_metric_note": "serialized estimator bytes is a portable memory-footprint proxy, not peak process RSS",
@@ -677,9 +787,15 @@ def run_phase4_finalization(
             "validation_macro_mae_range_cm": round(float(max(validation_maes) - min(validation_maes)), 6),
         },
         "selection": {
-            "model": selected_algorithm,
+            "model": "mlp+retrieval_residual",
+            "base_model": selected_algorithm,
+            "estimator_version": HYBRID_ESTIMATOR_VERSION,
             "random_seed": selected_seed,
             "validation_subject_macro_mae_cm": selected_run["validation_subject_macro_mae_cm"],
+            "validation_base_subject_macro_mae_cm": selected_run[
+                "validation_base_subject_macro_mae_cm"
+            ],
+            "validation_macro_mae_delta_cm": selected_run["validation_macro_mae_delta_cm"],
             "model_latency": selected_run["model_latency"],
             "serialized_estimator_bytes": selected_run["serialized_estimator_bytes"],
         },
@@ -697,9 +813,16 @@ def run_phase4_finalization(
             "warning_threshold": round(float(diagnostics["ood"]["warning_threshold"]), 6),
             "rejection_threshold": round(float(diagnostics["ood"]["rejection_threshold"]), 6),
         },
+        "retrieval": estimator.correction_summary(dataset.target_names),
         "plausibility": diagnostics["plausibility"],
         "final_test": {
             "metrics": test_metrics,
+            "base_metrics": base_test_metrics,
+            "hybrid_macro_mae_delta_cm": round(
+                test_metrics["subject_level"]["macro_mae_cm"]
+                - base_test_metrics["subject_level"]["macro_mae_cm"],
+                6,
+            ),
             "interval_coverage": interval_coverage,
             "diagnostics": _diagnostic_summary(guarded_test["rows"]),
             "guarded_latency": guarded_latency,
@@ -716,6 +839,12 @@ def run_phase4_finalization(
             "minimum_seed_count_met": len(stability_runs) >= 3,
             "confidence_from_real_residuals": True,
             "ood_and_plausibility_enabled": True,
+            "retrieval_residual_enabled": True,
+            "hybrid_validation_non_inferior": selected_run["validation_macro_mae_delta_cm"] <= 0,
+            "hybrid_test_non_inferior": (
+                test_metrics["subject_level"]["macro_mae_cm"]
+                <= base_test_metrics["subject_level"]["macro_mae_cm"]
+            ),
             "silent_clipping": False,
             "artifact_reload_required": True,
             "test_interval_nominal_coverage_met": all(
@@ -730,7 +859,9 @@ def run_phase4_finalization(
         "preprocessing_version": PREPROCESSING_VERSION,
         "matrix_sha256": dataset.matrix_sha256,
         "model_sha256": model_sha256,
-        "selected_model": selected_algorithm,
+        "selected_model": "mlp+retrieval_residual",
+        "base_model": selected_algorithm,
+        "estimator_version": HYBRID_ESTIMATOR_VERSION,
         "random_seed": selected_seed,
         "feature_names": list(dataset.feature_names),
         "target_names": list(dataset.target_names),
@@ -764,6 +895,11 @@ def verify_phase4_artifacts(report_path: Path) -> dict[str, Any]:
         errors.append("test_used_for_selection")
     if report.get("plausibility", {}).get("silent_clipping") is not False:
         errors.append("silent_clipping_enabled")
+    acceptance = report.get("acceptance", {})
+    if acceptance.get("hybrid_validation_non_inferior") is not True:
+        errors.append("hybrid_validation_regression")
+    if acceptance.get("hybrid_test_non_inferior") is not True:
+        errors.append("hybrid_test_regression")
     if not model_path.is_file():
         errors.append("model_missing")
     elif _sha256(model_path) != artifacts.get("model_sha256"):

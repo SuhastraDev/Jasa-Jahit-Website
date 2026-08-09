@@ -1,11 +1,13 @@
 {
   "model_version": "bodym-v1",
-  "finalization_version": "bodym-finalization.v1",
+  "finalization_version": "bodym-finalization.v2",
   "contract_version": "bodym.v1",
   "preprocessing_version": "bodym-preprocess.v1",
   "matrix_sha256": "fb7a552cb09dfcb996bed0afad6f44255693596504281ad1ed4a398858675e2c",
-  "model_sha256": "bbc12f57766076ed12fb914b168f1f9df63de96506fbb82390ff4c74b4f5f247",
-  "selected_model": "mlp",
+  "model_sha256": "4acbebdada78c25dc1987002e3320302265df42215884831b4c0189a7c428d91",
+  "selected_model": "mlp+retrieval_residual",
+  "base_model": "mlp",
+  "estimator_version": "silhouette-retrieval-residual.v1",
   "random_seed": 20260805,
   "feature_names": [
     "body_height_mean_cm",

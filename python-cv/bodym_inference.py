@@ -114,14 +114,17 @@ class BodyMModelService:
                 self._load_error = "model_file_missing"
                 raise BodyMInferenceError(
                     "model_file_missing",
-                    "Artifact BodyM v1 tidak ditemukan.",
+                    "Model estimasi ukuran belum tersedia.",
                     {"model_path": str(self.model_path)},
                 )
             try:
                 bundle = joblib.load(self.model_path)
             except Exception as exc:
                 self._load_error = "model_load_failed"
-                raise BodyMInferenceError("model_load_failed", "Artifact BodyM gagal dimuat.") from exc
+                raise BodyMInferenceError(
+                    "model_load_failed",
+                    "Model estimasi ukuran gagal dimuat.",
+                ) from exc
 
             checks = {
                 "model_version": (bundle.get("model_version"), FINAL_MODEL_VERSION),
@@ -142,7 +145,7 @@ class BodyMModelService:
                 self._load_error = "model_contract_mismatch"
                 raise BodyMInferenceError(
                     "model_contract_mismatch",
-                    "Versi atau urutan fitur artifact BodyM tidak cocok.",
+                    "Versi atau urutan fitur model estimasi ukuran tidak cocok.",
                     {"mismatches": mismatches},
                 )
             self._bundle = bundle
@@ -178,7 +181,7 @@ class BodyMModelService:
         if len(prediction["rows"]) != 1:
             raise BodyMInferenceError("batch_not_supported", "Inference foto hanya menerima satu subject.")
         row = prediction["rows"][0]
-        return {
+        result = {
             "model_version": bundle["model_version"],
             "contract_version": bundle["contract_version"],
             "preprocessing_version": bundle["preprocessing_version"],
@@ -194,6 +197,9 @@ class BodyMModelService:
             "coverage": prediction["coverage"],
             "silent_clipping": prediction["silent_clipping"],
         }
+        if "retrieval" in row:
+            result["retrieval"] = row["retrieval"]
+        return result
 
     def predict_masks(
         self,
