@@ -155,7 +155,7 @@
                         <div class="rounded-xl border border-gray-100 bg-white p-4">
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <p class="text-sm font-bold text-gray-900">Status kamera</p>
-                                <span class="text-[11px] font-bold px-2 py-1 rounded-full" :class="liveReport.captureReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="liveReport.captureReady ? 'Siap ambil foto' : 'Ikuti panduan frame'"></span>
+                                <span class="text-[11px] font-bold px-2 py-1 rounded-full" :class="cameraReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" x-text="cameraReady ? 'Bisa ambil foto' : 'Aktifkan kamera'"></span>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <template x-for="item in liveReport.checks" :key="item.label">
@@ -171,7 +171,7 @@
                             <button type="button" @click="startCamera()" class="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800">
                                 Aktifkan Kamera
                             </button>
-                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady || !liveReport.captureReady"
+                            <button type="button" @click="capturePose(activePose)" :disabled="!cameraReady"
                                 class="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">
                                 Capture <span x-text="activePoseLabel"></span>
                             </button>
@@ -981,6 +981,9 @@
             async startAnalysis(event) {
                 if (this.isAnalyzing) return;
 
+                // A previous CV warning must not block a retry. File-format and
+                // size errors are still rebuilt by validateSelectedFiles().
+                this.totalUploadError = '';
                 this.validateSelectedFiles(true);
                 this.validateDetectionReports();
                 if (Object.keys(this.uploadErrors).length > 0 || this.totalUploadError) {
@@ -1076,8 +1079,8 @@
                     ['reference_roi', 54, 'Mengecek patokan pada foto belakang', 'back'],
                     ['body_segmentation', 62, 'Membaca siluet tubuh foto belakang', 'back'],
                     ['cross_view_scale', 70, 'Menyelaraskan tiga sudut pandang tubuh', null],
-                    ['bodym_features', 82, 'Menyusun fitur siluet dari bentuk tubuh', null],
-                    ['bodym_inference', 88, 'Memprediksi indikator ukuran tubuh', null],
+                    ['feature_extraction', 82, 'Menyusun fitur bentuk tubuh', null],
+                    ['measurement_inference', 88, 'Mengestimasi indikator ukuran tubuh', null],
                     ['anatomical_validation', 92, 'Memeriksa konsistensi anatomi hasil ukuran', null],
                 ];
                 const nextStep = stagePlan.find(([, percent]) => percent > currentPercent + 1);
@@ -1176,32 +1179,14 @@
             },
             validateDetectionReports() {
                 const nextErrors = { ...this.uploadErrors };
+                const isHardUploadError = (message) => /wajib dipilih|harus berupa file gambar|terlalu besar|berformat/i.test(message || '');
 
                 this.poseList.forEach((pose) => {
                     const file = this.$refs[`${pose.key}Input`]?.files?.[0];
-                    const report = this.detectionReports[pose.key];
                     if (!file) return;
 
                     const existingError = nextErrors[pose.key] || '';
-                    const referenceOnlyError = /A4|KTP|patokan|kotak|skala tubuh|proporsional/i.test(existingError);
-                    if (existingError && !referenceOnlyError) return;
-
-                    if (!report) {
-                        nextErrors[pose.key] = `${pose.label}: pemeriksaan foto belum selesai. Tunggu preview dan kotak patokan muncul.`;
-                        return;
-                    }
-
-                    if (this.poseDetectorReady && !report.poseDetected) {
-                        nextErrors[pose.key] = `${pose.label}: orang tidak terdeteksi. Gunakan foto tubuh penuh yang jelas.`;
-                        return;
-                    }
-
-                    if (this.poseDetectorReady && !report.fullBody) {
-                        nextErrors[pose.key] = `${pose.label}: kepala atau kaki belum masuk penuh di dalam foto.`;
-                        return;
-                    }
-
-                    delete nextErrors[pose.key];
+                    if (!isHardUploadError(existingError)) delete nextErrors[pose.key];
                 });
 
                 this.uploadErrors = nextErrors;
@@ -1285,7 +1270,7 @@
                 }, 900);
             },
             async capturePose(pose) {
-                if (!this.cameraReady || !this.liveReport.captureReady || !this.$refs.video.videoWidth) return;
+                if (!this.cameraReady || !this.$refs.video.videoWidth) return;
 
                 const video = this.$refs.video;
                 const canvas = this.$refs.canvas;
@@ -1634,7 +1619,7 @@
                         ok: true,
                     };
                 }
-                report.ready = this.poseDetectorReady && report.checks.every((item) => item.ok);
+                report.ready = report.checks.every((item) => item.ok);
                 this.detectionReports = { ...this.detectionReports };
                 if (/A4|KTP|patokan|kotak|skala tubuh|proporsional/i.test(this.uploadErrors[pose] || '')) {
                     delete this.uploadErrors[pose];
@@ -1964,6 +1949,30 @@
                 const refBox = this.findReferenceCandidate(imageData, width, height, poseSummary.bodyBox);
                 const silhouette = poseAnalysis?.silhouette
                     || this.extractForegroundSilhouette(imageData, width, height, poseSummary.bodyBox);
+                const silhouettePoints = [
+                    ...(silhouette?.left || []),
+                    ...(silhouette?.right || []),
+                ];
+                const silhouetteDetected = silhouettePoints.length >= 12;
+                const silhouetteMinX = silhouetteDetected ? Math.min(...silhouettePoints.map((point) => point.x)) : 0;
+                const silhouetteMaxX = silhouetteDetected ? Math.max(...silhouettePoints.map((point) => point.x)) : 1;
+                const silhouetteMinY = silhouetteDetected ? Math.min(...silhouettePoints.map((point) => point.y)) : 0;
+                const silhouetteMaxY = silhouetteDetected ? Math.max(...silhouettePoints.map((point) => point.y)) : 1;
+                const silhouetteFullBody = silhouetteDetected
+                    && silhouetteMinY <= 0.16
+                    && silhouetteMaxY >= 0.84
+                    && silhouetteMaxY - silhouetteMinY >= 0.58;
+                const bodyDetected = poseSummary.detected || silhouetteDetected;
+                const fullBody = poseSummary.fullBody || silhouetteFullBody;
+                const orientationOk = poseSummary.detected ? poseSummary.orientationOk : true;
+                const bodyBox = silhouetteDetected && !poseSummary.detected
+                    ? {
+                        x: silhouetteMinX * width,
+                        y: silhouetteMinY * height,
+                        w: Math.max(1, (silhouetteMaxX - silhouetteMinX) * width),
+                        h: Math.max(1, (silhouetteMaxY - silhouetteMinY) * height),
+                    }
+                    : poseSummary.bodyBox;
                 const lightOk = avgLight > 65 && avgLight < 220;
                 const contrastOk = contrastCount > sampleCount * 0.08;
                 const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
@@ -1971,39 +1980,39 @@
 
                 const checks = [
                     {
-                        label: poseSummary.detected
+                        label: bodyDetected
                             ? (silhouette ? 'Orang terdeteksi dan siluet tubuh terbaca.' : 'Orang terdeteksi, siluet tubuh sedang diperkirakan.')
-                            : (detectorAvailable ? 'Orang belum terdeteksi dengan jelas.' : 'Detektor pose sedang disiapkan.'),
-                        ok: poseSummary.detected,
+                            : (detectorAvailable ? 'Orang belum terdeteksi dengan jelas.' : 'Detektor pose tidak tersedia; foto tetap bisa dianalisis dari siluet.'),
+                        ok: bodyDetected,
                     },
-                    { label: poseSummary.fullBody ? 'Kepala sampai kaki masuk penuh.' : 'Mundur agar kepala sampai kaki terlihat penuh.', ok: poseSummary.fullBody },
+                    { label: fullBody ? 'Kepala sampai kaki masuk penuh.' : 'Mundur agar kepala sampai kaki terlihat penuh.', ok: fullBody },
                     { label: refBox ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.` : `${this.refObject.toUpperCase()} belum terbaca otomatis. Sistem tetap memakai estimasi bentuk tubuh.`, ok: true },
                     { label: refBox ? 'Proporsi benda patokan sesuai.' : 'Patokan menjadi bantuan visual, bukan penghambat proses.', ok: true },
                     { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
                     {
-                        label: poseSummary.orientationOk && sideWarningOk
+                        label: orientationOk && sideWarningOk
                             ? `Arah tubuh sesuai ${this.poseLabel(pose).toLowerCase()}.`
                             : (sideWarningOk ? 'Arah tubuh belum sesuai dengan pose yang dipilih.' : 'Mode praktis tidak disarankan pada foto samping.'),
-                        ok: poseSummary.orientationOk && sideWarningOk,
+                        ok: orientationOk && sideWarningOk,
                     },
                 ];
 
                 return {
-                    ready: detectorAvailable && checks.every((item) => item.ok),
-                    captureReady: detectorAvailable
-                        && poseSummary.detected
-                        && poseSummary.fullBody
+                    ready: checks.every((item) => item.ok),
+                    captureReady: bodyDetected
+                        && fullBody
                         && lightOk
                         && contrastOk
-                        && poseSummary.orientationOk
+                        && orientationOk
                         && sideWarningOk,
                     checks,
                     refBox,
-                    bodyBox: poseSummary.bodyBox,
+                    bodyBox,
                     silhouette,
                     landmarkShape: this.buildLandmarkBodyShape(poseAnalysis?.landmarks),
-                    poseDetected: poseSummary.detected,
-                    fullBody: poseSummary.fullBody,
+                    poseDetected: bodyDetected,
+                    fullBody,
+                    detectorSource: poseSummary.detected ? 'pose' : (silhouetteDetected ? 'silhouette' : null),
                     includeOverlay,
                 };
             },

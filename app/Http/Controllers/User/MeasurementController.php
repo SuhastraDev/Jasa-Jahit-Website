@@ -166,7 +166,7 @@ class MeasurementController extends Controller
             ],
         ], $request->ref_object, $request->reference_mode);
 
-        $photoIssues = [];
+        $photoWarnings = [];
         foreach ($validations as $photoName => $validation) {
             if (!$validation['valid']) {
                 $label = match ($photoName) {
@@ -175,18 +175,14 @@ class MeasurementController extends Controller
                     default => 'Foto depan',
                 };
                 foreach ($validation['issues'] as $issue) {
-                    $photoIssues[] = "{$label}: {$issue}";
+                    $photoWarnings[] = "{$label}: {$issue}";
                 }
             }
         }
 
-        if ($photoIssues !== []) {
-            return back()
-                ->withInput()
-                ->with('photo_issues', $photoIssues)
-                ->with('photo_suggestion', 'Gunakan A4 atau KTP sebagai benda patokan ukuran, lalu ulangi foto sesuai orientasi depan, samping, dan belakang.')
-                ->with('error', 'Salah satu foto tidak memenuhi protokol pengukuran otomatis.');
-        }
+        // The AI preflight is advisory only. The CV measurement service owns
+        // the final decision and can continue from body silhouette data when
+        // the reference object or browser detector is inconclusive.
 
         $folder = 'measurements/' . auth()->id();
         $frontPhotoPath = $request->file('front_photo')->store($folder, 'public');
@@ -250,6 +246,7 @@ class MeasurementController extends Controller
             'refWidthCm' => $refWidthCm,
             'refHeightCm' => $refHeightCm,
             'referenceMode' => $request->reference_mode,
+            'photoWarnings' => $photoWarnings,
         ]);
     }
 
@@ -279,13 +276,7 @@ class MeasurementController extends Controller
             'back_photo' => ['photo' => $request->file('back_photo'), 'orientation' => 'back'],
         ], $request->ref_object, $request->reference_mode);
 
-        $photoIssues = $this->collectPhotoIssues($validations);
-        if ($photoIssues !== []) {
-            return response()->json([
-                'message' => 'Salah satu foto tidak memenuhi protokol pengukuran.',
-                'photo_issues' => $photoIssues,
-            ], 422);
-        }
+        $photoWarnings = $this->collectPhotoIssues($validations);
 
         $job = $cvService->startMeasurementJob(
             $request->file('front_photo'),
@@ -318,6 +309,7 @@ class MeasurementController extends Controller
             'ref_width_cm' => $refWidthCm,
             'ref_height_cm' => $refHeightCm,
             'reference_mode' => $request->reference_mode,
+            'photo_validation_warnings' => $photoWarnings,
             'result' => null,
         ];
         Cache::put($this->analysisCacheKey($job['job_id']), $context, now()->addMinutes(45));

@@ -132,6 +132,42 @@ class MeasurementMultiviewTest extends TestCase
         $this->assertTrue(Cache::has("measurement_analysis:{$user->id}:job-mobile-123"));
     }
 
+    public function test_photo_preflight_warning_does_not_block_background_measurement_analysis(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->mock(PhotoValidationService::class, function ($mock): void {
+            $mock->shouldReceive('validateMany')->once()->andReturn([
+                'front_photo' => ['valid' => false, 'issues' => ['Patokan tidak terbaca']],
+                'side_photo' => ['valid' => false, 'issues' => ['Pose tidak terbaca']],
+                'back_photo' => ['valid' => false, 'issues' => ['Patokan tidak terbaca']],
+            ]);
+        });
+        $this->mock(CVMeasurementService::class, function ($mock): void {
+            $mock->shouldReceive('startMeasurementJob')->once()->andReturn([
+                'success' => true,
+                'job_id' => 'job-silhouette-fallback-123',
+            ]);
+        });
+
+        $response = $this->actingAs($user)->post(
+            route('user.measurement.analysis-start'),
+            [
+                'front_photo' => UploadedFile::fake()->image('front.jpg'),
+                'side_photo' => UploadedFile::fake()->image('side.jpg'),
+                'back_photo' => UploadedFile::fake()->image('back.jpg'),
+                'ref_object' => 'a4',
+                'reference_mode' => 'fixed',
+            ],
+            ['Accept' => 'application/json'],
+        );
+
+        $response
+            ->assertAccepted()
+            ->assertJsonPath('job_id', 'job-silhouette-fallback-123');
+    }
+
     public function test_background_analysis_status_exposes_real_progress_and_result_page(): void
     {
         $user = User::factory()->create(['role' => 'user']);
