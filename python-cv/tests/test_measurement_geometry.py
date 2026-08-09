@@ -237,6 +237,39 @@ class MeasurementGeometryTest(unittest.TestCase):
         service.predict_masks.assert_called_once()
 
     @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_rejected_model_uses_validated_geometric_fallback_instead_of_blocking(self):
+        dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
+        masks = [make_front_mask(), make_side_mask(), make_front_mask()]
+        service = MagicMock()
+        service.predict_masks.return_value = {
+            "status": "rejected",
+            "diagnostic_codes": ["out_of_distribution", "implausible_prediction"],
+            "implausible_fields": ["calf_girth"],
+            "ood": {"distance": 9.2, "validation_percentile": 1.0},
+        }
+        progress_events = []
+
+        with (
+            patch.object(measurement, "decode_image", side_effect=[dummy_image.copy() for _ in range(3)]),
+            patch.object(measurement, "resize_for_measurement", side_effect=lambda image: image),
+            patch.object(measurement, "calculate_scale", return_value=None),
+            patch.object(measurement, "detect_pose", return_value=None),
+            patch.object(measurement, "extract_silhouette_without_pose", side_effect=masks),
+            patch.object(measurement, "bodym_enabled", return_value=True),
+            patch.object(measurement, "get_bodym_service", return_value=service),
+        ):
+            result = measurement.process_measurement(
+                b"front", b"side", b"back", "a4", 21.0, 29.7,
+                progress_callback=progress_events.append,
+            )
+
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual("multiview_cv_guarded_fallback", result["measurement_method"])
+        self.assertEqual("model_rejected", result["model_fallback"]["reason"])
+        self.assertLessEqual(result["confidence"], 0.68)
+        self.assertIn("model_fallback", [event["stage"] for event in progress_events])
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
     def test_manual_reference_roi_refines_a4_edges_after_contrast_processing(self):
         image = np.full((500, 400, 3), 185, dtype=np.uint8)
         cv2.rectangle(image, (245, 130), (329, 249), (245, 245, 245), -1)

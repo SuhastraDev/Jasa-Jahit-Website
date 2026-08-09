@@ -1006,6 +1006,13 @@ def impossible_measurements(data):
     return invalid
 
 
+def usable_geometric_measurements(data):
+    """Return whether the non-model silhouette measurements are usable."""
+    if impossible_measurements(data):
+        return False
+    return all(float(data.get(field, 0.0) or 0.0) > 0 for field in MEASUREMENT_LIMITS_CM)
+
+
 def process_measurement(
     front_bytes,
     side_bytes,
@@ -1061,6 +1068,7 @@ def process_measurement(
     bounds = {}
     pose_statures = {}
     pose_fallback_views = []
+    model_fallback_diagnostics = None
 
     view_progress = {
         "front": (16, 25),
@@ -1312,32 +1320,51 @@ def process_measurement(
             )
         except BodyMInferenceError as exc:
             failed_view = exc.details.get("failed_view", "front_side")
-            return {
-                "success": False,
-                "error": str(exc),
-                "failed_view": failed_view,
-                "failed_reason": exc.code,
-                "correction": "Pastikan siluet foto depan dan samping utuh, tubuh penuh terlihat, serta background cukup kontras.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-                "diagnostic_details": exc.details,
+            if not usable_geometric_measurements(data):
+                return {
+                    "success": False,
+                    "error": str(exc),
+                    "failed_view": failed_view,
+                    "failed_reason": exc.code,
+                    "correction": "Pastikan siluet foto depan dan samping utuh, tubuh penuh terlihat, serta background cukup kontras.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                    "diagnostic_details": exc.details,
+                }
+            model_fallback_diagnostics = {
+                "status": "geometric_fallback",
+                "reason": exc.code,
+                "details": exc.details,
             }
+            progress("model_fallback", 87, "Validasi model perlu ditinjau; hasil geometri siluet disiapkan")
 
         progress("bodym_inference", 87, "Memprediksi 14 indikator ukuran tubuh")
-        if bodym_result["status"] == "rejected":
-            return {
-                "success": False,
-                "error": "Fitur siluet berada di luar pola valid atau menghasilkan ukuran yang tidak masuk akal.",
-                "failed_view": "front_side",
-                "failed_reason": "bodym_prediction_rejected",
-                "correction": "Ulangi foto depan dan samping dengan pose, skala, serta siluet yang lebih jelas.",
-                "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
-                "bodym": bodym_result,
+        if bodym_result and bodym_result["status"] == "rejected":
+            if not usable_geometric_measurements(data):
+                return {
+                    "success": False,
+                    "error": "Fitur siluet berada di luar pola valid dan geometri foto juga belum cukup untuk menghasilkan ukuran.",
+                    "failed_view": "front_side",
+                    "failed_reason": "bodym_prediction_rejected",
+                    "correction": "Ulangi foto depan dan samping dengan tubuh penuh, background kontras, dan kamera sejajar tubuh.",
+                    "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
+                    "bodym": bodym_result,
+                    "geometric_invalid_measurements": impossible_measurements(data),
+                }
+            model_fallback_diagnostics = {
+                "status": "geometric_fallback",
+                "reason": "model_rejected",
+                "diagnostic_codes": bodym_result.get("diagnostic_codes", []),
+                "implausible_fields": bodym_result.get("implausible_fields", []),
+                "ood": bodym_result.get("ood", {}),
             }
+            bodym_result = None
+            progress("model_fallback", 87, "Siluet model perlu ditinjau; hasil geometri siluet disiapkan")
 
-        for bodym_field, legacy_fields in BODYM_TO_LEGACY_FIELDS.items():
-            value = rounded(bodym_result["predictions_cm"][bodym_field])
-            for legacy_field in legacy_fields:
-                data[legacy_field] = value
+        if bodym_result:
+            for bodym_field, legacy_fields in BODYM_TO_LEGACY_FIELDS.items():
+                value = rounded(bodym_result["predictions_cm"][bodym_field])
+                for legacy_field in legacy_fields:
+                    data[legacy_field] = value
 
     invalid_measurements = impossible_measurements(data)
     progress("anatomical_validation", 88, "Memeriksa konsistensi anatomi hasil ukuran")
@@ -1432,8 +1459,15 @@ def process_measurement(
         for source in scale_sources.values()
     )
     uses_silhouette_fallback = bool(pose_fallback_views)
-    if uses_estimated_scale or uses_silhouette_fallback:
-        confidence_cap = 0.72 if uses_estimated_scale else 0.78
+    uses_model_fallback = model_fallback_diagnostics is not None
+    if uses_estimated_scale or uses_silhouette_fallback or uses_model_fallback:
+        confidence_cap = (
+            0.72
+            if uses_estimated_scale
+            else 0.68
+            if uses_model_fallback
+            else 0.78
+        )
         quality_score = round(min(quality_score, confidence_cap), 2)
         per_field_confidence = {
             field: round(min(confidence, confidence_cap), 2)
@@ -1463,7 +1497,15 @@ def process_measurement(
         "confidence": quality_score,
         "quality_score": quality_score,
         "ref_detected": not uses_estimated_scale,
-        "measurement_method": "bodym_ml" if bodym_result else ("multiview_pose_estimate" if uses_estimated_scale else "multiview_cv"),
+        "measurement_method": (
+            "bodym_ml"
+            if bodym_result
+            else "multiview_cv_guarded_fallback"
+            if uses_model_fallback
+            else "multiview_pose_estimate"
+            if uses_estimated_scale
+            else "multiview_cv"
+        ),
         "per_field_confidence": per_field_confidence,
         "response_contract_version": BODYM_RESPONSE_CONTRACT_VERSION,
         "photo_diagnostics": photo_diagnostics,
@@ -1484,6 +1526,7 @@ def process_measurement(
                 for key in poses
             },
             "pose_fallback_views": pose_fallback_views,
+            "model_fallback": uses_model_fallback,
             "scale_consistency": round(float(scale_consistency), 4),
             "stature_consistency": round(float(stature_consistency), 4),
             "width_samples": width_debug,
@@ -1502,5 +1545,7 @@ def process_measurement(
         result["legacy_fallback_fields"] = sorted(
             set(data) - {legacy for fields in BODYM_TO_LEGACY_FIELDS.values() for legacy in fields}
         )
+    if model_fallback_diagnostics:
+        result["model_fallback"] = model_fallback_diagnostics
     progress("completed", 100, "Analisis selesai dan hasil siap diperiksa")
     return result
