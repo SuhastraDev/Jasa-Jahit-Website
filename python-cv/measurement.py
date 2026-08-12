@@ -311,16 +311,137 @@ def refine_manual_reference_contour(image, box_payload, real_width, real_height)
         }
 
     return {
-        "contour": manual_contour,
-        "source": "manual_fallback",
-        "quality": 0.72,
+        # The box only narrows the search area. Its dimensions are user input,
+        # so treating it as the physical reference would manufacture a scale.
+        "contour": None,
+        "source": "manual_roi_unresolved",
+        "quality": 0.0,
         "processing": {
             "roi": [int(roi_x1), int(roi_y1), int(roi_x2 - roi_x1), int(roi_y2 - roi_y1)],
-            "method": "manual_box",
+            "method": "reference_edges_not_found",
             "variants": ["clahe", "canny", "adaptive", "adaptive_inverse"],
             "refined": False,
         },
     }
+
+
+def _ordered_reference_corners(contour):
+    if contour is None:
+        return None
+
+    points = np.asarray(contour, dtype=np.float32).reshape((-1, 2))
+    if len(points) != 4:
+        perimeter = cv2.arcLength(np.asarray(contour, dtype=np.float32), True)
+        approximated = cv2.approxPolyDP(np.asarray(contour, dtype=np.float32), 0.02 * perimeter, True)
+        points = approximated.reshape((-1, 2))
+    if len(points) != 4:
+        points = cv2.boxPoints(cv2.minAreaRect(np.asarray(contour, dtype=np.float32)))
+
+    sums = points.sum(axis=1)
+    differences = np.diff(points, axis=1).reshape(-1)
+    ordered = np.zeros((4, 2), dtype=np.float32)
+    ordered[0] = points[np.argmin(sums)]
+    ordered[1] = points[np.argmin(differences)]
+    ordered[2] = points[np.argmax(sums)]
+    ordered[3] = points[np.argmax(differences)]
+    if len(np.unique(ordered, axis=0)) != 4:
+        return None
+    return ordered
+
+
+def project_points_to_reference_plane(points, homography):
+    if homography is None:
+        return []
+    source = np.asarray(points, dtype=np.float32).reshape((-1, 1, 2))
+    projected = cv2.perspectiveTransform(source, homography).reshape((-1, 2))
+    return [tuple(float(value) for value in point) for point in projected]
+
+
+def reference_plane_calibration(contour, real_width, real_height):
+    """Map the detected four-corner reference plane to real centimeters."""
+    ordered = _ordered_reference_corners(contour)
+    if ordered is None:
+        return None
+
+    top_left, top_right, bottom_right, bottom_left = ordered
+    top_px = euclidean_distance(top_left, top_right)
+    bottom_px = euclidean_distance(bottom_left, bottom_right)
+    left_px = euclidean_distance(top_left, bottom_left)
+    right_px = euclidean_distance(top_right, bottom_right)
+    horizontal_px = average(top_px, bottom_px)
+    vertical_px = average(left_px, right_px)
+    if min(horizontal_px, vertical_px, real_width, real_height) <= 0:
+        return None
+
+    real_long = max(float(real_width), float(real_height))
+    real_short = min(float(real_width), float(real_height))
+    if horizontal_px >= vertical_px:
+        plane_width_cm, plane_height_cm = real_long, real_short
+    else:
+        plane_width_cm, plane_height_cm = real_short, real_long
+
+    destination = np.array([
+        [0.0, 0.0],
+        [plane_width_cm, 0.0],
+        [plane_width_cm, plane_height_cm],
+        [0.0, plane_height_cm],
+    ], dtype=np.float32)
+    homography = cv2.getPerspectiveTransform(ordered, destination)
+    if not np.isfinite(homography).all():
+        return None
+
+    center = np.mean(ordered, axis=0)
+    projected = project_points_to_reference_plane(
+        [center, center + np.array([1.0, 0.0]), center + np.array([0.0, 1.0])],
+        homography,
+    )
+    if len(projected) != 3:
+        return None
+    cm_per_horizontal_px = euclidean_distance(projected[0], projected[1])
+    cm_per_vertical_px = euclidean_distance(projected[0], projected[2])
+    if min(cm_per_horizontal_px, cm_per_vertical_px) <= 0:
+        return None
+
+    horizontal_pixels_per_cm = 1.0 / cm_per_horizontal_px
+    vertical_pixels_per_cm = 1.0 / cm_per_vertical_px
+    horizontal_edge_consistency = min(top_px, bottom_px) / max(top_px, bottom_px)
+    vertical_edge_consistency = min(left_px, right_px) / max(left_px, right_px)
+    perspective_consistency = math.sqrt(horizontal_edge_consistency * vertical_edge_consistency)
+    axis_consistency = min(horizontal_pixels_per_cm, vertical_pixels_per_cm) / max(
+        horizontal_pixels_per_cm,
+        vertical_pixels_per_cm,
+    )
+
+    return {
+        "homography": homography,
+        "ordered_corners": ordered,
+        "horizontal_pixels_per_cm": float(horizontal_pixels_per_cm),
+        "vertical_pixels_per_cm": float(vertical_pixels_per_cm),
+        "scale": float(average(horizontal_pixels_per_cm, vertical_pixels_per_cm)),
+        "axis_consistency": float(axis_consistency),
+        "perspective_consistency": float(perspective_consistency),
+        "plane_size_cm": [plane_width_cm, plane_height_cm],
+    }
+
+
+def calibrated_distance_cm(start, end, calibration):
+    if not calibration:
+        return 0.0
+
+    homography = calibration.get("homography")
+    if homography is not None:
+        projected = project_points_to_reference_plane([start, end], homography)
+        if len(projected) == 2:
+            factor = float(calibration.get("homography_distance_factor", 1.0) or 1.0)
+            return euclidean_distance(projected[0], projected[1]) * factor
+
+    horizontal_scale = float(calibration.get("horizontal_scale") or calibration.get("scale") or 0.0)
+    vertical_scale = float(calibration.get("vertical_scale") or calibration.get("scale") or 0.0)
+    if horizontal_scale <= 0 or vertical_scale <= 0:
+        return 0.0
+    delta_x_cm = (float(end[0]) - float(start[0])) / horizontal_scale
+    delta_y_cm = (float(end[1]) - float(start[1])) / vertical_scale
+    return math.hypot(delta_x_cm, delta_y_cm)
 
 
 def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, manual_box=None):
@@ -336,28 +457,49 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, ma
     }
     if contour is None:
         contour = detect_reference_object(image, real_width, real_height)
+        if contour is not None and manual_result:
+            source = "auto_after_manual_roi"
+            detection_quality = 0.82
+            processing = {
+                **processing,
+                "method": "full_image_contour_after_roi",
+                "full_image_fallback": True,
+            }
     if contour is None:
         return None
 
-    (_, _), (w, h), _ = cv2.minAreaRect(contour)
-    if w <= 0 or h <= 0:
+    calibration = reference_plane_calibration(contour, real_width, real_height)
+    if calibration is None:
         return None
 
-    pixel_long = max(w, h)
-    pixel_short = min(w, h)
-    real_long = max(real_width, real_height)
-    real_short = min(real_width, real_height)
-    long_scale = pixel_long / real_long
-    short_scale = pixel_short / real_short
-    scale = (long_scale + short_scale) / 2
-    scale_consistency = min(long_scale, short_scale) / max(long_scale, short_scale)
+    horizontal_scale = calibration["horizontal_pixels_per_cm"]
+    vertical_scale = calibration["vertical_pixels_per_cm"]
+    scale = calibration["scale"]
+    calibration_quality = min(
+        calibration["axis_consistency"],
+        0.7 + calibration["perspective_consistency"] * 0.3,
+    )
+    processing = {
+        **processing,
+        "perspective_rectified": True,
+        "perspective_consistency": round(float(calibration["perspective_consistency"]), 4),
+        "plane_size_cm": [round(float(value), 3) for value in calibration["plane_size_cm"]],
+        "corners": [
+            [round(float(point[0]), 2), round(float(point[1]), 2)]
+            for point in calibration["ordered_corners"]
+        ],
+    }
     return {
         "scale": float(scale),
+        "horizontal_scale": float(horizontal_scale),
+        "vertical_scale": float(vertical_scale),
+        "homography": calibration["homography"],
+        "homography_distance_factor": 1.0,
         "contour": contour,
         "area": float(cv2.contourArea(contour)),
         "source": source,
-        "quality": round(float(min(scale_consistency, detection_quality)), 4),
-        "axis_scales": [round(float(long_scale), 4), round(float(short_scale), 4)],
+        "quality": round(float(min(calibration_quality, detection_quality)), 4),
+        "axis_scales": [round(float(horizontal_scale), 4), round(float(vertical_scale), 4)],
         "processing": processing,
     }
 
@@ -490,6 +632,167 @@ def detect_pose(image):
 
 def point_xy(point):
     return (point[0], point[1])
+
+
+def point_visibility(point):
+    return float(point[2]) if len(point) >= 3 else 1.0
+
+
+def reference_image_side(keypoints, ref_contour):
+    if ref_contour is None:
+        return None
+
+    shoulder_center = midpoint(
+        point_xy(keypoints["left_shoulder"]),
+        point_xy(keypoints["right_shoulder"]),
+    )
+    hip_center = midpoint(
+        point_xy(keypoints["left_hip"]),
+        point_xy(keypoints["right_hip"]),
+    )
+    body_center_x = average(shoulder_center[0], hip_center[0])
+    ref_x, _, ref_width, _ = cv2.boundingRect(ref_contour)
+    reference_center_x = ref_x + ref_width / 2.0
+
+    return {
+        "held_image_side": "left" if reference_center_x < body_center_x else "right",
+        "free_image_side": "right" if reference_center_x < body_center_x else "left",
+        "reference_center_x": float(reference_center_x),
+        "body_center_x": float(body_center_x),
+    }
+
+
+def _arm_path_length(keypoints, arm):
+    shoulder = keypoints[f"{arm}_shoulder"]
+    elbow = keypoints[f"{arm}_elbow"]
+    wrist = keypoints[f"{arm}_wrist"]
+    return (
+        euclidean_distance(point_xy(shoulder), point_xy(elbow))
+        + euclidean_distance(point_xy(elbow), point_xy(wrist))
+    )
+
+
+def select_arm_for_measurement(keypoints, ref_contour=None, reference_mode="fixed"):
+    candidates = {}
+    side_info = reference_image_side(keypoints, ref_contour)
+    for arm in ("left", "right"):
+        shoulder = keypoints[f"{arm}_shoulder"]
+        elbow = keypoints[f"{arm}_elbow"]
+        wrist = keypoints[f"{arm}_wrist"]
+        length_px = _arm_path_length(keypoints, arm)
+        visibility = min(
+            point_visibility(shoulder),
+            point_visibility(elbow),
+            point_visibility(wrist),
+        )
+        vertical_order = 1.0 if elbow[1] >= shoulder[1] and wrist[1] >= elbow[1] else 0.35
+        horizontal_drift = abs(wrist[0] - shoulder[0]) / max(1.0, length_px)
+        relaxed_score = max(0.0, 1.0 - min(1.0, horizontal_drift)) * vertical_order
+        distance_from_reference = (
+            abs(wrist[0] - side_info["reference_center_x"])
+            if side_info
+            else 0.0
+        )
+        candidates[arm] = {
+            "length_px": float(length_px),
+            "visibility": float(visibility),
+            "relaxed_score": float(relaxed_score),
+            "distance_from_reference_px": float(distance_from_reference),
+        }
+
+    if reference_mode != "handheld":
+        return {
+            "selected_arm": "average",
+            "length_px": average(
+                candidates["left"]["length_px"],
+                candidates["right"]["length_px"],
+            ),
+            "candidates": candidates,
+            **(side_info or {}),
+        }
+
+    max_reference_distance = max(
+        1.0,
+        candidates["left"]["distance_from_reference_px"],
+        candidates["right"]["distance_from_reference_px"],
+    )
+    for candidate in candidates.values():
+        distance_score = candidate["distance_from_reference_px"] / max_reference_distance
+        candidate["selection_score"] = (
+            distance_score * 0.55
+            + candidate["visibility"] * 0.25
+            + candidate["relaxed_score"] * 0.20
+        )
+
+    selected_arm = max(
+        candidates,
+        key=lambda arm: candidates[arm]["selection_score"],
+    )
+    return {
+        "selected_arm": selected_arm,
+        "length_px": candidates[selected_arm]["length_px"],
+        "candidates": candidates,
+        **(side_info or {}),
+    }
+
+
+def normalize_handheld_mask(mask, keypoints, ref_contour, view):
+    """Mirror the unobstructed body half over the arm holding the reference.
+
+    Only frontal views are normalized. A side view must keep its genuine depth,
+    so the capture guide places the held reference below and outside the torso.
+    """
+    side_info = reference_image_side(keypoints, ref_contour)
+    if view not in ("front", "back") or side_info is None or mask is None or mask.size == 0:
+        return mask, {
+            "applied": False,
+            "reason": "side_view_preserved" if view == "side" else "reference_side_unavailable",
+        }
+
+    height, width = mask.shape[:2]
+    center_x = int(round(side_info["body_center_x"]))
+    center_x = max(1, min(width - 2, center_x))
+    shoulder_y = average(
+        keypoints["left_shoulder"][1],
+        keypoints["right_shoulder"][1],
+    )
+    hip_y = average(keypoints["left_hip"][1], keypoints["right_hip"][1])
+    held_semantic_arm = min(
+        ("left", "right"),
+        key=lambda arm: abs(
+            keypoints[f"{arm}_wrist"][0] - side_info["reference_center_x"]
+        ),
+    )
+    held_wrist_y = keypoints[f"{held_semantic_arm}_wrist"][1]
+    y_start = max(0, int(round(shoulder_y - height * 0.035)))
+    y_end = min(height, int(round(max(hip_y, held_wrist_y) + height * 0.045)))
+    if y_end <= y_start:
+        return mask, {"applied": False, "reason": "invalid_normalization_band"}
+
+    normalized = np.where(mask > 0, 255, 0).astype(np.uint8)
+    if side_info["held_image_side"] == "right":
+        target_x = np.arange(center_x, width)
+    else:
+        target_x = np.arange(0, center_x + 1)
+    source_x = (2 * center_x - target_x).astype(int)
+    valid = (source_x >= 0) & (source_x < width)
+    normalized[y_start:y_end, target_x[valid]] = mask[y_start:y_end, source_x[valid]]
+
+    if ref_contour is not None:
+        cv2.drawContours(normalized, [ref_contour], -1, 0, thickness=cv2.FILLED)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    normalized = cv2.morphologyEx(normalized, cv2.MORPH_CLOSE, kernel, iterations=1)
+    normalized = isolate_pose_component(normalized, keypoints)
+
+    return normalized, {
+        "applied": True,
+        "held_image_side": side_info["held_image_side"],
+        "free_image_side": side_info["free_image_side"],
+        "held_semantic_arm": held_semantic_arm,
+        "body_center_x": round(float(side_info["body_center_x"]), 2),
+        "reference_center_x": round(float(side_info["reference_center_x"]), 2),
+        "y_band": [int(y_start), int(y_end)],
+    }
 
 
 def build_body_mask(image, keypoints, ref_contour=None, pose_segmentation=None):
@@ -801,7 +1104,7 @@ def width_at_y(mask, y):
     return float(cols[-1] - cols[0])
 
 
-def constrained_width_at_y(mask, y, center_x, max_width_px):
+def constrained_span_at_y(mask, y, center_x, max_width_px, band=4):
     h, w = mask.shape
     y = int(max(0, min(h - 1, y)))
     max_width_px = max(8.0, min(float(max_width_px), float(w)))
@@ -811,11 +1114,12 @@ def constrained_width_at_y(mask, y, center_x, max_width_px):
     if x_max <= x_min:
         return 0.0
 
-    band_top = max(0, y - 4)
-    band_bottom = min(h, y + 5)
+    band = max(1, int(round(band)))
+    band_top = max(0, y - band)
+    band_bottom = min(h, y + band + 1)
     rows = mask[band_top:band_bottom, x_min:x_max + 1]
     local_center = center_x - x_min
-    row_widths = []
+    row_spans = []
     for row in rows:
         cols = np.where(row > 0)[0]
         if len(cols) < 2:
@@ -837,9 +1141,21 @@ def constrained_width_at_y(mask, y, center_x, max_width_px):
         )
         distance = 0 if best[0] <= local_center <= best[1] else min(abs(local_center - best[0]), abs(local_center - best[1]))
         if distance <= max_width_px * 0.3:
-            row_widths.append(float(best[1] - best[0] + 1))
+            row_spans.append((float(best[0] + x_min), float(best[1] + x_min)))
 
-    return float(np.median(row_widths)) if row_widths else 0.0
+    if not row_spans:
+        return None
+    left = float(np.median([span[0] for span in row_spans]))
+    right = float(np.median([span[1] for span in row_spans]))
+    return (left, right) if right > left else None
+
+
+def constrained_width_at_y(mask, y, center_x, max_width_px, band=4):
+    span = constrained_span_at_y(mask, y, center_x, max_width_px, band)
+    if span is None:
+        return 0.0
+
+    return float(span[1] - span[0] + 1)
 
 
 def x_at_y(start, end, target_y):
@@ -970,6 +1286,10 @@ def anthropometric_scale_result(points, reason, assumed_stature_cm=DEFAULT_ESTIM
         return None
     return {
         "scale": estimated["scale"],
+        "horizontal_scale": estimated["scale"],
+        "vertical_scale": estimated["scale"],
+        "homography": None,
+        "homography_distance_factor": 1.0,
         "contour": None,
         "area": 0.0,
         "source": "anthropometric_pose_estimate",
@@ -1022,8 +1342,10 @@ def process_measurement(
     ref_height_cm=None,
     reference_boxes=None,
     progress_callback=None,
+    reference_mode="fixed",
 ):
     started_at = time.perf_counter()
+    reference_mode = reference_mode if reference_mode in ("fixed", "handheld") else "fixed"
 
     def progress(stage, percent, message, view=None):
         if progress_callback:
@@ -1059,15 +1381,18 @@ def process_measurement(
     progress("prepare_photos", 10, "Foto siap diproses")
 
     scales = {}
+    calibrations = {}
     scale_sources = {}
     scale_qualities = {}
     reference_axis_scales = {}
     reference_processing = {}
+    reference_contours = {}
     poses = {}
     masks = {}
     bounds = {}
     pose_statures = {}
     pose_fallback_views = []
+    handheld_mask_diagnostics = {}
     model_fallback_diagnostics = None
 
     view_progress = {
@@ -1079,7 +1404,12 @@ def process_measurement(
     for view, image in images.items():
         reference_percent, body_percent = view_progress[view]
         label = VIEW_LABELS.get(view, f"foto {view}")
-        progress("reference_roi", reference_percent, f"Memproses area benda patokan pada {label}", view)
+        progress(
+            "reference_roi",
+            reference_percent,
+            f"Mendeteksi empat tepi dan mengoreksi perspektif benda patokan pada {label}",
+            view,
+        )
         scale_result = calculate_scale(
             image,
             ref_object,
@@ -1087,6 +1417,7 @@ def process_measurement(
             ref_height_cm,
             (reference_boxes or {}).get(view),
         )
+        detected_reference_contour = scale_result.get("contour") if scale_result else None
 
         progress("body_segmentation", body_percent, f"Mendeteksi pose dan siluet pada {label}", view)
         pose = detect_pose(image)
@@ -1094,7 +1425,7 @@ def process_measurement(
         if pose is None:
             mask = extract_silhouette_without_pose(
                 image,
-                scale_result.get("contour") if scale_result else None,
+                detected_reference_contour,
             )
             if largest_body_bounds(mask) is None:
                 return {
@@ -1137,9 +1468,14 @@ def process_measurement(
                 }
             scale_result = fallback_scale
 
+        ankle_x = average(points["left_ankle"][0], points["right_ankle"][0])
         ankle_y = average(points["left_ankle"][1], points["right_ankle"][1])
         pose_span_px = max(0.0, ankle_y - points["nose"][1])
-        stature_cm = px_to_cm(pose_span_px * 1.08, scale_result["scale"])
+        stature_cm = calibrated_distance_cm(
+            point_xy(points["nose"]),
+            (ankle_x, ankle_y),
+            scale_result,
+        ) * 1.08
         if stature_cm < 110 or stature_cm > 230:
             fallback_scale = anthropometric_scale_result(points, "invalid_reference_scale")
             if fallback_scale is None:
@@ -1158,15 +1494,29 @@ def process_measurement(
             mask = build_body_mask(
                 image,
                 points,
-                scale_result["contour"],
+                detected_reference_contour,
                 pose.get("segmentation_mask"),
+            )
+        if reference_mode == "handheld":
+            mask, handheld_mask_diagnostics[view] = normalize_handheld_mask(
+                mask,
+                points,
+                detected_reference_contour,
+                view,
             )
         body_bounds = largest_body_bounds(mask)
         if body_bounds is None:
             fallback_mask = extract_silhouette_without_pose(
                 image,
-                scale_result.get("contour") if scale_result else None,
+                detected_reference_contour,
             )
+            if reference_mode == "handheld":
+                fallback_mask, handheld_mask_diagnostics[view] = normalize_handheld_mask(
+                    fallback_mask,
+                    points,
+                    detected_reference_contour,
+                    view,
+                )
             fallback_bounds = largest_body_bounds(fallback_mask)
             if fallback_bounds is None:
                 return {
@@ -1183,24 +1533,78 @@ def process_measurement(
                 pose_fallback_views.append(view)
 
         scales[view] = scale_result["scale"]
+        calibrations[view] = scale_result
         scale_sources[view] = scale_result["source"]
         scale_qualities[view] = scale_result.get("quality", 0.5)
         reference_axis_scales[view] = scale_result.get("axis_scales", [])
         reference_processing[view] = scale_result.get("processing", {})
+        reference_contours[view] = detected_reference_contour
         poses[view] = pose
         masks[view] = mask
         bounds[view] = body_bounds
         pose_statures[view] = stature_cm
 
-    progress("cross_view_scale", 64, "Membandingkan skala foto depan, samping, dan belakang")
-    scale_consistency = min(scales.values()) / max(scales.values())
-    stature_consistency = min(pose_statures.values()) / max(pose_statures.values())
+    progress(
+        "cross_view_scale",
+        64,
+        "Menyelaraskan skala fisik dan level anatomi foto depan, samping, dan belakang",
+    )
+    raw_scale_consistency = min(scales.values()) / max(scales.values())
+    raw_stature_consistency = min(pose_statures.values()) / max(pose_statures.values())
     calibrated_scale_count = sum(
         1
         for source in scale_sources.values()
         if source != "anthropometric_pose_estimate"
     )
-    if calibrated_scale_count >= 2 and (scale_consistency < 0.72 or stature_consistency < 0.82):
+    handheld_target_stature_cm = None
+    if reference_mode == "handheld":
+        progress(
+            "handheld_normalization",
+            68,
+            "Menetralkan pengaruh tangan pemegang dan menyelaraskan tiga foto",
+        )
+        calibrated_statures = [
+            pose_statures[view]
+            for view in ("front", "side", "back")
+            if scale_sources[view] != "anthropometric_pose_estimate"
+            and 125 <= pose_statures[view] <= 215
+        ]
+        stature_candidates = calibrated_statures or list(pose_statures.values())
+        handheld_target_stature_cm = float(np.median(stature_candidates))
+        handheld_target_stature_cm = max(125.0, min(215.0, handheld_target_stature_cm))
+        quality_cap = 0.74 if ref_object == "ktp" else 0.82
+        for view in ("front", "side", "back"):
+            points = poses[view]["keypoints"]
+            ankle_y = average(points["left_ankle"][1], points["right_ankle"][1])
+            pose_span_px = max(1.0, ankle_y - points["nose"][1])
+            old_scale = float(scales[view])
+            scales[view] = (pose_span_px * 1.08) / handheld_target_stature_cm
+            calibration = calibrations[view]
+            if calibration.get("homography") is not None:
+                calibration["homography_distance_factor"] = (
+                    float(calibration.get("homography_distance_factor", 1.0))
+                    * old_scale
+                    / scales[view]
+                )
+            else:
+                calibration["horizontal_scale"] = scales[view]
+                calibration["vertical_scale"] = scales[view]
+            calibration["scale"] = scales[view]
+            pose_statures[view] = handheld_target_stature_cm
+            scale_qualities[view] = min(scale_qualities[view], quality_cap)
+            reference_processing[view] = {
+                **reference_processing[view],
+                "handheld_cross_view_normalized": True,
+                "normalized_stature_cm": round(handheld_target_stature_cm, 2),
+            }
+
+    scale_consistency = min(scales.values()) / max(scales.values())
+    stature_consistency = min(pose_statures.values()) / max(pose_statures.values())
+    if (
+        reference_mode == "fixed"
+        and calibrated_scale_count >= 2
+        and (scale_consistency < 0.72 or stature_consistency < 0.82)
+    ):
         return {
             "success": False,
             "error": (
@@ -1224,33 +1628,95 @@ def process_measurement(
     front_levels = y_levels(front_points)
     side_levels = y_levels(poses["side"]["keypoints"])
     back_levels = y_levels(poses["back"]["keypoints"])
+    arm_selections = {
+        view: select_arm_for_measurement(
+            poses[view]["keypoints"],
+            reference_contours[view],
+            reference_mode,
+        )
+        for view in ("front", "side", "back")
+    }
 
     width_debug = {}
 
     def body_width_cm(view, level_name, scale):
         levels = front_levels if view == "front" else side_levels if view == "side" else back_levels
         keypoints = poses[view]["keypoints"]
-        centers_x = level_centers_x(keypoints, level_name, levels[level_name])
+        target_y = levels[level_name]
+        selected_arm = arm_selections[view].get("selected_arm")
+        if reference_mode == "handheld" and selected_arm in ("left", "right") and level_name in ("upper_arm", "wrist"):
+            if level_name == "upper_arm":
+                centers_x = [x_at_y(
+                    keypoints[f"{selected_arm}_shoulder"],
+                    keypoints[f"{selected_arm}_elbow"],
+                    target_y,
+                )]
+            else:
+                target_y = keypoints[f"{selected_arm}_wrist"][1]
+                centers_x = [keypoints[f"{selected_arm}_wrist"][0]]
+        else:
+            centers_x = level_centers_x(keypoints, level_name, target_y)
         max_width = level_window_px(keypoints, level_name, view)
-        raw_width = width_at_y(masks[view], levels[level_name])
-        sampled_widths = [
-            constrained_width_at_y(masks[view], levels[level_name], center_x, max_width)
+        body_height_px = max(
+            1.0,
+            average(keypoints["left_ankle"][1], keypoints["right_ankle"][1])
+            - keypoints["nose"][1],
+        )
+        band_factor = 0.012 if level_name in ("neck", "chest", "waist", "hips") else 0.008
+        sampling_band = max(4, min(16, int(round(body_height_px * band_factor))))
+        raw_width = width_at_y(masks[view], target_y)
+        sampled_spans = [
+            constrained_span_at_y(
+                masks[view],
+                target_y,
+                center_x,
+                max_width,
+                sampling_band,
+            )
             for center_x in centers_x
         ]
+        sampled_widths = [
+            float(span[1] - span[0] + 1) if span is not None else 0.0
+            for span in sampled_spans
+        ]
+        sampled_widths_cm = [
+            calibrated_distance_cm(
+                (span[0], target_y),
+                (span[1] + 1, target_y),
+                calibrations[view],
+            )
+            if span is not None
+            else 0.0
+            for span in sampled_spans
+        ]
         valid_widths = [width for width in sampled_widths if width > 0]
+        valid_widths_cm = [width for width in sampled_widths_cm if width > 0]
         constrained_width = average(*valid_widths)
-        if constrained_width <= 0 and len(centers_x) == 1:
-            constrained_width = min(raw_width, max_width)
+        constrained_width_cm = average(*valid_widths_cm)
+        if constrained_width_cm <= 0 and len(centers_x) == 1:
+            raw_span = _silhouette_row_span(masks[view], target_y, sampling_band)
+            if raw_span is not None:
+                constrained_width = min(float(raw_span[1] - raw_span[0] + 1), max_width)
+                half_width = constrained_width / 2.0
+                constrained_width_cm = calibrated_distance_cm(
+                    (centers_x[0] - half_width, target_y),
+                    (centers_x[0] + half_width, target_y),
+                    calibrations[view],
+                )
 
         width_debug[f"{view}_{level_name}"] = {
             "raw_px": round(float(raw_width), 2),
             "used_px": round(float(constrained_width), 2),
+            "used_cm": round(float(constrained_width_cm), 2),
             "window_px": round(float(max_width), 2),
+            "sampling_band_px": int(sampling_band),
             "centers_x": [round(float(center_x), 2) for center_x in centers_x],
             "samples_px": [round(float(width), 2) for width in sampled_widths],
+            "samples_cm": [round(float(width), 2) for width in sampled_widths_cm],
+            "selected_arm": selected_arm,
         }
 
-        return px_to_cm(constrained_width, scale)
+        return constrained_width_cm
 
     def circumference(level_name):
         front_width = average(
@@ -1260,22 +1726,57 @@ def process_measurement(
         side_depth = body_width_cm("side", level_name, side_scale)
         return rounded(ellipse_circumference(front_width, side_depth))
 
-    shoulder_width = px_to_cm(
-        euclidean_distance(point_xy(front_points["left_shoulder"]), point_xy(front_points["right_shoulder"])),
-        front_scale,
+    def arm_path_cm(view):
+        keypoints = poses[view]["keypoints"]
+        selected_arm = arm_selections[view]["selected_arm"]
+        arms = ("left", "right") if selected_arm == "average" else (selected_arm,)
+        lengths = []
+        for arm in arms:
+            shoulder = point_xy(keypoints[f"{arm}_shoulder"])
+            elbow = point_xy(keypoints[f"{arm}_elbow"])
+            wrist = point_xy(keypoints[f"{arm}_wrist"])
+            lengths.append(
+                calibrated_distance_cm(shoulder, elbow, calibrations[view])
+                + calibrated_distance_cm(elbow, wrist, calibrations[view])
+            )
+        return average(*lengths)
+
+    back_points = poses["back"]["keypoints"]
+    shoulder_width = average(
+        calibrated_distance_cm(
+            point_xy(front_points["left_shoulder"]),
+            point_xy(front_points["right_shoulder"]),
+            calibrations["front"],
+        ),
+        calibrated_distance_cm(
+            point_xy(back_points["left_shoulder"]),
+            point_xy(back_points["right_shoulder"]),
+            calibrations["back"],
+        ),
     )
-    left_arm = euclidean_distance(point_xy(front_points["left_shoulder"]), point_xy(front_points["left_elbow"])) + euclidean_distance(point_xy(front_points["left_elbow"]), point_xy(front_points["left_wrist"]))
-    right_arm = euclidean_distance(point_xy(front_points["right_shoulder"]), point_xy(front_points["right_elbow"])) + euclidean_distance(point_xy(front_points["right_elbow"]), point_xy(front_points["right_wrist"]))
-    arm_length = px_to_cm((left_arm + right_arm) / 2, front_scale)
+    arm_length = arm_path_cm("front")
 
     front_x, front_y, front_w, front_h = bounds["front"]
     height = average(pose_statures["front"], pose_statures["back"])
     hip_mid = midpoint(point_xy(front_points["left_hip"]), point_xy(front_points["right_hip"]))
     ankle_mid = midpoint(point_xy(front_points["left_ankle"]), point_xy(front_points["right_ankle"]))
     shoulder_mid = midpoint(point_xy(front_points["left_shoulder"]), point_xy(front_points["right_shoulder"]))
-    inseam_px = max(0, ankle_mid[1] - (hip_mid[1] + front_h * 0.08))
-    outseam_px = max(0, ankle_mid[1] - front_levels["waist"])
-    shirt_length_px = max(0, front_levels["hips"] - shoulder_mid[1])
+    inseam_start_y = hip_mid[1] + front_h * 0.08
+    inseam_cm = calibrated_distance_cm(
+        (ankle_mid[0], inseam_start_y),
+        ankle_mid,
+        calibrations["front"],
+    )
+    outseam_cm = calibrated_distance_cm(
+        (ankle_mid[0], front_levels["waist"]),
+        ankle_mid,
+        calibrations["front"],
+    )
+    shirt_length_cm = calibrated_distance_cm(
+        (shoulder_mid[0], shoulder_mid[1]),
+        (shoulder_mid[0], front_levels["hips"]),
+        calibrations["front"],
+    )
 
     chest = circumference("chest")
     waist = circumference("waist")
@@ -1291,7 +1792,7 @@ def process_measurement(
         "waist": waist,
         "hips": hips,
         "shoulder_width": rounded(shoulder_width),
-        "shirt_length": rounded(px_to_cm(shirt_length_px, front_scale)),
+        "shirt_length": rounded(shirt_length_cm),
         "arm_length": rounded(arm_length),
         "upper_arm": rounded(circumference("upper_arm")),
         "wrist": rounded(circumference("wrist")),
@@ -1302,9 +1803,9 @@ def process_measurement(
         "knee": knee,
         "calf": calf,
         "ankle": ankle,
-        "inseam": rounded(px_to_cm(inseam_px, front_scale)),
-        "outseam": rounded(px_to_cm(outseam_px, front_scale)),
-        "rise": rounded(px_to_cm(max(0, outseam_px - inseam_px), front_scale)),
+        "inseam": rounded(inseam_cm),
+        "outseam": rounded(outseam_cm),
+        "rise": rounded(max(0.0, outseam_cm - inseam_cm)),
     }
 
     bodym_result = None
@@ -1383,6 +1884,9 @@ def process_measurement(
                 "scales": {key: round(value, 4) for key, value in scales.items()},
                 "body_bounds": {key: [int(v) for v in value] for key, value in bounds.items()},
                 "reference_scale_sources": scale_sources,
+                "reference_mode": reference_mode,
+                "arm_selections": arm_selections,
+                "handheld_mask_normalization": handheld_mask_diagnostics,
                 "width_samples": width_debug,
             },
         }
@@ -1467,6 +1971,8 @@ def process_measurement(
         confidence_caps.append(0.78)
     if uses_model_fallback:
         confidence_caps.append(0.68)
+    if reference_mode == "handheld":
+        confidence_caps.append(0.78 if ref_object == "ktp" else 0.84)
     if confidence_caps:
         confidence_cap = min(confidence_caps)
         quality_score = round(min(quality_score, confidence_cap), 2)
@@ -1488,6 +1994,8 @@ def process_measurement(
             "pose_fallback": view in pose_fallback_views,
             "body_bounds": [int(value) for value in bounds[view]],
             "used_by_bodym": view in ("front", "side"),
+            "arm_selection": arm_selections[view],
+            "handheld_mask_normalization": handheld_mask_diagnostics.get(view, {}),
         }
         for view in ("front", "side", "back")
     }
@@ -1498,6 +2006,7 @@ def process_measurement(
         "confidence": quality_score,
         "quality_score": quality_score,
         "ref_detected": not uses_estimated_scale,
+        "reference_mode": reference_mode,
         "measurement_method": (
             "bodym_ml"
             if bodym_result
@@ -1528,8 +2037,18 @@ def process_measurement(
             },
             "pose_fallback_views": pose_fallback_views,
             "model_fallback": uses_model_fallback,
+            "reference_mode": reference_mode,
+            "raw_scale_consistency": round(float(raw_scale_consistency), 4),
+            "raw_stature_consistency": round(float(raw_stature_consistency), 4),
             "scale_consistency": round(float(scale_consistency), 4),
             "stature_consistency": round(float(stature_consistency), 4),
+            "handheld_target_stature_cm": (
+                round(float(handheld_target_stature_cm), 2)
+                if handheld_target_stature_cm is not None
+                else None
+            ),
+            "arm_selections": arm_selections,
+            "handheld_mask_normalization": handheld_mask_diagnostics,
             "width_samples": width_debug,
         },
     }

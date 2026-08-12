@@ -12,11 +12,9 @@ if str(CV_DIR) not in sys.path:
 
 try:
     import cv2
-    import mediapipe
     HAS_REAL_CV = True
 except ModuleNotFoundError:
     sys.modules.setdefault("cv2", MagicMock())
-    sys.modules.setdefault("mediapipe", MagicMock())
     HAS_REAL_CV = False
 
 import measurement
@@ -98,6 +96,51 @@ def make_side_mask():
 
 
 class MeasurementGeometryTest(unittest.TestCase):
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV is required")
+    def test_handheld_mode_selects_arm_farthest_from_reference(self):
+        keypoints = front_pose()
+        keypoints["right_elbow"] = (160, 130, 1)
+        keypoints["right_wrist"] = (184, 175, 1)
+        reference = np.array(
+            [[[170, 125]], [[202, 125]], [[202, 205]], [[170, 205]]],
+            dtype=np.int32,
+        )
+
+        selection = measurement.select_arm_for_measurement(
+            keypoints,
+            reference,
+            "handheld",
+        )
+
+        self.assertEqual("left", selection["selected_arm"])
+        self.assertEqual("right", selection["held_image_side"])
+        self.assertAlmostEqual(
+            measurement._arm_path_length(keypoints, "left"),
+            selection["length_px"],
+        )
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV is required")
+    def test_handheld_mask_mirrors_free_side_over_reference_side(self):
+        keypoints = front_pose()
+        mask = make_front_mask()
+        mask[105:215, 130:202] = 255
+        reference = np.array(
+            [[[176, 135]], [[207, 135]], [[207, 210]], [[176, 210]]],
+            dtype=np.int32,
+        )
+
+        normalized, diagnostics = measurement.normalize_handheld_mask(
+            mask,
+            keypoints,
+            reference,
+            "front",
+        )
+
+        self.assertTrue(diagnostics["applied"])
+        self.assertEqual("right", diagnostics["held_image_side"])
+        self.assertEqual(0, int(normalized[160, 195]))
+        self.assertGreater(int(np.count_nonzero(normalized[:, :130])), 0)
+
     def test_pose_detection_does_not_request_native_segmentation_mask(self):
         image = np.zeros((32, 32, 3), dtype=np.uint8)
 
@@ -294,6 +337,84 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertAlmostEqual(84, width, delta=10)
         self.assertAlmostEqual(119, height, delta=10)
 
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_manual_reference_roi_is_not_used_as_scale_when_edges_are_unresolved(self):
+        image = np.full((500, 400, 3), 185, dtype=np.uint8)
+        payload = {
+            "x": 210,
+            "y": 90,
+            "w": 150,
+            "h": 210,
+            "image_width": 400,
+            "image_height": 500,
+        }
+
+        result = measurement.refine_manual_reference_contour(image, payload, 21.0, 29.7)
+
+        self.assertIsNotNone(result)
+        self.assertIsNone(result["contour"])
+        self.assertEqual("manual_roi_unresolved", result["source"])
+        self.assertFalse(result["processing"]["refined"])
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_reference_plane_calibration_rectifies_a_perspective_a4(self):
+        contour = np.array(
+            [[[100, 100]], [[184, 105]], [[194, 224]], [[90, 220]]],
+            dtype=np.int32,
+        )
+
+        calibration = measurement.reference_plane_calibration(contour, 21.0, 29.7)
+
+        self.assertIsNotNone(calibration)
+        top_left, top_right, bottom_right, bottom_left = calibration["ordered_corners"]
+        projected = measurement.project_points_to_reference_plane(
+            [top_left, top_right, bottom_right, bottom_left],
+            calibration["homography"],
+        )
+        self.assertAlmostEqual(21.0, measurement.euclidean_distance(projected[0], projected[1]), places=2)
+        self.assertAlmostEqual(29.7, measurement.euclidean_distance(projected[0], projected[3]), places=2)
+        self.assertGreater(calibration["horizontal_pixels_per_cm"], 0)
+        self.assertGreater(calibration["vertical_pixels_per_cm"], 0)
+        self.assertLess(calibration["perspective_consistency"], 1.0)
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_constrained_span_uses_the_median_band_instead_of_one_noisy_row(self):
+        mask = np.zeros((220, 240), dtype=np.uint8)
+        mask[95:106, 80:121] = 255
+        mask[100, 10:220] = 255
+
+        span = measurement.constrained_span_at_y(
+            mask,
+            y=100,
+            center_x=100,
+            max_width_px=180,
+            band=5,
+        )
+
+        self.assertIsNotNone(span)
+        self.assertAlmostEqual(80, span[0], delta=1)
+        self.assertAlmostEqual(120, span[1], delta=1)
+
+    @unittest.skipUnless(HAS_REAL_CV, "OpenCV/MediaPipe tidak tersedia di runtime lokal")
+    def test_calibrated_distance_uses_reference_homography(self):
+        contour = np.array(
+            [[[100, 100]], [[184, 105]], [[194, 224]], [[90, 220]]],
+            dtype=np.int32,
+        )
+        calibration = measurement.reference_plane_calibration(contour, 21.0, 29.7)
+
+        top_left, top_right, _, bottom_left = calibration["ordered_corners"]
+        self.assertAlmostEqual(
+            21.0,
+            measurement.calibrated_distance_cm(top_left, top_right, calibration),
+            places=2,
+        )
+        self.assertAlmostEqual(
+            29.7,
+            measurement.calibrated_distance_cm(top_left, bottom_left, calibration),
+            places=2,
+        )
+
     def test_process_measurement_reports_real_pipeline_progress(self):
         dummy_image = np.zeros((420, 220, 3), dtype=np.uint8)
         poses = [pose(front_pose()), pose(side_pose()), pose(front_pose())]
@@ -332,6 +453,12 @@ class MeasurementGeometryTest(unittest.TestCase):
         self.assertIn("reference_roi", stages)
         self.assertIn("body_segmentation", stages)
         self.assertIn("calculate_measurements", stages)
+        reference_messages = [
+            event["message"]
+            for event in progress_events
+            if event["stage"] == "reference_roi"
+        ]
+        self.assertTrue(all("mengoreksi perspektif" in message for message in reference_messages))
         self.assertEqual("completed", stages[-1])
         self.assertEqual(100, progress_events[-1]["percent"])
 

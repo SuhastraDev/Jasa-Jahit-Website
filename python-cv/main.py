@@ -90,6 +90,7 @@ def run_measurement_job(job_id, front_bytes, side_bytes, back_bytes, options):
             options.get("ref_height_cm"),
             options.get("reference_boxes"),
             report,
+            reference_mode=options.get("reference_mode", "fixed"),
         )
         if result.get("success"):
             update_job(
@@ -164,10 +165,6 @@ async def measure(
     if reference_mode not in ("fixed", "handheld"):
         raise HTTPException(status_code=422, detail="reference_mode harus 'fixed' atau 'handheld'")
 
-    if reference_mode == "handheld" and ref_object != "a4":
-        raise HTTPException(status_code=422, detail="Mode praktis hanya tersedia untuk A4")
-
-
     for photo in (front_photo, side_photo, back_photo):
         if photo.content_type not in ("image/jpeg", "image/png", "image/webp"):
             raise HTTPException(status_code=422, detail="Format gambar harus JPG, PNG, atau WEBP")
@@ -185,6 +182,7 @@ async def measure(
                 "side": side_reference_box,
                 "back": back_reference_box,
             },
+            reference_mode=reference_mode,
         )
         return result
     except Exception as e:
@@ -212,9 +210,6 @@ async def create_measurement_job(
         raise HTTPException(status_code=422, detail="ref_object harus 'a4' atau 'ktp'")
     if reference_mode not in ("fixed", "handheld"):
         raise HTTPException(status_code=422, detail="reference_mode harus 'fixed' atau 'handheld'")
-    if reference_mode == "handheld" and ref_object != "a4":
-        raise HTTPException(status_code=422, detail="Mode praktis hanya tersedia untuk A4")
-
     photos = (front_photo, side_photo, back_photo)
     for photo in photos:
         if photo.content_type not in ("image/jpeg", "image/png", "image/webp"):
@@ -255,6 +250,7 @@ async def create_measurement_job(
                 "side": side_reference_box,
                 "back": back_reference_box,
             },
+            "reference_mode": reference_mode,
         },
     )
     return {"success": True, "job_id": job_id, "status": "queued"}

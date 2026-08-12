@@ -21,6 +21,35 @@ from bodym_preprocessing import feature_names
 
 
 class BodyMApiTest(unittest.TestCase):
+    def test_measure_accepts_handheld_ktp_and_forwards_reference_mode(self) -> None:
+        class Upload:
+            content_type = "image/jpeg"
+
+            async def read(self):
+                return b"photo"
+
+        with patch.object(
+            main,
+            "process_measurement",
+            return_value={"success": True, "data": {}},
+        ) as process:
+            response = asyncio.run(main.measure(
+                front_photo=Upload(),
+                side_photo=Upload(),
+                back_photo=Upload(),
+                ref_object="ktp",
+                ref_width_cm=8.56,
+                ref_height_cm=5.398,
+                reference_mode="handheld",
+                front_reference_box=None,
+                side_reference_box=None,
+                back_reference_box=None,
+            ))
+
+        self.assertTrue(response["success"])
+        self.assertEqual("handheld", process.call_args.kwargs["reference_mode"])
+        self.assertEqual("ktp", process.call_args.args[3])
+
     def test_health_exposes_loaded_model_version(self) -> None:
         service = MagicMock()
         service.status.return_value = {

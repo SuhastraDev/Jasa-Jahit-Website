@@ -117,16 +117,17 @@ class MeasurementController extends Controller
     public function analyze(Request $request, CVMeasurementService $cvService, PhotoValidationService $validator)
     {
         $request->validate([
-            'front_photo'   => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'side_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'back_photo'    => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'ref_object'    => 'required|in:a4,ktp',
+            'front_photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'side_photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'back_photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'ref_object' => 'required|in:a4,ktp',
             'reference_mode' => 'required|in:fixed,handheld',
-            'ref_width_cm'  => 'nullable|numeric|min:1',
+            'ref_width_cm' => 'nullable|numeric|min:1',
             'ref_height_cm' => 'nullable|numeric|min:1',
             'front_reference_box' => 'nullable|string',
             'side_reference_box' => 'nullable|string',
             'back_reference_box' => 'nullable|string',
+            'photo_sources_json' => 'nullable|json',
         ], [
             'front_photo.max' => 'Foto depan terlalu besar. Maksimal 5MB per foto.',
             'side_photo.max' => 'Foto samping terlalu besar. Maksimal 5MB per foto.',
@@ -139,17 +140,12 @@ class MeasurementController extends Controller
             'back_photo.mimes' => 'Foto belakang harus berformat JPG, JPEG, PNG, atau WEBP.',
         ]);
 
-        if ($request->ref_object === 'ktp' && $request->reference_mode === 'handheld') {
-            return back()
-                ->withInput()
-                ->withErrors(['reference_mode' => 'Mode praktis hanya tersedia untuk A4. KTP harus ditempel atau disandarkan.']);
-        }
-
         [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
             $request->ref_object,
             $request->ref_width_cm,
             $request->ref_height_cm,
         );
+        $photoSources = $this->resolvePhotoSources($request->input('photo_sources_json'));
 
         $validations = $validator->validateMany([
             'front_photo' => [
@@ -168,7 +164,7 @@ class MeasurementController extends Controller
 
         $photoWarnings = [];
         foreach ($validations as $photoName => $validation) {
-            if (!$validation['valid']) {
+            if (! $validation['valid']) {
                 $label = match ($photoName) {
                     'side_photo' => 'Foto samping',
                     'back_photo' => 'Foto belakang',
@@ -184,7 +180,7 @@ class MeasurementController extends Controller
         // the final decision and can continue from body silhouette data when
         // the reference object or browser detector is inconclusive.
 
-        $folder = 'measurements/' . auth()->id();
+        $folder = 'measurements/'.auth()->id();
         $frontPhotoPath = $request->file('front_photo')->store($folder, 'public');
         $sidePhotoPath = $request->file('side_photo')->store($folder, 'public');
         $backPhotoPath = $request->file('back_photo')->store($folder, 'public');
@@ -204,26 +200,20 @@ class MeasurementController extends Controller
             ],
         );
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return back()
                 ->withInput()
                 ->with('error', $result['error']);
         }
 
+        $result = $this->adjustResultForReferenceMode(
+            $result,
+            $request->reference_mode,
+            $request->ref_object,
+        );
         $confidence = (float) ($result['confidence'] ?? 0);
         $qualityScore = (float) ($result['quality_score'] ?? 0);
         $perFieldConfidence = $result['per_field_confidence'] ?? [];
-        if ($request->reference_mode === 'handheld') {
-            $confidence = max(0, round($confidence * 0.9, 4));
-            $qualityScore = max(0, round($qualityScore * 0.95, 4));
-            foreach ($perFieldConfidence as $field => $fieldConfidence) {
-                $perFieldConfidence[$field] = max(0, round((float) $fieldConfidence * 0.9, 4));
-            }
-            $result['confidence'] = $confidence;
-            $result['quality_score'] = $qualityScore;
-            $result['per_field_confidence'] = $perFieldConfidence;
-            $result['reference_mode_adjustment'] = 'Confidence dikurangi untuk mode praktis karena A4 dipegang tangan.';
-        }
 
         $data = $this->legacyDataFromResult($result);
         $bodymData = $this->bodymDataFromResult($result);
@@ -247,6 +237,8 @@ class MeasurementController extends Controller
             'refHeightCm' => $refHeightCm,
             'referenceMode' => $request->reference_mode,
             'photoWarnings' => $photoWarnings,
+            'photoSources' => $photoSources,
+            'photoDiagnostics' => $result['photo_diagnostics'] ?? [],
         ]);
     }
 
@@ -256,18 +248,12 @@ class MeasurementController extends Controller
     ) {
         $request->validate($this->analysisRules(), $this->analysisMessages());
 
-        if ($request->ref_object === 'ktp' && $request->reference_mode === 'handheld') {
-            return response()->json([
-                'message' => 'Mode praktis hanya tersedia untuk A4. KTP harus ditempel atau disandarkan.',
-                'errors' => ['reference_mode' => ['Mode praktis hanya tersedia untuk A4.']],
-            ], 422);
-        }
-
         [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
             $request->ref_object,
             $request->ref_width_cm,
             $request->ref_height_cm,
         );
+        $photoSources = $this->resolvePhotoSources($request->input('photo_sources_json'));
 
         $job = $cvService->startMeasurementJob(
             $request->file('front_photo'),
@@ -284,13 +270,13 @@ class MeasurementController extends Controller
             ],
         );
 
-        if (!($job['success'] ?? false) || empty($job['job_id'])) {
+        if (! ($job['success'] ?? false) || empty($job['job_id'])) {
             return response()->json([
                 'message' => $job['error'] ?? 'Analisis tidak dapat dimulai.',
             ], 503);
         }
 
-        $folder = 'measurements/' . auth()->id();
+        $folder = 'measurements/'.auth()->id();
         $context = [
             'user_id' => (int) auth()->id(),
             'front_photo_path' => $request->file('front_photo')->store($folder, 'public'),
@@ -300,6 +286,7 @@ class MeasurementController extends Controller
             'ref_width_cm' => $refWidthCm,
             'ref_height_cm' => $refHeightCm,
             'reference_mode' => $request->reference_mode,
+            'photo_sources' => $photoSources,
             'photo_validation_warnings' => [],
             'result' => null,
         ];
@@ -318,10 +305,11 @@ class MeasurementController extends Controller
         abort_unless($context && (int) $context['user_id'] === (int) auth()->id(), 404);
 
         $job = $cvService->measurementJobStatus($jobId);
-        if (($job['status'] ?? null) === 'completed' && !empty($job['result'])) {
+        if (($job['status'] ?? null) === 'completed' && ! empty($job['result'])) {
             $context['result'] = $this->adjustResultForReferenceMode(
                 $job['result'],
                 $context['reference_mode'],
+                $context['ref_object'],
             );
             Cache::put($this->analysisCacheKey($jobId), $context, now()->addMinutes(45));
             $job['result_url'] = route('user.measurement.analysis-result', $jobId);
@@ -408,7 +396,7 @@ class MeasurementController extends Controller
         }
 
         $rawCv = null;
-        if (!empty($validated['raw_cv_json'])) {
+        if (! empty($validated['raw_cv_json'])) {
             $decoded = json_decode($validated['raw_cv_json'], true);
             $rawCv = is_array($decoded) ? $decoded : null;
         }
@@ -485,6 +473,7 @@ class MeasurementController extends Controller
         }
 
         $measurement->delete();
+
         return back()->with('success', 'Data ukuran berhasil dihapus.');
     }
 
@@ -513,6 +502,7 @@ class MeasurementController extends Controller
             'front_reference_box' => 'nullable|string',
             'side_reference_box' => 'nullable|string',
             'back_reference_box' => 'nullable|string',
+            'photo_sources_json' => 'nullable|json',
         ];
     }
 
@@ -551,18 +541,20 @@ class MeasurementController extends Controller
         return $issues;
     }
 
-    private function adjustResultForReferenceMode(array $result, string $referenceMode): array
+    private function adjustResultForReferenceMode(array $result, string $referenceMode, string $refObject): array
     {
         if ($referenceMode !== 'handheld') {
             return $result;
         }
 
-        $result['confidence'] = max(0, round((float) ($result['confidence'] ?? 0) * 0.9, 4));
-        $result['quality_score'] = max(0, round((float) ($result['quality_score'] ?? 0) * 0.95, 4));
+        $confidenceFactor = $refObject === 'ktp' ? 0.86 : 0.9;
+        $qualityFactor = $refObject === 'ktp' ? 0.9 : 0.95;
+        $result['confidence'] = max(0, round((float) ($result['confidence'] ?? 0) * $confidenceFactor, 4));
+        $result['quality_score'] = max(0, round((float) ($result['quality_score'] ?? 0) * $qualityFactor, 4));
         foreach (($result['per_field_confidence'] ?? []) as $field => $confidence) {
-            $result['per_field_confidence'][$field] = max(0, round((float) $confidence * 0.9, 4));
+            $result['per_field_confidence'][$field] = max(0, round((float) $confidence * $confidenceFactor, 4));
         }
-        $result['reference_mode_adjustment'] = 'Confidence dikurangi untuk mode praktis karena A4 dipegang tangan.';
+        $result['reference_mode_adjustment'] = 'Confidence disesuaikan karena benda patokan dipegang dengan satu tangan.';
 
         return $result;
     }
@@ -589,12 +581,18 @@ class MeasurementController extends Controller
             'refWidthCm' => $refWidthCm,
             'refHeightCm' => $refHeightCm,
             'referenceMode' => $context['reference_mode'],
+            'photoSources' => $context['photo_sources'] ?? [
+                'front' => 'upload',
+                'side' => 'upload',
+                'back' => 'upload',
+            ],
+            'photoDiagnostics' => $result['photo_diagnostics'] ?? [],
         ];
     }
 
     private function analysisCacheKey(string $jobId): string
     {
-        return 'measurement_analysis:' . auth()->id() . ':' . $jobId;
+        return 'measurement_analysis:'.auth()->id().':'.$jobId;
     }
 
     private function bodymDataFromResult(array $result): array
@@ -631,6 +629,7 @@ class MeasurementController extends Controller
         if (isset($bodymData['hip_girth'])) {
             $data['pants_hips'] = $bodymData['hip_girth'];
         }
+
         return $data;
     }
 
@@ -670,5 +669,17 @@ class MeasurementController extends Controller
         $decoded = json_decode($value, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    private function resolvePhotoSources(?string $value): array
+    {
+        $decoded = $this->decodeJsonInput($value) ?? [];
+        $sources = [];
+
+        foreach (['front', 'side', 'back'] as $view) {
+            $sources[$view] = ($decoded[$view] ?? null) === 'camera' ? 'camera' : 'upload';
+        }
+
+        return $sources;
     }
 }

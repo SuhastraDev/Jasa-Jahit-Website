@@ -48,16 +48,16 @@
                 <div class="flex items-center justify-between gap-4 mb-5">
                     <div>
                         <h2 class="font-bold text-gray-900">Protokol Pengambilan Foto</h2>
-                        <p class="text-sm text-gray-500 mt-1">Mode akurat memakai A4/KTP yang ditempel atau disandarkan. Jika perlu lebih praktis, A4 boleh dipegang di samping tubuh dengan confidence lebih rendah.</p>
+                        <p class="text-sm text-gray-500 mt-1">Mode akurat memakai A4/KTP yang ditempel atau disandarkan. Mode praktis membolehkan A4/KTP dipegang satu tangan di sisi luar paha, sementara tangan bebas tetap rileks.</p>
                     </div>
                     <span class="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">3 foto wajib</span>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     @foreach([
-                        ['Depan', 'Badan menghadap kamera. A4/KTP tegak di samping tubuh dan tidak menutup siluet.'],
-                        ['Samping', 'User menghadap kiri/kanan. A4/KTP tetap terlihat kamera, berdiri sejajar jarak tubuh.'],
-                        ['Belakang', 'Punggung menghadap kamera. A4/KTP tetap di samping tubuh dan terlihat penuh.'],
+                        ['Depan', 'Badan menghadap kamera. Pegang patokan rendah di luar paha; tangan satunya lurus rileks.'],
+                        ['Samping', 'Menghadap kiri/kanan. Patokan tetap rendah dan tidak melintas di depan dada, perut, atau pinggul.'],
+                        ['Belakang', 'Punggung menghadap kamera. Patokan terlihat penuh di luar paha; tangan bebas tetap rileks.'],
                     ] as [$title, $desc])
                     <div class="border border-gray-100 rounded-xl p-4">
                         <p class="font-semibold text-gray-900 text-sm">{{ $title }}</p>
@@ -68,7 +68,7 @@
 
                 <div class="mt-4 bg-amber-50 border border-amber-100 rounded-xl p-4">
                     <p class="text-sm font-semibold text-amber-900">Aturan wajib</p>
-                    <p class="text-xs text-amber-800 mt-1 leading-relaxed">Kamera sejajar dada/pinggang, tubuh penuh kepala sampai kaki, pakaian fit, tangan rileks sedikit menjauh dari badan, pencahayaan cukup, dan benda patokan berada pada bidang yang sama dengan tubuh. A4 otomatis dihitung 21,0×29,7 cm; KTP otomatis dihitung 8,56×5,398 cm.</p>
+                    <p class="text-xs text-amber-800 mt-1 leading-relaxed">Kamera sejajar dada/pinggang, tubuh penuh kepala sampai kaki, pakaian fit, dan pencahayaan cukup. Pada mode praktis, hanya satu tangan memegang patokan di luar paha; tangan bebas lurus rileks dan patokan tidak menutupi tubuh. A4 dihitung 21,0×29,7 cm; KTP 8,56×5,398 cm.</p>
                 </div>
             </div>
 
@@ -112,9 +112,23 @@
                             </div>
 
                             <svg class="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 400 300" preserveAspectRatio="none">
-                                <rect x="282" y="50" width="54" height="144" rx="4" fill="rgba(14,165,233,.12)" stroke="#38bdf8" stroke-width="3"/>
-                                <path d="M291 68 H327 M291 86 H327 M291 104 H327 M291 122 H327 M291 140 H327 M291 158 H327 M291 176 H327 M300 58 V186 M318 58 V186" stroke="#7dd3fc" stroke-width="1.4" opacity=".9"/>
-                                <text x="309" y="205" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="700">A4 / KTP</text>
+                                <g x-show="referenceMode === 'fixed'">
+                                    <rect x="282" y="50" width="54" height="144" rx="4" fill="rgba(14,165,233,.12)" stroke="#38bdf8" stroke-width="3"/>
+                                    <path d="M291 68 H327 M291 86 H327 M291 104 H327 M291 122 H327 M291 140 H327 M291 158 H327 M291 176 H327 M300 58 V186 M318 58 V186" stroke="#7dd3fc" stroke-width="1.4" opacity=".9"/>
+                                    <text x="309" y="205" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="700">PATOKAN TETAP</text>
+                                </g>
+                                <g x-show="referenceMode === 'handheld' && refObject === 'a4'">
+                                    <rect x="246" y="145" width="42" height="62" rx="3" fill="rgba(245,158,11,.14)" stroke="#fbbf24" stroke-width="3"/>
+                                    <text x="267" y="220" text-anchor="middle" fill="#fef3c7" font-size="10" font-weight="700">PEGANG A4</text>
+                                </g>
+                                <g x-show="referenceMode === 'handheld' && refObject === 'ktp'">
+                                    <rect x="247" y="158" width="48" height="30" rx="3" fill="rgba(245,158,11,.14)" stroke="#fbbf24" stroke-width="3"/>
+                                    <text x="271" y="202" text-anchor="middle" fill="#fef3c7" font-size="10" font-weight="700">PEGANG KTP</text>
+                                </g>
+                                <g x-show="referenceMode === 'handheld'">
+                                    <path d="M112 151 H72" stroke="#86efac" stroke-width="2" stroke-dasharray="5 4"/>
+                                    <text x="70" y="145" text-anchor="middle" fill="#dcfce7" font-size="9" font-weight="700">TANGAN BEBAS</text>
+                                </g>
                                 <g x-show="activePose === 'front'">
                                         <ellipse cx="184" cy="55" rx="17" ry="20" fill="rgba(248,250,252,.18)" stroke="#f8fafc" stroke-width="3"/>
                                         <path d="M151 91 Q184 78 217 91 L207 168 Q184 181 161 168 Z" fill="rgba(248,250,252,.14)" stroke="#f8fafc" stroke-width="3"/>
@@ -248,10 +262,17 @@
             </div>
 
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                <h2 class="font-bold text-gray-900 mb-5">Analisis Ukuran dengan Computer Vision</h2>
+                <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 class="font-bold text-gray-900">Upload Tiga Foto untuk Analisis</h2>
+                        <p class="mt-1 text-xs leading-relaxed text-gray-500">Jalur utama: pilih foto asli beresolusi jelas. Sistem memeriksa empat tepi benda patokan, mengoreksi perspektif, lalu membaca siluet tubuh pada tiap sudut.</p>
+                    </div>
+                    <span class="w-fit shrink-0 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-black text-blue-700">DIREKOMENDASIKAN</span>
+                </div>
 
                 <form x-ref="analysisForm" action="{{ route('user.measurement.analysis-start') }}" method="POST" enctype="multipart/form-data" class="space-y-5" novalidate @submit.prevent="startAnalysis($event)">
                     @csrf
+                    <input type="hidden" name="photo_sources_json" :value="JSON.stringify(photoSources)">
 
                     <div class="rounded-xl border border-blue-100 bg-blue-50 p-3 sm:hidden">
                         <button type="submit" :disabled="isAnalyzing"
@@ -279,24 +300,28 @@
                                 <p class="text-sm font-bold text-gray-900">Mode Patokan</p>
                                 <p class="text-xs text-gray-500 mt-0.5">Pilih cara benda patokan diletakkan saat foto diambil.</p>
                             </div>
-                            <span x-show="refObject === 'ktp'" class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">KTP wajib ditempel</span>
+                            <span x-show="referenceMode === 'handheld'" class="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">Satu tangan bebas</span>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <label class="cursor-pointer rounded-xl border p-4 transition-colors" :class="referenceMode === 'fixed' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'">
-                                <input type="radio" name="reference_mode" value="fixed" x-model="referenceMode" class="sr-only">
+                                <input type="radio" name="reference_mode" value="fixed" x-model="referenceMode" @change="syncReferenceMode()" class="sr-only">
                                 <span class="block text-sm font-black text-gray-900">Mode Akurat</span>
                                 <span class="block text-xs text-gray-500 mt-1 leading-relaxed">A4/KTP ditempel atau disandarkan. Direkomendasikan untuk hasil lebih stabil.</span>
                             </label>
-                            <label class="rounded-xl border p-4 transition-colors" :class="refObject === 'ktp' ? 'border-gray-100 bg-gray-100 opacity-60 cursor-not-allowed' : (referenceMode === 'handheld' ? 'border-amber-500 bg-amber-50 cursor-pointer' : 'border-gray-200 bg-white hover:bg-gray-50 cursor-pointer')">
-                                <input type="radio" name="reference_mode" value="handheld" x-model="referenceMode" :disabled="refObject === 'ktp'" class="sr-only">
+                            <label class="cursor-pointer rounded-xl border p-4 transition-colors" :class="referenceMode === 'handheld' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 bg-white hover:bg-gray-50'">
+                                <input type="radio" name="reference_mode" value="handheld" x-model="referenceMode" @change="syncReferenceMode()" class="sr-only">
                                 <span class="block text-sm font-black text-gray-900">Mode Praktis</span>
-                                <span class="block text-xs text-gray-500 mt-1 leading-relaxed">A4 boleh dipegang di samping tubuh. Confidence akan diturunkan.</span>
+                                <span class="block text-xs text-gray-500 mt-1 leading-relaxed">A4/KTP dipegang satu tangan di luar paha. Sistem memakai tangan bebas untuk ukuran lengan.</span>
                             </label>
                         </div>
                         @error('reference_mode')
                         <p class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p>
                         @enderror
+                        <div x-show="referenceMode === 'handheld'" x-cloak class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                            <p class="text-xs font-black text-amber-900">Posisi mode praktis</p>
+                            <p class="mt-1 text-xs leading-relaxed text-amber-800">Pegang dengan satu tangan di sisi luar paha, jangan di depan tubuh. Tangan satunya lurus rileks sedikit menjauh dari badan. Pada foto samping, patokan harus tetap berada di bawah area pinggul.</p>
+                        </div>
                     </div>
 
                     <div class="rounded-xl border border-blue-100 bg-blue-50 p-4">
@@ -305,7 +330,7 @@
                             Sistem memakai ukuran A4 tetap: 21,0 cm x 29,7 cm. Tidak perlu mengisi ukuran manual.
                         </p>
                         <p class="text-xs text-blue-800 mt-1 leading-relaxed" x-show="refObject === 'ktp'">
-                            Sistem memakai ukuran KTP tetap: 8,56 cm x 5,398 cm. Tempelkan KTP pada papan/dinding, jangan dipegang oleh user.
+                            Sistem memakai ukuran KTP tetap: 8,56 cm x 5,398 cm. Pada mode praktis, jaga KTP sejajar dengan tubuh dan pastikan seluruh tepinya terlihat jelas tanpa menutupi tubuh.
                         </p>
                     </div>
 
@@ -318,7 +343,10 @@
                         <div data-upload-card="{{ $key }}" class="border rounded-xl p-4 transition-all" :class="uploadErrors.{{ $key }} ? 'border-red-400 bg-red-50/60 ring-2 ring-red-100 shadow-sm' : 'border-gray-100 bg-white'">
                             <div class="mb-1.5 flex items-center justify-between gap-3">
                                 <label for="{{ $name }}" class="block text-sm font-semibold text-gray-700">{{ $label }} <span class="text-red-500">*</span></label>
-                                <span x-show="uploadErrors.{{ $key }}" x-cloak class="rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white">PERLU DIPERBAIKI</span>
+                                <div class="flex items-center gap-2">
+                                    <span x-show="photoSources.{{ $key }}" x-cloak class="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600" x-text="photoSourceLabel('{{ $key }}')"></span>
+                                    <span x-show="uploadErrors.{{ $key }}" x-cloak class="rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white">PERLU DIPERBAIKI</span>
+                                </div>
                             </div>
                             <p class="text-xs text-gray-400 mb-3">{{ $hint }}</p>
                             <input type="file" name="{{ $name }}" id="{{ $name }}" x-ref="{{ $key }}Input" accept="image/*" required
@@ -491,7 +519,7 @@
                     </template>
                 </div>
                 <div class="space-y-2">
-                    <template x-for="item in analysisTimeline" :key="item.stage">
+                    <template x-for="item in analysisTimeline" :key="item.key">
                         <div class="flex items-start gap-3 rounded-xl border p-3" :class="item.current ? 'border-sky-200 bg-sky-50' : 'border-green-100 bg-green-50/60'">
                             <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black" :class="item.current ? 'bg-sky-600 text-white' : 'bg-green-100 text-green-700'" x-text="item.current ? '...' : 'OK'"></span>
                             <div class="min-w-0">
@@ -605,6 +633,8 @@
             uploadErrors: {},
             totalUploadError: '',
             previews: { front: null, side: null, back: null },
+            photoSources: { front: null, side: null, back: null },
+            pendingCapturePose: null,
             detectionReports: { front: null, side: null, back: null },
             manualReferenceBoxes: { front: null, side: null, back: null },
             previewImageData: { front: null, side: null, back: null },
@@ -622,10 +652,14 @@
                 uploading: 'Mengunggah dan memeriksa foto',
                 queued: 'Menyiapkan layanan analisis',
                 prepare_photos: 'Menyiapkan resolusi foto',
-                reference_roi: 'Mendeteksi tepi A4/KTP',
+                reference_roi: 'Mendeteksi empat tepi dan mengoreksi perspektif',
                 body_segmentation: 'Membaca pose dan siluet tubuh',
                 cross_view_scale: 'Memeriksa skala tiga foto',
+                handheld_normalization: 'Menetralkan tangan pemegang patokan',
                 calculate_measurements: 'Menghitung ukuran tubuh',
+                bodym_features: 'Menyusun fitur bentuk tubuh',
+                bodym_inference: 'Mencocokkan pola ukuran tubuh',
+                model_fallback: 'Menyiapkan perhitungan cadangan',
                 anatomical_validation: 'Memeriksa konsistensi anatomi',
                 confidence: 'Menghitung kualitas hasil',
                 reconnecting: 'Menghubungkan kembali',
@@ -965,9 +999,25 @@
                 };
             },
             syncReferenceMode() {
-                if (this.refObject === 'ktp' && this.referenceMode === 'handheld') {
-                    this.referenceMode = 'fixed';
-                }
+                this.$nextTick(() => {
+                    this.poseList.forEach((pose) => this.reanalyzePreview(pose.key));
+                });
+            },
+            reanalyzePreview(pose) {
+                const image = this.previewImageSource[pose];
+                const canvas = this.$refs[`${pose}DetectionCanvas`];
+                if (!image || !canvas) return;
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                const poseAnalysis = this.detectPoseLandmarks(canvas);
+                const report = this.buildDetectionReport(ctx, canvas.width, canvas.height, pose, true, poseAnalysis);
+                this.previewImageData[pose] = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                this.previewImageData = { ...this.previewImageData };
+                this.detectionReports[pose] = report;
+                this.detectionReports = { ...this.detectionReports };
+                if (this.manualReferenceBoxes[pose]) this.syncReferenceReport(pose);
+                this.redrawPreviewOverlay(pose);
             },
             setPose(pose) {
                 this.activePose = pose;
@@ -998,7 +1048,7 @@
                 this.recordAnalysisProgress({
                     stage: 'uploading',
                     percent: 1,
-                    message: 'Mengunggah tiga foto dan menjalankan validasi awal',
+                    message: 'Mengunggah tiga foto asli dan menjalankan validasi awal',
                     view: null,
                 });
                 this.stopCamera();
@@ -1072,11 +1122,11 @@
 
                 const stagePlan = [
                     ['prepare_photos', 10, 'Menyiapkan tiga foto untuk dianalisis', null],
-                    ['reference_roi', 18, 'Membaca area A4/KTP sebagai bantuan patokan', 'front'],
+                    ['reference_roi', 18, 'Mendeteksi empat tepi dan mengoreksi perspektif foto depan', 'front'],
                     ['body_segmentation', 28, 'Membaca siluet tubuh foto depan', 'front'],
-                    ['reference_roi', 36, 'Mengecek patokan pada foto samping', 'side'],
+                    ['reference_roi', 36, 'Mendeteksi empat tepi dan mengoreksi perspektif foto samping', 'side'],
                     ['body_segmentation', 46, 'Membaca siluet tubuh foto samping', 'side'],
-                    ['reference_roi', 54, 'Mengecek patokan pada foto belakang', 'back'],
+                    ['reference_roi', 54, 'Mendeteksi empat tepi dan mengoreksi perspektif foto belakang', 'back'],
                     ['body_segmentation', 62, 'Membaca siluet tubuh foto belakang', 'back'],
                     ['cross_view_scale', 70, 'Menyelaraskan tiga sudut pandang tubuh', null],
                     ['feature_extraction', 82, 'Menyusun fitur bentuk tubuh', null],
@@ -1102,8 +1152,10 @@
                 this.analysisProgress = { ...progress, percent: nextPercent };
                 this.analysisTimeline = this.analysisTimeline.map((item) => ({ ...item, current: false }));
 
-                const existingIndex = this.analysisTimeline.findIndex((item) => item.stage === progress.stage);
+                const timelineKey = `${progress.stage}:${progress.view || 'global'}`;
+                const existingIndex = this.analysisTimeline.findIndex((item) => item.key === timelineKey);
                 const item = {
+                    key: timelineKey,
                     stage: progress.stage,
                     label: this.analysisStageLabels[progress.stage] || 'Memproses foto',
                     message: progress.message || '',
@@ -1286,6 +1338,7 @@
                 transfer.items.add(file);
                 const input = this.$refs[`${pose}Input`];
                 input.files = transfer.files;
+                this.pendingCapturePose = pose;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
 
                 const currentIndex = this.poseList.findIndex((item) => item.key === pose);
@@ -1300,6 +1353,8 @@
                     this.manualReferenceBoxes[pose] = null;
                     this.previewImageData[pose] = null;
                     this.previewImageSource[pose] = null;
+                    this.photoSources[pose] = null;
+                    this.photoSources = { ...this.photoSources };
                     delete this.uploadErrors[pose];
                     this.uploadErrors = { ...this.uploadErrors };
                     this.validateSelectedFiles();
@@ -1322,9 +1377,15 @@
                     this.manualReferenceBoxes[pose] = null;
                     this.previewImageData[pose] = null;
                     this.previewImageSource[pose] = null;
+                    this.photoSources[pose] = null;
+                    this.photoSources = { ...this.photoSources };
+                    if (this.pendingCapturePose === pose) this.pendingCapturePose = null;
                     return;
                 }
 
+                this.photoSources[pose] = this.pendingCapturePose === pose ? 'camera' : 'upload';
+                this.photoSources = { ...this.photoSources };
+                if (this.pendingCapturePose === pose) this.pendingCapturePose = null;
                 if (this.previews[pose]) URL.revokeObjectURL(this.previews[pose]);
                 this.previews[pose] = URL.createObjectURL(file);
                 this.manualReferenceBoxes[pose] = null;
@@ -1365,6 +1426,9 @@
             },
             formatMb(bytes) {
                 return (bytes / 1024 / 1024).toFixed(1);
+            },
+            photoSourceLabel(pose) {
+                return this.photoSources[pose] === 'camera' ? 'DARI KAMERA' : 'FILE UPLOAD';
             },
             analyzePreview(file, pose) {
                 const image = new Image();
@@ -1496,7 +1560,7 @@
                 const w = Math.round(h * ratio);
                 this.manualReferenceBoxes[pose] = {
                     x: Math.round(canvas.width * 0.68),
-                    y: Math.round(canvas.height * 0.16),
+                    y: Math.round(canvas.height * (this.referenceMode === 'handheld' ? 0.52 : 0.16)),
                     w: Math.max(24, Math.min(w, canvas.width * 0.28)),
                     h: Math.max(36, h),
                     image_width: canvas.width,
@@ -1616,10 +1680,19 @@
                         label: ratioOk
                             ? 'Proporsi kotak merah sesuai benda patokan.'
                             : 'Proporsi patokan kurang pas, tetapi analisis tetap memakai bentuk tubuh.',
-                        ok: true,
+                        ok: this.referenceMode === 'fixed' || ratioOk,
                     };
                 }
+                const placement = this.handheldReferencePlacement(box, report.bodyBox);
+                const placementIndex = report.checks?.findIndex((item) => item.code === 'handheld-placement');
+                if (placementIndex >= 0) {
+                    report.checks[placementIndex] = { code: 'handheld-placement', ...placement };
+                }
                 report.ready = report.checks.every((item) => item.ok);
+                report.captureReady = Boolean(report.baseCaptureReady)
+                    && report.checks[2]?.ok
+                    && report.checks[3]?.ok
+                    && placement.ok;
                 this.detectionReports = { ...this.detectionReports };
                 if (/A4|KTP|patokan|kotak|skala tubuh|proporsional/i.test(this.uploadErrors[pose] || '')) {
                     delete this.uploadErrors[pose];
@@ -1630,7 +1703,7 @@
             clearManualReferenceBox(pose) {
                 this.manualReferenceBoxes[pose] = null;
                 this.manualReferenceBoxes = { ...this.manualReferenceBoxes };
-                this.redrawPreviewOverlay(pose);
+                this.reanalyzePreview(pose);
                 if (this.referenceEditor.open && this.referenceEditor.pose === pose) this.redrawReferenceEditor();
             },
             referenceCanvasReady(pose, surface = 'preview') {
@@ -1924,6 +1997,43 @@
                 if (!candidate) return null;
                 return { x: candidate.x, y: candidate.y, w: candidate.w, h: candidate.h };
             },
+            handheldReferencePlacement(refBox, bodyBox) {
+                if (this.referenceMode !== 'handheld') {
+                    return { ok: true, label: 'Benda patokan berada pada posisi tetap.' };
+                }
+                if (!refBox || !bodyBox) {
+                    return {
+                        ok: false,
+                        label: 'Arahkan A4/KTP ke sisi luar paha sampai kotaknya terbaca.',
+                    };
+                }
+
+                const torsoBox = {
+                    x: bodyBox.x + bodyBox.w * 0.18,
+                    y: bodyBox.y + bodyBox.h * 0.16,
+                    w: bodyBox.w * 0.64,
+                    h: bodyBox.h * 0.48,
+                };
+                const overlapWidth = Math.max(0,
+                    Math.min(refBox.x + refBox.w, torsoBox.x + torsoBox.w)
+                    - Math.max(refBox.x, torsoBox.x));
+                const overlapHeight = Math.max(0,
+                    Math.min(refBox.y + refBox.h, torsoBox.y + torsoBox.h)
+                    - Math.max(refBox.y, torsoBox.y));
+                const overlapRatio = (overlapWidth * overlapHeight) / Math.max(1, refBox.w * refBox.h);
+                const referenceCenterY = refBox.y + refBox.h / 2;
+                const lowEnough = referenceCenterY >= bodyBox.y + bodyBox.h * 0.38;
+                const outsideTorso = overlapRatio <= 0.12;
+                const ok = lowEnough && outsideTorso;
+
+                return {
+                    ok,
+                    label: ok
+                        ? 'Patokan berada rendah di luar paha; area dada dan pinggang tidak tertutup.'
+                        : 'Turunkan patokan ke sisi luar paha dan jauhkan dari dada, pinggang, serta pinggul.',
+                    overlapRatio,
+                };
+            },
             buildDetectionReport(ctx, width, height, pose, includeOverlay, poseAnalysis = null) {
                 const imageData = ctx.getImageData(0, 0, width, height).data;
                 let luminance = 0;
@@ -1946,7 +2056,7 @@
                 const sampleCount = Math.ceil(width / 2) * Math.ceil(height / 2);
                 const avgLight = luminance / Math.max(1, sampleCount);
                 const poseSummary = this.summarizePose(poseAnalysis?.landmarks, width, height, pose);
-                const refBox = this.findReferenceCandidate(imageData, width, height, poseSummary.bodyBox);
+                const detectedRefBox = this.findReferenceCandidate(imageData, width, height, poseSummary.bodyBox);
                 const silhouette = poseAnalysis?.silhouette
                     || this.extractForegroundSilhouette(imageData, width, height, poseSummary.bodyBox);
                 const silhouettePoints = [
@@ -1973,10 +2083,17 @@
                         h: Math.max(1, (silhouetteMaxY - silhouetteMinY) * height),
                     }
                     : poseSummary.bodyBox;
+                const manualRefBox = includeOverlay
+                    ? this.scaleReferenceBoxToCanvas(this.manualReferenceBoxes[pose], ctx.canvas)
+                    : null;
+                const refBox = manualRefBox || detectedRefBox;
                 const lightOk = avgLight > 65 && avgLight < 220;
                 const contrastOk = contrastCount > sampleCount * 0.08;
-                const sideWarningOk = !(this.referenceMode === 'handheld' && pose === 'side');
                 const detectorAvailable = this.poseDetectorReady;
+                const markerRequired = this.referenceMode === 'handheld';
+                const markerVisibleOk = !markerRequired || Boolean(refBox);
+                const markerRatioOk = !markerRequired || (refBox && this.referenceBoxRatioOk(refBox));
+                const handheldPlacement = this.handheldReferencePlacement(refBox, bodyBox);
 
                 const checks = [
                     {
@@ -1986,25 +2103,43 @@
                         ok: bodyDetected,
                     },
                     { label: fullBody ? 'Kepala sampai kaki masuk penuh.' : 'Mundur agar kepala sampai kaki terlihat penuh.', ok: fullBody },
-                    { label: refBox ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.` : `${this.refObject.toUpperCase()} belum terbaca otomatis. Sistem tetap memakai estimasi bentuk tubuh.`, ok: true },
-                    { label: refBox ? 'Proporsi benda patokan sesuai.' : 'Patokan menjadi bantuan visual, bukan penghambat proses.', ok: true },
+                    {
+                        label: refBox
+                            ? `${this.refObject.toUpperCase()} terdeteksi sebagai bidang terpisah.`
+                            : (markerRequired
+                                ? `${this.refObject.toUpperCase()} belum terlihat jelas di sisi luar paha.`
+                                : `${this.refObject.toUpperCase()} belum terbaca otomatis; bentuk tubuh tetap dapat diperiksa.`),
+                        ok: markerVisibleOk,
+                    },
+                    {
+                        label: refBox
+                            ? (markerRatioOk ? 'Proporsi benda patokan sesuai.' : 'Sesuaikan kotak dengan empat tepi benda patokan.')
+                            : 'Patokan menjadi bantuan visual pada mode akurat.',
+                        ok: markerRatioOk,
+                    },
                     { label: lightOk && contrastOk ? 'Pencahayaan cukup untuk dianalisis.' : 'Perbaiki cahaya atau hindari background terlalu datar.', ok: lightOk && contrastOk },
                     {
-                        label: orientationOk && sideWarningOk
+                        label: orientationOk
                             ? `Arah tubuh sesuai ${this.poseLabel(pose).toLowerCase()}.`
-                            : (sideWarningOk ? 'Arah tubuh belum sesuai dengan pose yang dipilih.' : 'Mode praktis tidak disarankan pada foto samping.'),
-                        ok: orientationOk && sideWarningOk,
+                            : 'Arah tubuh belum sesuai dengan pose yang dipilih.',
+                        ok: orientationOk,
                     },
+                    { code: 'handheld-placement', ...handheldPlacement },
                 ];
+
+                const baseCaptureReady = bodyDetected
+                    && fullBody
+                    && lightOk
+                    && contrastOk
+                    && orientationOk;
 
                 return {
                     ready: checks.every((item) => item.ok),
-                    captureReady: bodyDetected
-                        && fullBody
-                        && lightOk
-                        && contrastOk
-                        && orientationOk
-                        && sideWarningOk,
+                    captureReady: baseCaptureReady
+                        && markerVisibleOk
+                        && markerRatioOk
+                        && handheldPlacement.ok,
+                    baseCaptureReady,
                     checks,
                     refBox,
                     bodyBox,

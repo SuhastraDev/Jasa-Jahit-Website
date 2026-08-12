@@ -71,6 +71,13 @@
             'tinggi' => 'border-amber-200 bg-amber-50 text-amber-700',
         ];
         $hasBodymResult = !empty($bodymData);
+        $photoDiagnostics = $photoDiagnostics ?? ($rawCvJson['photo_diagnostics'] ?? []);
+        $photoSources = $photoSources ?? ['front' => 'upload', 'side' => 'upload', 'back' => 'upload'];
+        $photoViews = [
+            'front' => 'Foto Depan',
+            'side' => 'Foto Samping',
+            'back' => 'Foto Belakang',
+        ];
     @endphp
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -83,7 +90,7 @@
             <p class="text-2xl font-black text-blue-800">{{ $qualityPct }}%</p>
         </div>
         <div class="rounded-xl border {{ $refDetected ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50' }} p-4">
-            <p class="text-xs font-semibold {{ $refDetected ? 'text-green-700' : 'text-red-700' }}">Marker</p>
+            <p class="text-xs font-semibold {{ $refDetected ? 'text-green-700' : 'text-red-700' }}">Benda Patokan</p>
             <p class="text-sm font-bold {{ $refDetected ? 'text-green-800' : 'text-red-800' }}">{{ $refDetected ? 'Terdeteksi pada semua foto' : 'Tidak lengkap' }}</p>
         </div>
         <div class="rounded-xl border {{ ($referenceMode ?? 'fixed') === 'handheld' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50' }} p-4">
@@ -94,6 +101,46 @@
             @endif
         </div>
     </div>
+
+    @if(!empty($photoDiagnostics))
+    <section class="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4">
+            <h2 class="text-sm font-bold text-slate-900">Pemeriksaan Tiga Foto</h2>
+            <p class="mt-1 text-xs leading-relaxed text-slate-500">Setiap foto diperiksa terpisah sebelum ukuran depan dan kedalaman samping digabungkan.</p>
+        </div>
+        <div class="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
+            @foreach($photoViews as $view => $label)
+            @php
+                $diagnostic = $photoDiagnostics[$view] ?? [];
+                $processing = $diagnostic['reference_processing'] ?? [];
+                $perspectiveCorrected = (bool) ($processing['perspective_rectified'] ?? false);
+                $referenceQuality = round(((float) ($diagnostic['reference_quality'] ?? 0)) * 100);
+                $sourceLabel = ($photoSources[$view] ?? 'upload') === 'camera' ? 'Kamera langsung' : 'File upload';
+            @endphp
+            <article class="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <div class="flex items-start justify-between gap-2">
+                    <h3 class="text-xs font-black text-slate-800">{{ $label }}</h3>
+                    <span class="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700">{{ $sourceLabel }}</span>
+                </div>
+                <div class="mt-3 space-y-2 text-[11px]">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-slate-500">Kalibrasi bidang</span>
+                        <span class="font-bold {{ $perspectiveCorrected ? 'text-green-700' : 'text-amber-700' }}">{{ $perspectiveCorrected ? 'Perspektif dikoreksi' : 'Skala alternatif' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-slate-500">Siluet tubuh</span>
+                        <span class="font-bold text-green-700">{{ !empty($diagnostic['pose_fallback']) ? 'Terbaca alternatif' : 'Terbaca' }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-slate-500">Kualitas patokan</span>
+                        <span class="font-bold text-slate-700">{{ $referenceQuality }}%</span>
+                    </div>
+                </div>
+            </article>
+            @endforeach
+        </div>
+    </section>
+    @endif
 
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" x-data="{ edited: false }">
         <div class="px-6 py-5 border-b border-gray-50">

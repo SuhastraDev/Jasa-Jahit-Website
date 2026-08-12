@@ -127,12 +127,12 @@ class PhotoValidationService
         };
 
         $referenceRule = $referenceMode === 'handheld'
-            ? 'Benda referensi boleh dipegang hanya jika berupa kertas A4. A4 harus berada di samping luar tubuh, sejajar tubuh, tidak maju ke arah kamera, tidak miring, dan tidak menutup dada, pinggang, pinggul, paha, atau kaki.'
+            ? 'Benda referensi A4 atau KTP boleh dipegang dengan SATU tangan di sisi luar paha. Bahu harus tetap rileks, benda tidak boleh menutup dada, pinggang, pinggul, paha, atau kaki, dan tangan yang lain harus lurus rileks sebagai acuan pengukuran lengan.'
             : 'Benda referensi harus berdiri sendiri atau ditempel pada dinding/papan/tripod. Benda referensi tidak boleh dipegang oleh orang yang diukur.';
 
         $handheldSideWarning = $referenceMode === 'handheld' && $orientation === 'side'
-            ? 'Untuk foto samping, pastikan tangan dan A4 tidak menutup siluet dada, perut, pinggul, paha, atau kaki.'
-            : '';
+            ? 'Untuk foto samping, benda tetap berada rendah di luar sisi paha dan terlihat penuh. Tangan pemegang tidak boleh melintas di depan dada, perut, pinggul, paha, atau kaki.'
+            : 'Benda patokan harus berada pada bidang/jarak yang sama dengan tubuh.';
 
         $prompt = <<<PROMPT
 Kamu adalah sistem AI untuk memvalidasi foto pengukuran badan pada platform jasa jahit online.

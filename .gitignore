@@ -20,6 +20,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+python-cv/.testdeps/
+python-cv/testdeps312/
 /python-cv/venv
 /python-cv/.job_cache
 __pycache__/
