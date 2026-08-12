@@ -216,11 +216,11 @@ class MeasurementMultiviewTest extends TestCase
         $this->actingAs($user)
             ->get(route('user.measurement.analysis-result', $jobId))
             ->assertOk()
-            ->assertSee('Hasil Analisis Multi-view')
+            ->assertSee('Hasil Pengukuran Baju dan Celana')
             ->assertSee('92.4');
     }
 
-    public function test_measurement_result_page_hides_internal_model_branding(): void
+    public function test_measurement_result_page_only_shows_tailoring_measurements(): void
     {
         $user = User::factory()->create(['role' => 'user']);
         $jobId = 'job-bodym-contract-123';
@@ -287,6 +287,8 @@ class MeasurementMultiviewTest extends TestCase
                     'chest' => 92.4,
                     'shirt_length' => 68.5,
                     'pants_waist' => 78.2,
+                    'rise' => 27.4,
+                    'outseam' => 100.2,
                 ],
             ],
         ], now()->addMinutes(10));
@@ -294,24 +296,35 @@ class MeasurementMultiviewTest extends TestCase
         $this->actingAs($user)
             ->get(route('user.measurement.analysis-result', $jobId))
             ->assertOk()
-            ->assertSee('Indikator Ukuran Tubuh')
-            ->assertSee('LINGKAR')
-            ->assertSee('LEBAR')
-            ->assertSee('PANJANG')
-            ->assertSee('TINGGI')
-            ->assertSee('Tinggi badan')
-            ->assertSee('Interval 168-171 cm')
-            ->assertSee('Lingkar lengan bawah')
-            ->assertSee('Pemeriksaan Tiga Foto')
-            ->assertSee('File upload')
-            ->assertSee('Perspektif dikoreksi')
+            ->assertSee('Ukuran Baju')
+            ->assertSee('Lebar bahu')
+            ->assertSee('Lingkar dada')
+            ->assertSee('Lingkar pinggang')
+            ->assertSee('Lingkar pinggul')
+            ->assertSee('Panjang lengan')
+            ->assertSee('Lingkar tangan')
+            ->assertSee('Panjang badan')
+            ->assertSee('Ukuran Celana')
+            ->assertSee('Panjang pesak')
+            ->assertSee('Panjang celana')
+            ->assertSee('Lingkar kaki bagian bawah')
+            ->assertSee('Lingkar kaki bagian atas')
+            ->assertSee('lingkar')
+            ->assertSee('lebar')
+            ->assertSee('panjang')
+            ->assertSee('68.5')
+            ->assertSee('100.2')
             ->assertDontSeeText('BodyM')
             ->assertDontSeeText('bodym.v1')
             ->assertDontSeeText('bodym-v1')
-            ->assertDontSee('Ukuran Baju')
-            ->assertDontSee('Ukuran Celana')
-            ->assertDontSee('Panjang Baju')
-            ->assertDontSee('Panjang Inseam');
+            ->assertDontSeeText('Confidence')
+            ->assertDontSeeText('Quality Score')
+            ->assertDontSeeText('Interval 168-171 cm')
+            ->assertDontSeeText('Lingkar lengan bawah')
+            ->assertDontSeeText('Panjang bahu ke pesak')
+            ->assertDontSeeText('Tinggi badan')
+            ->assertDontSeeText('Pemeriksaan Tiga Foto')
+            ->assertDontSeeText('Perspektif dikoreksi');
     }
 
     public function test_failed_background_analysis_keeps_the_problematic_photo_detail(): void
@@ -472,14 +485,13 @@ class MeasurementMultiviewTest extends TestCase
         ]);
 
         $analysis->assertOk();
-        $analysis->assertSee('Hasil Analisis Multi-view');
-        $analysis->assertSee('Lingkar Dada');
-        $analysis->assertSee('Lebar Bahu');
-        $analysis->assertSee('Panjang Lengan');
-        $analysis->assertSee('Jenis ukuran');
-        $analysis->assertSee('LINGKAR');
-        $analysis->assertSee('LEBAR');
-        $analysis->assertSee('PANJANG');
+        $analysis->assertSee('Hasil Pengukuran Baju dan Celana');
+        $analysis->assertSee('Lingkar dada');
+        $analysis->assertSee('Lebar bahu');
+        $analysis->assertSee('Panjang lengan');
+        $analysis->assertSee('Panjang badan');
+        $analysis->assertSee('Panjang pesak');
+        $analysis->assertSee('Panjang celana');
 
         $response = $this->actingAs($user)->post(route('user.measurement.store'), [
             'front_photo_path' => 'measurements/1/front.jpg',
