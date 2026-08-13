@@ -160,15 +160,8 @@ class MeasurementController extends Controller
                 $request->input($config['box']),
             );
 
-            if (!($result['success'] ?? false)) {
-                $errors[] = "{$config['label']}: " . ($result['error'] ?? 'Analisis gagal.');
-                continue;
-            }
-
-            $data = array_merge($data, $result['data'] ?? []);
-            $confidences[] = (float) ($result['confidence'] ?? 0);
-            $qualityScores[] = (float) ($result['quality_score'] ?? 0);
-
+            // Simpan gambar visual deteksi baik sukses maupun gagal, supaya
+            // user bisa lihat persis apa yang dibaca sistem saat troubleshoot.
             if (!empty($result['debug_image_base64'])) {
                 $decoded = base64_decode($result['debug_image_base64'], true);
                 if ($decoded !== false) {
@@ -177,12 +170,22 @@ class MeasurementController extends Controller
                     $debugImages[$config['label']] = $debugPath;
                 }
             }
+
+            if (!($result['success'] ?? false)) {
+                $errors[] = "{$config['label']}: " . ($result['error'] ?? 'Analisis gagal.');
+                continue;
+            }
+
+            $data = array_merge($data, $result['data'] ?? []);
+            $confidences[] = (float) ($result['confidence'] ?? 0);
+            $qualityScores[] = (float) ($result['quality_score'] ?? 0);
         }
 
         if ($data === []) {
             return back()
                 ->withInput()
-                ->with('error', implode(' ', $errors) ?: 'Analisis tidak menghasilkan ukuran apapun.');
+                ->with('error', implode(' ', $errors) ?: 'Analisis tidak menghasilkan ukuran apapun.')
+                ->with('debugImages', $debugImages);
         }
 
         $confidence = $confidences === [] ? 0.0 : array_sum($confidences) / count($confidences);

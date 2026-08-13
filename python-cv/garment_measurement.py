@@ -338,11 +338,21 @@ def draw_measurement_line(image, keypoints, key_a, key_b, color=(255, 90, 0)):
     cv2.line(image, (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), color, 2, cv2.LINE_AA)
 
 
-def render_debug_overlay(image, contour, marker_contour, keypoints, garment_type):
-    """Draw the detected garment outline, reference marker box, and named
-    keypoints on top of the original photo so the user can visually confirm
-    what the system measured — not just trust a table of numbers."""
+def render_debug_overlay(
+    image,
+    contour=None,
+    marker_contour=None,
+    keypoints=None,
+    garment_type="shirt",
+    status_text=None,
+    status_ok=True,
+):
+    """Draw whatever the pipeline managed to detect (garment outline,
+    reference marker box, named keypoints) on top of the original photo —
+    called on BOTH success and failure so the user can see what the system
+    actually read, not just get a text error with no visual explanation."""
     overlay = image.copy()
+    keypoints = keypoints or {}
 
     if contour is not None:
         cv2.drawContours(overlay, [contour], -1, (0, 200, 0), 3)
@@ -365,6 +375,11 @@ def render_debug_overlay(image, contour, marker_contour, keypoints, garment_type
         cv2.circle(overlay, pt, 8, (255, 255, 255), 2)
         cv2.putText(overlay, label, (pt[0] + 12, pt[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(overlay, label, (pt[0] + 12, pt[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+
+    if status_text:
+        banner_color = (0, 140, 0) if status_ok else (0, 0, 200)
+        cv2.rectangle(overlay, (0, 0), (overlay.shape[1], 46), banner_color, -1)
+        cv2.putText(overlay, status_text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
     success, buffer = cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 85])
     if not success:
@@ -419,6 +434,13 @@ def process_garment_measurement(
             "failed_reason": "reference_not_detected",
             "correction": "Ratakan KTP/A4 di permukaan yang sama dengan pakaian, lalu foto ulang dari atas.",
             "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
+            "debug_image_base64": render_debug_overlay(
+                image,
+                marker_contour=scale_result.get("contour") if scale_result else None,
+                garment_type=garment_type,
+                status_text="Benda patokan (KTP/A4) tidak terdeteksi jelas",
+                status_ok=False,
+            ),
         }
 
     mask = segment_garment(image, scale_result["contour"])
@@ -430,6 +452,13 @@ def process_garment_measurement(
             "failed_reason": "garment_not_detected",
             "correction": "Gunakan alas polos yang kontras dengan warna pakaian, pastikan pencahayaan cukup.",
             "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
+            "debug_image_base64": render_debug_overlay(
+                image,
+                marker_contour=scale_result.get("contour"),
+                garment_type=garment_type,
+                status_text="Siluet pakaian tidak ditemukan",
+                status_ok=False,
+            ),
         }
 
     scale = scale_result["scale"]
@@ -449,6 +478,15 @@ def process_garment_measurement(
             "failed_reason": "keypoints_not_detected",
             "correction": "Ratakan pakaian dengan rapi (lengan/kaki tidak terlipat), pastikan seluruh bagian terlihat.",
             "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
+            "debug_image_base64": render_debug_overlay(
+                image,
+                contour=contour,
+                marker_contour=scale_result.get("contour"),
+                keypoints=keypoints,
+                garment_type=garment_type,
+                status_text="Titik ukur tidak ditemukan",
+                status_ok=False,
+            ),
         }
 
     invalid_measurements = impossible_garment_measurements(data)
@@ -464,13 +502,28 @@ def process_garment_measurement(
             "correction": "Ratakan pakaian dengan rapi dan ulangi foto dari atas dengan pencahayaan cukup.",
             "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
             "invalid_measurements": invalid_measurements,
+            "debug_image_base64": render_debug_overlay(
+                image,
+                contour=contour,
+                marker_contour=scale_result.get("contour"),
+                keypoints=keypoints,
+                garment_type=garment_type,
+                status_text="Hasil ukur di luar rentang wajar",
+                status_ok=False,
+            ),
         }
 
     completeness = len([f for f in expected_fields if f in data]) / len(expected_fields)
     confidence = round(min(0.95, max(0.4, scale_result.get("quality", 0.7) * completeness)), 2)
 
     debug_image_base64 = render_debug_overlay(
-        image, contour, scale_result.get("contour"), keypoints, garment_type
+        image,
+        contour=contour,
+        marker_contour=scale_result.get("contour"),
+        keypoints=keypoints,
+        garment_type=garment_type,
+        status_text="Berhasil dianalisis",
+        status_ok=True,
     )
 
     return {

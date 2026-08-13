@@ -2,7 +2,22 @@
 @section('page-title', 'Ukur Baju/Celana')
 @section('content')
 
-<div class="max-w-6xl mx-auto px-4 sm:px-6 py-8" x-data="{ wantShirt: true, wantPants: false }">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-8" x-data="garmentUpload()">
+
+    <div x-show="submitting" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+        <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+            <svg class="mx-auto h-12 w-12 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <p class="mt-4 text-sm font-black text-slate-900" x-text="stages[stage]"></p>
+            <div class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full rounded-full bg-blue-600 transition-all duration-500"
+                    :style="`width: ${((stage + 1) / stages.length) * 100}%`"></div>
+            </div>
+        </div>
+    </div>
 
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Ukur dari Baju/Celana</h1>
@@ -20,10 +35,25 @@
     <div class="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{{ session('success') }}</div>
     @endif
 
+    @if(!empty(session('debugImages')))
+    <div class="mb-6">
+        <p class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Yang Dibaca Sistem dari Foto Terakhir</p>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            @foreach(session('debugImages') as $label => $path)
+                <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
+                    <img src="{{ asset('storage/' . $path) }}" alt="Deteksi {{ $label }}" class="w-full">
+                </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2">
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-                <form action="{{ route('user.measurement.garment-analyze') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                <form action="{{ route('user.measurement.garment-analyze') }}" method="POST" enctype="multipart/form-data" class="space-y-6"
+                    @submit="startSubmitAnimation">
                     @csrf
 
                     <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
@@ -128,4 +158,39 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    function garmentUpload() {
+        return {
+            wantShirt: true,
+            wantPants: false,
+            submitting: false,
+            stage: 0,
+            // Mirrors the actual backend pipeline order (measurement.py's
+            // calculate_scale -> segment_garment -> detect_*_keypoints ->
+            // measure_*), advanced on a timer since the request itself is
+            // one synchronous call with no server-sent progress events.
+            stages: [
+                'Mengunggah foto...',
+                'Mendeteksi benda patokan (KTP/A4)...',
+                'Memisahkan siluet pakaian dari latar...',
+                'Mencari titik ukur (bahu, ketiak, kerah, dsb)...',
+                'Menghitung ukuran dalam cm...',
+            ],
+            startSubmitAnimation() {
+                this.submitting = true;
+                this.stage = 0;
+                const timer = setInterval(() => {
+                    if (this.stage < this.stages.length - 1) {
+                        this.stage++;
+                    } else {
+                        clearInterval(timer);
+                    }
+                }, 900);
+            },
+        };
+    }
+</script>
+@endpush
 @endsection
