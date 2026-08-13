@@ -53,8 +53,8 @@
     @endphp
 
     <header class="mb-6 border-b border-slate-200 pb-5">
-        <a href="{{ route('user.measurement.index') }}" class="inline-flex min-h-10 items-center text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800">
-            Kembali ke Ukur Badan
+        <a href="{{ route('user.measurement.garment-index') }}" class="inline-flex min-h-10 items-center text-sm font-semibold text-slate-500 transition-colors hover:text-slate-800">
+            Kembali ke Ukur Baju/Celana
         </a>
         <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -68,6 +68,17 @@
             </div>
         </div>
     </header>
+
+    @if(!empty($partialErrors))
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p class="font-bold">Sebagian foto tidak berhasil dianalisis:</p>
+            <ul class="mt-1 list-disc pl-5">
+                @foreach($partialErrors as $partialError)
+                    <li>{{ $partialError }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form action="{{ route('user.measurement.store') }}" method="POST" x-data="{ edited: false }">
         @csrf
@@ -90,6 +101,7 @@
         <input type="hidden" name="bodym_response_contract_version" value="{{ $bodymMetadata['response_contract_version'] ?? config('bodym.response_contract_version') }}">
         <input type="hidden" name="bodym_model_version" value="{{ $bodymMetadata['model_version'] ?? config('bodym.model_version') }}">
         <input type="hidden" name="bodym_status" value="{{ $bodymMetadata['status'] ?? '' }}">
+        <input type="hidden" name="measurement_method" value="{{ $measurementMethod ?? '' }}">
         <input type="hidden" name="is_edited" x-bind:value="edited ? 1 : 0">
 
         @foreach($allMeasurementFields as $field)
@@ -139,7 +151,7 @@
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:relative sm:mx-0 sm:flex sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
             <p class="mb-3 text-xs font-semibold text-amber-700 sm:mb-0" x-show="edited" x-cloak>Perubahan manual akan ikut disimpan.</p>
             <div class="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:gap-3">
-                <a href="{{ route('user.measurement.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 px-5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Batal</a>
+                <a href="{{ route('user.measurement.garment-index') }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 px-5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Batal</a>
                 <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-6 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2">
                     Simpan Hasil Pengukuran
                 </button>

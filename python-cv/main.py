@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from bodym_inference import BodyMInferenceError, get_bodym_service
 from bodym_preprocessing import feature_names
+from garment_measurement import process_garment_measurement
 from measurement import process_measurement
 
 app = FastAPI(
@@ -189,6 +190,50 @@ async def measure(
         return {
             "success": False,
             "error": f"Terjadi kesalahan saat memproses gambar: {str(e)}"
+        }
+
+
+@app.post("/measure/garment")
+async def measure_garment(
+    photo: UploadFile = File(..., description="Foto pakaian (baju/celana) rata di lantai/meja"),
+    garment_type: str = Form(..., description="Jenis pakaian: 'shirt' atau 'pants'"),
+    ref_object: str = Form(..., description="Jenis marker referensi: a4, ktp, custom"),
+    ref_width_cm: float = Form(None, description="Lebar benda referensi (cm) jika custom"),
+    ref_height_cm: float = Form(None, description="Tinggi benda referensi (cm) jika custom"),
+    reference_box: str = Form(None, description="Koordinat manual benda patokan"),
+):
+    """
+    Analyze a flat-lay garment photo (shirt or pants laid flat next to a
+    reference marker) and estimate its measurements. Synchronous — no
+    pose/segmentation model involved, so this is much lighter than /measure.
+
+    - **photo**: Image of the garment laid flat, reference marker beside it
+    - **garment_type**: 'shirt' or 'pants'
+    - **ref_object**: Type of reference marker ('a4', 'ktp', 'custom')
+    """
+    if garment_type not in ("shirt", "pants"):
+        raise HTTPException(status_code=422, detail="garment_type harus 'shirt' atau 'pants'")
+
+    if ref_object not in ("a4", "ktp", "atm", "custom"):
+        raise HTTPException(status_code=422, detail="ref_object harus 'a4', 'ktp', atau 'custom'")
+
+    if photo.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=422, detail="Format gambar harus JPG, PNG, atau WEBP")
+
+    try:
+        result = process_garment_measurement(
+            await photo.read(),
+            garment_type,
+            ref_object,
+            ref_width_cm,
+            ref_height_cm,
+            reference_box,
+        )
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Terjadi kesalahan saat memproses gambar: {str(e)}",
         }
 
 

@@ -166,6 +166,62 @@ class CVMeasurementService
     }
 
     /**
+     * Kirim 1 foto pakaian (baju/celana) rata di lantai + marker referensi
+     * ke FastAPI untuk analisis flat-lay. Sinkron — tidak ada model pose
+     * yang dipanggil, jauh lebih ringan/cepat dari measure()/startMeasurementJob().
+     */
+    public function measureGarment(
+        UploadedFile $photo,
+        string $garmentType,
+        string $refObject,
+        ?float $refWidthCm = null,
+        ?float $refHeightCm = null,
+        ?string $referenceBox = null
+    ): array
+    {
+        try {
+            [$content, $name] = $this->preparePhotoForCv($photo, "{$garmentType}.jpg");
+
+            $request = Http::timeout($this->timeout)->attach('photo', $content, $name);
+
+            $formData = [
+                'garment_type' => $garmentType,
+                'ref_object' => $refObject,
+            ];
+
+            if ($refObject === 'custom' || $refWidthCm || $refHeightCm) {
+                $formData['ref_width_cm'] = $refWidthCm;
+                $formData['ref_height_cm'] = $refHeightCm;
+            }
+
+            if (!empty($referenceBox)) {
+                $formData['reference_box'] = $referenceBox;
+            }
+
+            $response = $request->post("{$this->baseUrl}/measure/garment", $formData);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Server CV mengembalikan error: ' . $response->status(),
+            ];
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return [
+                'success' => false,
+                'error' => 'Analisis foto terlalu lama atau layanan CV tidak merespons. Coba kompres foto, pastikan koneksi stabil, lalu ulangi proses.',
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Terjadi kesalahan: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Check if the CV service is available.
      */
     public function isAvailable(): bool

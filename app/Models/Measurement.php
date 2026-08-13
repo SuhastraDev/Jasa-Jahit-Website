@@ -169,6 +169,7 @@ class Measurement extends Model
         return match ($this->measurement_method) {
             'bodym_ml' => 'BodyM ML',
             'multiview_cv' => 'CV Multi-view',
+            'garment_flat_lay' => 'Baju/Celana Flat-Lay',
             'manual' => 'Input Manual',
             default => $this->measurement_method ?? 'Manual',
         };

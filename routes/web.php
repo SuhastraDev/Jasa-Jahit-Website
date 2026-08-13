@@ -46,7 +46,15 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::get('/pesanan-saya/{order}/bayar', [UserPaymentController::class, 'create'])->name('user.payment.create');
     Route::post('/pesanan-saya/{order}/bayar', [UserPaymentController::class, 'store'])->name('user.payment.store');
 
-    // === Ukur Badan (CV) ===
+    // === Ukur Baju/Celana Flat-Lay (CV) — alur aktif ===
+    Route::get('/ukur-baju-celana', [MeasurementController::class, 'garmentIndex'])->name('user.measurement.garment-index');
+    Route::post('/ukur-baju-celana/analisis', [MeasurementController::class, 'analyzeGarment'])->name('user.measurement.garment-analyze');
+    Route::post('/ukur-badan/simpan', [MeasurementController::class, 'store'])->name('user.measurement.store');
+    Route::delete('/ukur-badan/{measurement}', [MeasurementController::class, 'destroy'])->name('user.measurement.destroy');
+
+    // === Ukur Badan lewat foto berdiri + MediaPipe (LAMA, nonaktif dari menu) ===
+    // Kode & route dibiarkan berfungsi untuk diakses langsung via URL, tidak
+    // ditaut dari navigasi manapun — digantikan alur ukur baju/celana di atas.
     Route::get('/ukur-badan/mediapipe/{file}', [MeasurementController::class, 'mediaPipeAsset'])->name('user.measurement.mediapipe-asset');
     Route::get('/ukur-badan/model/pose-landmarker', [MeasurementController::class, 'poseModel'])->name('user.measurement.pose-model');
     Route::get('/ukur-badan', [MeasurementController::class, 'index'])->name('user.measurement.index');
@@ -54,8 +62,6 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     Route::post('/ukur-badan/analisis/mulai', [MeasurementController::class, 'startAnalysis'])->name('user.measurement.analysis-start');
     Route::get('/ukur-badan/analisis/{jobId}/status', [MeasurementController::class, 'analysisStatus'])->name('user.measurement.analysis-status');
     Route::get('/ukur-badan/analisis/{jobId}/hasil', [MeasurementController::class, 'analysisResult'])->name('user.measurement.analysis-result');
-    Route::post('/ukur-badan/simpan', [MeasurementController::class, 'store'])->name('user.measurement.store');
-    Route::delete('/ukur-badan/{measurement}', [MeasurementController::class, 'destroy'])->name('user.measurement.destroy');
 
     // === Chat User ===
     Route::get('/chat', [UserChatController::class, 'index'])->name('user.chat.index');

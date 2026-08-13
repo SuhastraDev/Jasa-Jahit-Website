@@ -127,13 +127,13 @@
                             <p class="text-xs text-gray-400">Jahit pakaian kustom Anda</p>
                         </div>
                     </a>
-                    <a href="{{ route('user.measurement.index') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-purple-50 transition-colors group">
+                    <a href="{{ route('user.measurement.garment-index') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-purple-50 transition-colors group">
                         <div class="w-9 h-9 bg-purple-100 group-hover:bg-purple-200 rounded-xl flex items-center justify-center transition-colors">
                             <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                         </div>
                         <div>
-                            <p class="text-sm font-semibold text-gray-800">Ukur Badan</p>
-                            <p class="text-xs text-gray-400">Analisis AI dari foto</p>
+                            <p class="text-sm font-semibold text-gray-800">Ukur Baju/Celana</p>
+                            <p class="text-xs text-gray-400">Analisis AI dari foto pakaian</p>
                         </div>
                     </a>
                     <a href="{{ route('user.chat.index') }}" class="flex items-center gap-3 p-3 rounded-xl hover:bg-green-50 transition-colors group">

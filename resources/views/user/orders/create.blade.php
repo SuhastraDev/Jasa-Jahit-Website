@@ -290,9 +290,9 @@
                                     <p class="font-bold text-purple-800 mb-1">Belum ada data ukuran dari foto</p>
                                     <p class="text-xs text-purple-600 mb-4">Anda bisa ukur badan via foto AI, atau pilih "Isi Manual" untuk memasukkan langsung.</p>
                                     <div class="flex gap-3 justify-center">
-                                        <a href="{{ route('user.measurement.index') }}" target="_blank"
+                                        <a href="{{ route('user.measurement.garment-index') }}" target="_blank"
                                            class="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors">
-                                            Ukur via Foto AI
+                                            Ukur dari Baju/Celana
                                         </a>
                                         <button type="button" @click="sizeMethod = 'manual'"
                                                 class="inline-flex items-center gap-1.5 px-4 py-2 border border-purple-300 text-purple-700 text-xs font-bold rounded-xl hover:bg-purple-50 transition-colors">
@@ -335,7 +335,7 @@
                                     @endforeach
                                 </div>
                                 <p class="text-xs text-gray-400 mt-3 text-center">
-                                    Ingin data baru? <a href="{{ route('user.measurement.index') }}" target="_blank" class="text-purple-600 font-semibold hover:underline">Ukur badan via foto AI</a>
+                                    Ingin data baru? <a href="{{ route('user.measurement.garment-index') }}" target="_blank" class="text-purple-600 font-semibold hover:underline">Ukur dari baju/celana</a>
                                 </p>
                             @endif
                         </div>

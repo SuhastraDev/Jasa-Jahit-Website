@@ -81,6 +81,124 @@ class MeasurementController extends Controller
         return view('user.measurement.index', compact('measurements'));
     }
 
+    /**
+     * Halaman ukur baju/celana flat-lay — panduan + form upload
+     */
+    public function garmentIndex()
+    {
+        $measurements = Measurement::where('user_id', auth()->id())
+            ->latest()
+            ->get();
+
+        return view('user.measurement.garment', compact('measurements'));
+    }
+
+    /**
+     * Proses analisis foto baju/celana flat-lay (bisa salah satu atau
+     * keduanya sekaligus) dan tampilkan hasil gabungan.
+     */
+    public function analyzeGarment(Request $request, CVMeasurementService $cvService)
+    {
+        $request->validate([
+            'shirt_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'pants_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'ref_object' => 'required|in:a4,ktp',
+            'ref_width_cm' => 'nullable|numeric|min:1',
+            'ref_height_cm' => 'nullable|numeric|min:1',
+            'shirt_reference_box' => 'nullable|string',
+            'pants_reference_box' => 'nullable|string',
+        ], [
+            'shirt_photo.max' => 'Foto baju terlalu besar. Maksimal 5MB.',
+            'pants_photo.max' => 'Foto celana terlalu besar. Maksimal 5MB.',
+            'shirt_photo.image' => 'Foto baju harus berupa file gambar.',
+            'pants_photo.image' => 'Foto celana harus berupa file gambar.',
+            'shirt_photo.mimes' => 'Foto baju harus berformat JPG, JPEG, PNG, atau WEBP.',
+            'pants_photo.mimes' => 'Foto celana harus berformat JPG, JPEG, PNG, atau WEBP.',
+        ]);
+
+        if (!$request->hasFile('shirt_photo') && !$request->hasFile('pants_photo')) {
+            return back()
+                ->withInput()
+                ->with('error', 'Upload minimal satu foto: baju atau celana.');
+        }
+
+        [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
+            $request->ref_object,
+            $request->ref_width_cm,
+            $request->ref_height_cm,
+        );
+
+        $garments = [
+            'shirt' => ['photo' => 'shirt_photo', 'box' => 'shirt_reference_box', 'path_key' => 'frontPhotoPath', 'label' => 'Baju'],
+            'pants' => ['photo' => 'pants_photo', 'box' => 'pants_reference_box', 'path_key' => 'sidePhotoPath', 'label' => 'Celana'],
+        ];
+
+        $data = [];
+        $confidences = [];
+        $qualityScores = [];
+        $photoPaths = ['frontPhotoPath' => null, 'sidePhotoPath' => null, 'backPhotoPath' => null];
+        $errors = [];
+        $folder = 'measurements/' . auth()->id();
+
+        foreach ($garments as $garmentType => $config) {
+            if (!$request->hasFile($config['photo'])) {
+                continue;
+            }
+
+            $photo = $request->file($config['photo']);
+            $photoPaths[$config['path_key']] = $photo->store($folder, 'public');
+
+            $result = $cvService->measureGarment(
+                $photo,
+                $garmentType,
+                $request->ref_object,
+                $refWidthCm,
+                $refHeightCm,
+                $request->input($config['box']),
+            );
+
+            if (!($result['success'] ?? false)) {
+                $errors[] = "{$config['label']}: " . ($result['error'] ?? 'Analisis gagal.');
+                continue;
+            }
+
+            $data = array_merge($data, $result['data'] ?? []);
+            $confidences[] = (float) ($result['confidence'] ?? 0);
+            $qualityScores[] = (float) ($result['quality_score'] ?? 0);
+        }
+
+        if ($data === []) {
+            return back()
+                ->withInput()
+                ->with('error', implode(' ', $errors) ?: 'Analisis tidak menghasilkan ukuran apapun.');
+        }
+
+        $confidence = $confidences === [] ? 0.0 : array_sum($confidences) / count($confidences);
+        $qualityScore = $qualityScores === [] ? 0.0 : array_sum($qualityScores) / count($qualityScores);
+        $refSize = $refWidthCm && $refHeightCm ? "{$refWidthCm}x{$refHeightCm}cm" : null;
+
+        return view('user.measurement.result', [
+            'data' => $data,
+            'bodymData' => [],
+            'bodymMetadata' => [],
+            'confidence' => $confidence,
+            'qualityScore' => $qualityScore,
+            'refDetected' => true,
+            'perFieldConfidence' => [],
+            'rawCvJson' => ['garment_flow' => true, 'data' => $data],
+            'frontPhotoPath' => $photoPaths['frontPhotoPath'],
+            'sidePhotoPath' => $photoPaths['sidePhotoPath'],
+            'backPhotoPath' => $photoPaths['backPhotoPath'],
+            'refObject' => $request->ref_object,
+            'refSize' => $refSize,
+            'refWidthCm' => $refWidthCm,
+            'refHeightCm' => $refHeightCm,
+            'referenceMode' => 'fixed',
+            'measurementMethod' => 'garment_flat_lay',
+            'partialErrors' => $errors,
+        ]);
+    }
+
     public function poseModel()
     {
         $path = base_path('python-cv/pose_landmarker_lite.task');
@@ -357,6 +475,7 @@ class MeasurementController extends Controller
             'bodym_response_contract_version' => 'nullable|string|max:40',
             'bodym_model_version' => 'nullable|string|max:80',
             'bodym_status' => 'nullable|string|max:40',
+            'measurement_method' => 'nullable|string|max:40',
             'is_edited' => 'nullable|boolean',
         ];
 
@@ -417,7 +536,8 @@ class MeasurementController extends Controller
             'ref_width_cm' => $validated['ref_width_cm'] ?? null,
             'ref_height_cm' => $validated['ref_height_cm'] ?? null,
             'reference_mode' => $validated['reference_mode'] ?? 'fixed',
-            'measurement_method' => ($validated['bodym_status'] ?? null) === 'ok' ? 'bodym_ml' : 'multiview_cv',
+            'measurement_method' => $validated['measurement_method']
+                ?: (($validated['bodym_status'] ?? null) === 'ok' ? 'bodym_ml' : 'multiview_cv'),
             'bodym_contract_version' => $validated['bodym_contract_version'] ?? null,
             'bodym_response_contract_version' => $validated['bodym_response_contract_version'] ?? null,
             'bodym_model_version' => $validated['bodym_model_version'] ?? null,
@@ -459,7 +579,7 @@ class MeasurementController extends Controller
         Measurement::create($payload);
 
         return redirect()
-            ->route('user.measurement.index')
+            ->route('user.measurement.garment-index')
             ->with('success', 'Data ukuran badan berhasil disimpan!');
     }
 

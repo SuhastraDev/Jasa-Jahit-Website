@@ -50,8 +50,8 @@
                     <x-nav-link :href="route('user.chat.index')" :active="request()->routeIs('user.chat.*')">
                         {{ __('Chat Admin') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('user.measurement.index')" :active="request()->routeIs('user.measurement.*')">
-                        {{ __('Ukur Badan') }}
+                    <x-nav-link :href="route('user.measurement.garment-index')" :active="request()->routeIs('user.measurement.*')">
+                        {{ __('Ukur Baju/Celana') }}
                     </x-nav-link>
                     @endif
                 </div>
@@ -132,8 +132,8 @@
             <x-responsive-nav-link :href="route('user.chat.index')" :active="request()->routeIs('user.chat.*')">
                 {{ __('Chat Admin') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('user.measurement.index')" :active="request()->routeIs('user.measurement.*')">
-                {{ __('Ukur Badan') }}
+            <x-responsive-nav-link :href="route('user.measurement.garment-index')" :active="request()->routeIs('user.measurement.*')">
+                {{ __('Ukur Baju/Celana') }}
             </x-responsive-nav-link>
             @endif
         </div>
