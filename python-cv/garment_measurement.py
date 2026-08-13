@@ -47,7 +47,7 @@ GARMENT_MEASUREMENT_LIMITS_CM = {
     "inseam": (35, 120),
     "outseam": (60, 150),
     "rise": (15, 70),
-    "ankle": (18, 60),
+    "ankle": (14, 60),
 }
 
 GARMENT_LABELS = {
@@ -67,45 +67,50 @@ GARMENT_LABELS = {
 }
 
 
+_REMBG_SESSION = None
+
+
+def _get_rembg_session():
+    """Lazily create the AI segmentation session once per process (loading
+    the ~176MB U2Net model is the expensive part, not running it)."""
+    global _REMBG_SESSION
+    if _REMBG_SESSION is None:
+        from rembg import new_session
+        _REMBG_SESSION = new_session("u2net")
+    return _REMBG_SESSION
+
+
 def segment_garment(image, ref_contour=None):
-    """Separate the garment from a roughly plain background via GrabCut,
-    excluding the reference marker's own footprint from the result."""
-    h, w = image.shape[:2]
-    margin_x = max(1, int(w * 0.04))
-    margin_y = max(1, int(h * 0.04))
+    """Separate the garment from its background using an AI salient-object
+    segmentation model (rembg/U2Net) instead of classical color-clustering
+    (GrabCut). GrabCut was tried first and abandoned: it had real run-to-run
+    variance on the exact same photo (its GMM init isn't seeded), and would
+    intermittently misclassify tiled-floor grout lines as part of the
+    garment. An AI model trained specifically to find "the main object in
+    a photo" doesn't share either failure mode."""
+    success, buffer = cv2.imencode(".png", image)
+    if success:
+        from rembg import remove
+        result_bytes = remove(buffer.tobytes(), session=_get_rembg_session())
+        result_image = cv2.imdecode(np.frombuffer(result_bytes, np.uint8), cv2.IMREAD_UNCHANGED)
+    else:
+        result_image = None
 
-    bgd = np.zeros((1, 65), np.float64)
-    fgd = np.zeros((1, 65), np.float64)
-
-    try:
-        if ref_contour is not None:
-            # A plain-but-uneven background (tile grout, a faint shadow) near
-            # the marker can get misread by GrabCut as "probably foreground"
-            # (color similar to the garment's own shading), leaking a chunk
-            # of floor into the garment mask as one connected blob. Marking
-            # that area as DEFINITE background up front - not just erasing
-            # pixels after the fact - lets GrabCut's own color model learn
-            # not to claim it, instead of us guessing how big a hole to cut.
-            mask = np.full((h, w), cv2.GC_PR_BGD, np.uint8)
-            mask[margin_y:h - margin_y, margin_x:w - margin_x] = cv2.GC_PR_FGD
-            rx, ry, rw, rh = cv2.boundingRect(ref_contour)
-            pad = int(max(rw, rh) * 0.6)
-            x1, y1 = max(0, rx - pad), max(0, ry - pad)
-            x2, y2 = min(w, rx + rw + pad), min(h, ry + rh + pad)
-            mask[y1:y2, x1:x2] = cv2.GC_BGD
-            cv2.grabCut(image, mask, None, bgd, fgd, 5, cv2.GC_INIT_WITH_MASK)
-        else:
-            rect = (margin_x, margin_y, w - 2 * margin_x, h - 2 * margin_y)
-            mask = np.zeros((h, w), np.uint8)
-            cv2.grabCut(image, mask, rect, bgd, fgd, 5, cv2.GC_INIT_WITH_RECT)
-        garment_mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype("uint8")
-    except cv2.error:
+    if result_image is not None and result_image.ndim == 3 and result_image.shape[2] == 4:
+        alpha = result_image[:, :, 3]
+        _, garment_mask = cv2.threshold(alpha, 127, 255, cv2.THRESH_BINARY)
+    else:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, garment_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
+    if ref_contour is not None:
+        # The AI model already tends not to include a separate small object
+        # like the marker as part of the main garment, but exclude its
+        # footprint explicitly too as a safety net for edge cases.
+        cv2.drawContours(garment_mask, [ref_contour], -1, 0, thickness=cv2.FILLED)
+
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    garment_mask = cv2.morphologyEx(garment_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    garment_mask = cv2.morphologyEx(garment_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    garment_mask = cv2.morphologyEx(garment_mask, cv2.MORPH_CLOSE, kernel, iterations=1)
     return isolate_largest_component(garment_mask)
 
 
