@@ -676,7 +676,12 @@ class MeasurementController extends Controller
 
         $measurement->delete();
 
-        return back()->with('success', 'Data ukuran berhasil dihapus.');
+        // Not back(): when deleted from its own detail page (show route,
+        // bound to this now-gone id), back() would redirect to that same
+        // now-404 URL. The history list is always valid to return to.
+        return redirect()
+            ->route('user.measurement.garment-index')
+            ->with('success', 'Data ukuran berhasil dihapus.');
     }
 
     private function resolveReferenceDimensions(string $refObject, mixed $width, mixed $height): array

@@ -141,9 +141,19 @@
                 @else
                     <div class="space-y-3">
                         @foreach($measurements as $m)
-                        <a href="{{ route('user.measurement.show', $m) }}" class="block border border-gray-100 rounded-xl p-4 transition-colors hover:border-blue-200 hover:bg-blue-50/30">
-                            <div class="flex justify-between items-start mb-3">
-                                <div>
+                        <div class="relative border border-gray-100 rounded-xl p-4 transition-colors hover:border-blue-200 hover:bg-blue-50/30">
+                            <form action="{{ route('user.measurement.destroy', $m) }}" method="POST" onsubmit="return confirm('Hapus data ukuran ini?')" class="absolute right-3 top-3 z-10">
+                                @csrf @method('DELETE')
+                                <button type="submit" title="Hapus data ukuran"
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                                        <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                    </svg>
+                                </button>
+                            </form>
+                            <a href="{{ route('user.measurement.show', $m) }}" class="block pr-10">
+                                <div class="mb-3">
                                     <p class="text-xs font-semibold text-gray-500">{{ $m->created_at->format('d M Y, H:i') }}</p>
                                     <p class="text-xs text-gray-400 mt-0.5">{{ $m->measurement_method_label }} - {{ $m->ref_object_label }}</p>
                                     @if($m->confidence_score)
@@ -151,20 +161,16 @@
                                     @endif
                                     @if($m->is_edited)<span class="inline-block mt-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">Diedit</span>@endif
                                 </div>
-                                <form action="{{ route('user.measurement.destroy', $m) }}" method="POST" onsubmit="event.stopPropagation(); return confirm('Hapus data ukuran ini?')" onclick="event.stopPropagation()">
-                                    @csrf @method('DELETE')
-                                    <button class="text-gray-300 hover:text-red-500 transition-colors p-0.5">Hapus</button>
-                                </form>
-                            </div>
-                            <dl class="grid grid-cols-3 gap-1.5">
-                                @foreach([['Lingkar Dada',$m->chest],['Lebar Bahu',$m->shoulder_width],['Panjang Baju',$m->shirt_length],['Pinggang Celana',$m->pants_waist],['Pinggul Celana',$m->pants_hips],['Inseam',$m->inseam]] as [$lbl,$val])
-                                <div class="bg-gray-50 rounded-lg p-2 text-center">
-                                    <dt class="text-[10px] text-gray-400 font-medium mb-0.5">{{ $lbl }}</dt>
-                                    <dd class="text-xs font-bold text-gray-800">{{ $val ?? '-' }}<span class="font-normal text-gray-400">cm</span></dd>
-                                </div>
-                                @endforeach
-                            </dl>
-                        </a>
+                                <dl class="grid grid-cols-3 gap-1.5">
+                                    @foreach([['Lingkar Dada',$m->chest],['Lebar Bahu',$m->shoulder_width],['Panjang Baju',$m->shirt_length],['Pinggang Celana',$m->pants_waist],['Pinggul Celana',$m->pants_hips],['Inseam',$m->inseam]] as [$lbl,$val])
+                                    <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                        <dt class="text-[10px] text-gray-400 font-medium mb-0.5">{{ $lbl }}</dt>
+                                        <dd class="text-xs font-bold text-gray-800">{{ $val ?? '-' }}<span class="font-normal text-gray-400">cm</span></dd>
+                                    </div>
+                                    @endforeach
+                                </dl>
+                            </a>
+                        </div>
                         @endforeach
                     </div>
                 @endif
