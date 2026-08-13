@@ -15,6 +15,8 @@ the chest circumference), which is the same convention tailors use when
 sizing from an existing garment. Every circumference-type field below is
 therefore the scanned flat width multiplied by 2.
 """
+import base64
+
 import cv2
 import numpy as np
 
@@ -305,6 +307,71 @@ def measure_pants(keypoints, mask, scale):
     return data
 
 
+SHIRT_KEYPOINT_LABELS = [
+    ("collar", "Kerah"),
+    ("left_shoulder", "Bahu Kiri"),
+    ("right_shoulder", "Bahu Kanan"),
+    ("left_armpit", "Ketiak Kiri"),
+    ("right_armpit", "Ketiak Kanan"),
+    ("left_cuff", "Manset Kiri"),
+    ("right_cuff", "Manset Kanan"),
+    ("hem", "Bawah Baju"),
+]
+
+PANTS_KEYPOINT_LABELS = [
+    ("left_waist", "Pinggang Kiri"),
+    ("right_waist", "Pinggang Kanan"),
+    ("crotch", "Selangkangan"),
+    ("left_ankle", "Kaki Kiri"),
+    ("right_ankle", "Kaki Kanan"),
+]
+
+SHIRT_MEASUREMENT_LINES = [("left_armpit", "right_armpit"), ("left_shoulder", "right_shoulder")]
+PANTS_MEASUREMENT_LINES = [("left_waist", "right_waist")]
+
+
+def draw_measurement_line(image, keypoints, key_a, key_b, color=(255, 90, 0)):
+    a = keypoints.get(key_a)
+    b = keypoints.get(key_b)
+    if a is None or b is None:
+        return
+    cv2.line(image, (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), color, 2, cv2.LINE_AA)
+
+
+def render_debug_overlay(image, contour, marker_contour, keypoints, garment_type):
+    """Draw the detected garment outline, reference marker box, and named
+    keypoints on top of the original photo so the user can visually confirm
+    what the system measured — not just trust a table of numbers."""
+    overlay = image.copy()
+
+    if contour is not None:
+        cv2.drawContours(overlay, [contour], -1, (0, 200, 0), 3)
+
+    if marker_contour is not None:
+        cv2.drawContours(overlay, [marker_contour], -1, (0, 165, 255), 3)
+
+    labels = SHIRT_KEYPOINT_LABELS if garment_type == "shirt" else PANTS_KEYPOINT_LABELS
+    lines = SHIRT_MEASUREMENT_LINES if garment_type == "shirt" else PANTS_MEASUREMENT_LINES
+
+    for key_a, key_b in lines:
+        draw_measurement_line(overlay, keypoints, key_a, key_b)
+
+    for key, label in labels:
+        point = keypoints.get(key)
+        if point is None:
+            continue
+        pt = (int(point[0]), int(point[1]))
+        cv2.circle(overlay, pt, 8, (255, 0, 0), -1)
+        cv2.circle(overlay, pt, 8, (255, 255, 255), 2)
+        cv2.putText(overlay, label, (pt[0] + 12, pt[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.putText(overlay, label, (pt[0] + 12, pt[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+
+    success, buffer = cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    if not success:
+        return None
+    return base64.b64encode(buffer).decode("ascii")
+
+
 def impossible_garment_measurements(data):
     invalid = []
     for field, value in data.items():
@@ -402,6 +469,10 @@ def process_garment_measurement(
     completeness = len([f for f in expected_fields if f in data]) / len(expected_fields)
     confidence = round(min(0.95, max(0.4, scale_result.get("quality", 0.7) * completeness)), 2)
 
+    debug_image_base64 = render_debug_overlay(
+        image, contour, scale_result.get("contour"), keypoints, garment_type
+    )
+
     return {
         "success": True,
         "garment_type": garment_type,
@@ -410,5 +481,6 @@ def process_garment_measurement(
         "quality_score": confidence,
         "ref_detected": True,
         "measurement_method": "garment_flat_lay",
+        "debug_image_base64": debug_image_base64,
         "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
     }

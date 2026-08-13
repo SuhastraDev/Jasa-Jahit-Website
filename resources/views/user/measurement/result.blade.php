@@ -80,6 +80,20 @@
         </div>
     @endif
 
+    @if(!empty($debugImages))
+        <div class="mb-8">
+            <p class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Visual Deteksi — Kontur &amp; Titik Ukur</p>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                @foreach($debugImages as $label => $path)
+                    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
+                        <img src="{{ asset('storage/' . $path) }}" alt="Deteksi {{ $label }}" class="w-full">
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <form action="{{ route('user.measurement.store') }}" method="POST" x-data="{ edited: false }">
         @csrf
         <input type="hidden" name="front_photo_path" value="{{ $frontPhotoPath }}">

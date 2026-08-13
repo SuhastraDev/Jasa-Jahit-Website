@@ -8,6 +8,7 @@ use App\Services\CVMeasurementService;
 use App\Services\PhotoValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 class MeasurementController extends Controller
 {
@@ -140,6 +141,8 @@ class MeasurementController extends Controller
         $errors = [];
         $folder = 'measurements/' . auth()->id();
 
+        $debugImages = [];
+
         foreach ($garments as $garmentType => $config) {
             if (!$request->hasFile($config['photo'])) {
                 continue;
@@ -165,6 +168,15 @@ class MeasurementController extends Controller
             $data = array_merge($data, $result['data'] ?? []);
             $confidences[] = (float) ($result['confidence'] ?? 0);
             $qualityScores[] = (float) ($result['quality_score'] ?? 0);
+
+            if (!empty($result['debug_image_base64'])) {
+                $decoded = base64_decode($result['debug_image_base64'], true);
+                if ($decoded !== false) {
+                    $debugPath = "{$folder}/{$garmentType}_debug_" . uniqid() . '.jpg';
+                    Storage::disk('public')->put($debugPath, $decoded);
+                    $debugImages[$config['label']] = $debugPath;
+                }
+            }
         }
 
         if ($data === []) {
@@ -196,6 +208,7 @@ class MeasurementController extends Controller
             'referenceMode' => 'fixed',
             'measurementMethod' => 'garment_flat_lay',
             'partialErrors' => $errors,
+            'debugImages' => $debugImages,
         ]);
     }
 
