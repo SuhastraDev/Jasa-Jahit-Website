@@ -80,7 +80,41 @@
         </div>
     @endif
 
-    @if(!empty($debugImages))
+    @if(!empty($interactiveOverlays))
+        <div class="mb-8">
+            <p class="mb-1 text-xs font-black uppercase tracking-wide text-slate-500">Visual Deteksi — Titik &amp; Garis Ukur</p>
+            <p class="mb-3 text-xs text-slate-500">Arahkan kursor ke titik biru atau garis oranye untuk lihat nilainya dalam cm.</p>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                @foreach($interactiveOverlays as $label => $overlayData)
+                    @php $geometry = $overlayData['geometry']; @endphp
+                    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
+                        <div class="relative" x-data="{ tip: null, tx: 0, ty: 0 }" x-ref="wrap{{ $loop->index }}"
+                            @mousemove="const r = $el.getBoundingClientRect(); tx = $event.clientX - r.left; ty = $event.clientY - r.top;">
+                            <img src="{{ $overlayData['photo_url'] }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
+                            <svg viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full">
+                                @foreach($geometry['lines'] as $line)
+                                    <line x1="{{ $line['points'][0][0] }}" y1="{{ $line['points'][0][1] }}" x2="{{ $line['points'][1][0] }}" y2="{{ $line['points'][1][1] }}"
+                                        stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
+                                        @mouseenter="tip = '{{ addslashes($line['label']) }}: {{ $line['value_cm'] }} cm'"
+                                        @mouseleave="tip = null"></line>
+                                @endforeach
+                                @foreach($geometry['points'] as $point)
+                                    <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="11" fill="#2563eb" stroke="white" stroke-width="3"
+                                        class="cursor-pointer transition-opacity hover:opacity-80"
+                                        @mouseenter="tip = '{{ addslashes($point['label']) }}'"
+                                        @mouseleave="tip = null"></circle>
+                                @endforeach
+                            </svg>
+                            <div x-show="tip" x-text="tip" x-cloak
+                                class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white shadow-lg"
+                                :style="`left:${tx}px; top:${ty - 10}px`"></div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @elseif(!empty($debugImages))
         <div class="mb-8">
             <p class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Visual Deteksi — Kontur &amp; Titik Ukur</p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

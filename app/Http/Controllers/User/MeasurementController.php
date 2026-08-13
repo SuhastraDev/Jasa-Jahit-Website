@@ -142,6 +142,7 @@ class MeasurementController extends Controller
         $folder = 'measurements/' . auth()->id();
 
         $debugImages = [];
+        $interactiveOverlays = [];
 
         foreach ($garments as $garmentType => $config) {
             if (!$request->hasFile($config['photo'])) {
@@ -179,6 +180,20 @@ class MeasurementController extends Controller
             $data = array_merge($data, $result['data'] ?? []);
             $confidences[] = (float) ($result['confidence'] ?? 0);
             $qualityScores[] = (float) ($result['quality_score'] ?? 0);
+
+            // Titik/garis ukur presisi (interaktif, hover -> tooltip cm) di
+            // atas foto asli yang bersih (tanpa gambar dibakar di server).
+            if (!empty($result['clean_image_base64']) && !empty($result['overlay'])) {
+                $decodedClean = base64_decode($result['clean_image_base64'], true);
+                if ($decodedClean !== false) {
+                    $cleanPath = "{$folder}/{$garmentType}_clean_" . uniqid() . '.jpg';
+                    Storage::disk('public')->put($cleanPath, $decodedClean);
+                    $interactiveOverlays[$config['label']] = [
+                        'photo_url' => asset('storage/' . $cleanPath),
+                        'geometry' => $result['overlay'],
+                    ];
+                }
+            }
         }
 
         if ($data === []) {
@@ -212,6 +227,7 @@ class MeasurementController extends Controller
             'measurementMethod' => 'garment_flat_lay',
             'partialErrors' => $errors,
             'debugImages' => $debugImages,
+            'interactiveOverlays' => $interactiveOverlays,
         ]);
     }
 

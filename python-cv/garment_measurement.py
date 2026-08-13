@@ -332,6 +332,117 @@ def measure_pants(keypoints, mask, scale):
     return data
 
 
+def row_extent(mask, y):
+    """Leftmost/rightmost lit points of the mask at row y (same band logic
+    as measurement.py's width_at_y, but returning the actual coordinates
+    instead of just a width) — used to place visible points for
+    measurements (hips, thigh) that are otherwise just a scanned width."""
+    h = mask.shape[0]
+    y = int(max(0, min(h - 1, y)))
+    band_top = max(0, y - 3)
+    band_bottom = min(h, y + 4)
+    rows = mask[band_top:band_bottom, :]
+    cols = np.where(rows.max(axis=0) > 0)[0]
+    if len(cols) < 2:
+        return None
+    return (int(cols[0]), y), (int(cols[-1]), y)
+
+
+def build_overlay_geometry(garment_type, keypoints, data, mask):
+    """Point/line coordinates (pixel space of the measured image) behind
+    every numeric field that was successfully computed, so the frontend can
+    draw an interactive overlay (hover a line -> see its cm value) instead
+    of a static baked-in image."""
+    points = []
+    lines = []
+
+    def add_point(point_id, label, point):
+        if point is None:
+            return
+        points.append({"id": point_id, "label": label, "x": int(point[0]), "y": int(point[1])})
+
+    def add_line(field, label, point_a, point_b, note=None):
+        if point_a is None or point_b is None or field not in data:
+            return
+        entry = {
+            "field": field,
+            "label": label,
+            "value_cm": data[field],
+            "points": [[int(point_a[0]), int(point_a[1])], [int(point_b[0]), int(point_b[1])]],
+        }
+        if note:
+            entry["note"] = note
+        lines.append(entry)
+
+    if garment_type == "shirt":
+        for key, label in SHIRT_KEYPOINT_LABELS:
+            add_point(key, label, keypoints.get(key))
+
+        add_line("shoulder_width", "Lebar Bahu", keypoints.get("left_shoulder"), keypoints.get("right_shoulder"))
+        add_line(
+            "chest", "Lingkar Dada", keypoints.get("left_armpit"), keypoints.get("right_armpit"),
+            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+        )
+        add_line("shirt_length", "Panjang Badan", keypoints.get("collar"), keypoints.get("hem"))
+
+        left_shoulder = keypoints.get("left_shoulder")
+        left_armpit = keypoints.get("left_armpit")
+        if left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
+            cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
+            add_line("arm_length", "Panjang Lengan", left_shoulder, cuff)
+    else:
+        for key, label in PANTS_KEYPOINT_LABELS:
+            add_point(key, label, keypoints.get(key))
+
+        left_waist = keypoints.get("left_waist")
+        right_waist = keypoints.get("right_waist")
+        crotch = keypoints.get("crotch")
+        x, y, w, h = keypoints["bounding_box"]
+
+        add_line(
+            "pants_waist", "Lingkar Pinggang", left_waist, right_waist,
+            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+        )
+
+        hip_span = row_extent(mask, y + h * 0.18)
+        if hip_span:
+            add_point("left_hip", "Pinggul Kiri", hip_span[0])
+            add_point("right_hip", "Pinggul Kanan", hip_span[1])
+            add_line(
+                "pants_hips", "Lingkar Pinggul", hip_span[0], hip_span[1],
+                note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+            )
+
+        if left_waist and right_waist and crotch:
+            waist_mid = ((left_waist[0] + right_waist[0]) / 2, (left_waist[1] + right_waist[1]) / 2)
+            add_point("waist_mid", "Tengah Pinggang", waist_mid)
+            add_line("rise", "Panjang Pesak", waist_mid, crotch)
+
+            thigh_span = row_extent(mask, crotch[1] + h * 0.05)
+            if thigh_span:
+                add_point("left_thigh", "Paha Kiri", thigh_span[0])
+                add_point("right_thigh", "Paha Kanan", thigh_span[1])
+                add_line(
+                    "thigh", "Lingkar Paha", thigh_span[0], thigh_span[1],
+                    note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+                )
+
+            left_ankle = keypoints.get("left_ankle")
+            if left_ankle:
+                add_line("outseam", "Panjang Celana (Luar)", waist_mid, left_ankle)
+                add_line("inseam", "Inseam", crotch, left_ankle)
+
+        left_ankle = keypoints.get("left_ankle")
+        right_ankle = keypoints.get("right_ankle")
+        add_line(
+            "ankle", "Lingkar Kaki Bawah", left_ankle, right_ankle,
+            note="Diukur per kaki lalu dirata-rata; garis ini hanya penanda posisi.",
+        )
+
+    image_h, image_w = mask.shape[:2]
+    return {"image_width": image_w, "image_height": image_h, "points": points, "lines": lines}
+
+
 SHIRT_KEYPOINT_LABELS = [
     ("collar", "Kerah"),
     ("left_shoulder", "Bahu Kiri"),
@@ -407,6 +518,17 @@ def render_debug_overlay(
         cv2.putText(overlay, status_text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
     success, buffer = cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    if not success:
+        return None
+    return base64.b64encode(buffer).decode("ascii")
+
+
+def encode_image_base64(image):
+    """Undecorated copy of the measured photo, at the exact pixel size the
+    overlay geometry's coordinates were computed in - the frontend draws an
+    SVG overlay on top of this using those coordinates directly (no
+    percentage math, no scaling drift)."""
+    success, buffer = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 90])
     if not success:
         return None
     return base64.b64encode(buffer).decode("ascii")
@@ -580,5 +702,7 @@ def process_garment_measurement(
         "ref_detected": True,
         "measurement_method": "garment_flat_lay",
         "debug_image_base64": debug_image_base64,
+        "clean_image_base64": encode_image_base64(image),
+        "overlay": build_overlay_geometry(garment_type, keypoints, data, mask),
         "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
     }
