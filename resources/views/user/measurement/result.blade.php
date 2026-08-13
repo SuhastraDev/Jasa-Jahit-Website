@@ -15,6 +15,7 @@
                     ['Lingkar pinggang', 'waist', 'lingkar', 'Keliling pinggang badan pada posisi alami.'],
                     ['Lingkar pinggul', 'hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
                     ['Panjang lengan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
+                    ['Lingkar lengan', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
                     ['Lingkar tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
                     ['Panjang badan', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
                 ],

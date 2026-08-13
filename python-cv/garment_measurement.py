@@ -40,6 +40,7 @@ GARMENT_MEASUREMENT_LIMITS_CM = {
     "shoulder_width": (30, 70),
     "shirt_length": (35, 100),
     "arm_length": (30, 90),
+    "upper_arm": (18, 60),
     "wrist": (12, 35),
     "pants_waist": (50, 220),
     "pants_hips": (60, 230),
@@ -56,6 +57,7 @@ GARMENT_LABELS = {
     "shoulder_width": "lebar bahu",
     "shirt_length": "panjang baju",
     "arm_length": "panjang lengan",
+    "upper_arm": "lingkar lengan",
     "wrist": "pergelangan",
     "pants_waist": "pinggang celana",
     "pants_hips": "pinggul celana",
@@ -237,6 +239,16 @@ def measure_shirt(keypoints, mask, scale):
         arm_length_px = euclidean_distance(left_shoulder, cuff)
         data["arm_length"] = rounded(pixel_to_cm(arm_length_px, scale))
 
+        # Upper arm (bicep) width: a windowed scan centered on a point
+        # roughly a third of the way down the sleeve from the shoulder -
+        # close enough to the shoulder to still be "upper arm" rather than
+        # forearm, far enough that it isn't the shoulder seam itself.
+        bicep_point = bicep_sample_point(left_shoulder, cuff)
+        sleeve_span_px = euclidean_distance(left_shoulder, cuff)
+        bicep_width_px = constrained_width_at_y(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
+        if bicep_width_px:
+            data["upper_arm"] = rounded(pixel_to_cm(bicep_width_px * 2, scale))
+
     # Neck width is deliberately not estimated: a horizontal mask scan a few
     # percent below the collar point already lands past the neckline taper
     # and into the shoulder span, which measured as a "neck" width on real
@@ -332,6 +344,37 @@ def measure_pants(keypoints, mask, scale):
     return data
 
 
+def bicep_sample_point(shoulder, cuff, ratio=0.35):
+    """A point along the shoulder-to-cuff line, closer to the shoulder,
+    where the upper arm (bicep) width is sampled. The sleeve is treated as
+    a straight line from shoulder seam to cuff, which is only an
+    approximation - real sleeves curve slightly - but is consistent and
+    good enough for a flat-lay garment photo."""
+    return (
+        shoulder[0] + (cuff[0] - shoulder[0]) * ratio,
+        shoulder[1] + (cuff[1] - shoulder[1]) * ratio,
+    )
+
+
+def local_row_segment(mask, y, center_x, max_width_px):
+    """Like row_extent, but confined to a window around center_x — used
+    where a full-row scan could bleed into an unrelated part of the
+    garment (e.g. the torso, when sampling a sleeve close to the body)."""
+    h, w = mask.shape[:2]
+    y = int(max(0, min(h - 1, y)))
+    max_width_px = max(8.0, min(float(max_width_px), float(w)))
+    center_x = float(max(0, min(w - 1, center_x)))
+    x_min = int(max(0, round(center_x - max_width_px / 2)))
+    x_max = int(min(w - 1, round(center_x + max_width_px / 2)))
+    if x_max <= x_min:
+        return None
+    row = mask[y, x_min:x_max + 1]
+    cols = np.where(row > 0)[0]
+    if len(cols) < 2:
+        return None
+    return (int(x_min + cols[0]), y), (int(x_min + cols[-1]), y)
+
+
 def row_extent(mask, y):
     """Leftmost/rightmost lit points of the mask at row y (same band logic
     as measurement.py's width_at_y, but returning the actual coordinates
@@ -390,6 +433,17 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
         if left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
             cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
             add_line("arm_length", "Panjang Lengan", left_shoulder, cuff)
+
+            bicep_point = bicep_sample_point(left_shoulder, cuff)
+            sleeve_span_px = euclidean_distance(left_shoulder, cuff)
+            bicep_span = local_row_segment(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
+            if bicep_span:
+                add_point("left_bicep", "Lengan Atas Kiri", bicep_span[0])
+                add_point("right_bicep", "Lengan Atas Kanan", bicep_span[1])
+                add_line(
+                    "upper_arm", "Lingkar Lengan", bicep_span[0], bicep_span[1],
+                    note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+                )
     else:
         for key, label in PANTS_KEYPOINT_LABELS:
             add_point(key, label, keypoints.get(key))
