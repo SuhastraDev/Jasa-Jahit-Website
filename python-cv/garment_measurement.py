@@ -32,6 +32,11 @@ from utils import euclidean_distance, pixel_to_cm
 
 GARMENT_RESPONSE_CONTRACT_VERSION = "garment-response.v1"
 
+# Below this, the bicep sample point (ratio=0.35 along shoulder->cuff)
+# still falls inside the armhole curve rather than on straight sleeve
+# fabric, so a bicep width scan there isn't meaningful - see measure_shirt.
+MIN_SLEEVE_LENGTH_FOR_BICEP_CM = 15.0
+
 # Garment measurements include sewing ease, so ranges run wider than the
 # bare-body limits used for the (now dormant) body-photo pipeline.
 GARMENT_MEASUREMENT_LIMITS_CM = {
@@ -39,7 +44,9 @@ GARMENT_MEASUREMENT_LIMITS_CM = {
     "chest": (60, 220),
     "shoulder_width": (30, 70),
     "shirt_length": (35, 100),
-    "arm_length": (30, 90),
+    # Cap sleeves / very short short-sleeves can legitimately be this short;
+    # anything smaller than this is more likely a mis-detected cuff point.
+    "arm_length": (5, 90),
     "upper_arm": (18, 60),
     "wrist": (12, 35),
     "pants_waist": (50, 220),
@@ -245,17 +252,24 @@ def measure_shirt(keypoints, mask, scale):
         # side happens to have the further-out cuff pixel).
         cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
         arm_length_px = euclidean_distance(left_shoulder, cuff)
-        data["arm_length"] = rounded(pixel_to_cm(arm_length_px, scale))
+        arm_length_cm = pixel_to_cm(arm_length_px, scale)
+        data["arm_length"] = rounded(arm_length_cm)
 
         # Upper arm (bicep) width: a windowed scan centered on a point
         # roughly a third of the way down the sleeve from the shoulder -
         # close enough to the shoulder to still be "upper arm" rather than
-        # forearm, far enough that it isn't the shoulder seam itself.
-        bicep_point = bicep_sample_point(left_shoulder, cuff)
-        sleeve_span_px = euclidean_distance(left_shoulder, cuff)
-        bicep_width_px = constrained_width_at_y(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
-        if bicep_width_px:
-            data["upper_arm"] = rounded(pixel_to_cm(bicep_width_px * 2, scale))
+        # forearm, far enough that it isn't the shoulder seam itself. On a
+        # cap sleeve / very short sleeve that sample point still lands
+        # inside the curved armhole rather than on straight sleeve fabric,
+        # so the windowed scan returns a sliver width that isn't a real
+        # bicep measurement - skip it rather than report an impossible
+        # number, leaving the field simply undetected.
+        if arm_length_cm >= MIN_SLEEVE_LENGTH_FOR_BICEP_CM:
+            bicep_point = bicep_sample_point(left_shoulder, cuff)
+            sleeve_span_px = arm_length_px
+            bicep_width_px = constrained_width_at_y(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
+            if bicep_width_px:
+                data["upper_arm"] = rounded(pixel_to_cm(bicep_width_px * 2, scale))
 
     # Neck width is deliberately not estimated: a horizontal mask scan a few
     # percent below the collar point already lands past the neckline taper
@@ -498,6 +512,8 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
             cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
             add_line("arm_length", "Panjang Lengan", left_shoulder, cuff)
 
+        if "upper_arm" in data and left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
+            cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
             bicep_point = bicep_sample_point(left_shoulder, cuff)
             sleeve_span_px = euclidean_distance(left_shoulder, cuff)
             bicep_span = local_row_segment(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
@@ -831,8 +847,16 @@ def process_garment_measurement(
             ),
         }
 
+    # A single physically-implausible field (e.g. a bicep width mis-sampled
+    # on a cap sleeve) shouldn't hide every other correctly-measured field -
+    # drop just that field so it comes through as "not detected" instead of
+    # a wrong number, and only fail outright if none of this garment type's
+    # core fields survive.
     invalid_measurements = impossible_garment_measurements(data)
-    if invalid_measurements:
+    for item in invalid_measurements:
+        data.pop(item["field"], None)
+
+    if not any(field in data for field in expected_fields):
         fields = ", ".join(
             f"{GARMENT_LABELS.get(item['field'], item['field'])} {item['value']}cm"
             for item in invalid_measurements[:5]
