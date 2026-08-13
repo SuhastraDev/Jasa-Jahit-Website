@@ -36,17 +36,17 @@ GARMENT_RESPONSE_CONTRACT_VERSION = "garment-response.v1"
 # bare-body limits used for the (now dormant) body-photo pipeline.
 GARMENT_MEASUREMENT_LIMITS_CM = {
     "neck": (25, 60),
-    "chest": (60, 200),
+    "chest": (60, 220),
     "shoulder_width": (30, 70),
     "shirt_length": (35, 100),
     "arm_length": (30, 90),
     "wrist": (12, 35),
-    "pants_waist": (50, 180),
-    "pants_hips": (60, 200),
-    "thigh": (30, 100),
-    "inseam": (40, 120),
-    "outseam": (60, 140),
-    "rise": (15, 55),
+    "pants_waist": (50, 220),
+    "pants_hips": (60, 230),
+    "thigh": (30, 110),
+    "inseam": (35, 120),
+    "outseam": (60, 150),
+    "rise": (15, 70),
     "ankle": (18, 60),
 }
 
@@ -73,20 +73,35 @@ def segment_garment(image, ref_contour=None):
     h, w = image.shape[:2]
     margin_x = max(1, int(w * 0.04))
     margin_y = max(1, int(h * 0.04))
-    rect = (margin_x, margin_y, w - 2 * margin_x, h - 2 * margin_y)
 
-    mask = np.zeros((h, w), np.uint8)
     bgd = np.zeros((1, 65), np.float64)
     fgd = np.zeros((1, 65), np.float64)
+
     try:
-        cv2.grabCut(image, mask, rect, bgd, fgd, 5, cv2.GC_INIT_WITH_RECT)
-        garment_mask = np.where((mask == 2) | (mask == 0), 0, 255).astype("uint8")
+        if ref_contour is not None:
+            # A plain-but-uneven background (tile grout, a faint shadow) near
+            # the marker can get misread by GrabCut as "probably foreground"
+            # (color similar to the garment's own shading), leaking a chunk
+            # of floor into the garment mask as one connected blob. Marking
+            # that area as DEFINITE background up front - not just erasing
+            # pixels after the fact - lets GrabCut's own color model learn
+            # not to claim it, instead of us guessing how big a hole to cut.
+            mask = np.full((h, w), cv2.GC_PR_BGD, np.uint8)
+            mask[margin_y:h - margin_y, margin_x:w - margin_x] = cv2.GC_PR_FGD
+            rx, ry, rw, rh = cv2.boundingRect(ref_contour)
+            pad = int(max(rw, rh) * 0.6)
+            x1, y1 = max(0, rx - pad), max(0, ry - pad)
+            x2, y2 = min(w, rx + rw + pad), min(h, ry + rh + pad)
+            mask[y1:y2, x1:x2] = cv2.GC_BGD
+            cv2.grabCut(image, mask, None, bgd, fgd, 5, cv2.GC_INIT_WITH_MASK)
+        else:
+            rect = (margin_x, margin_y, w - 2 * margin_x, h - 2 * margin_y)
+            mask = np.zeros((h, w), np.uint8)
+            cv2.grabCut(image, mask, rect, bgd, fgd, 5, cv2.GC_INIT_WITH_RECT)
+        garment_mask = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype("uint8")
     except cv2.error:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         _, garment_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-    if ref_contour is not None:
-        cv2.drawContours(garment_mask, [ref_contour], -1, 0, thickness=cv2.FILLED)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
     garment_mask = cv2.morphologyEx(garment_mask, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -217,27 +232,32 @@ def measure_shirt(keypoints, mask, scale):
         arm_length_px = euclidean_distance(left_shoulder, cuff)
         data["arm_length"] = rounded(pixel_to_cm(arm_length_px, scale))
 
-    neck_width_px = width_at_y(mask, collar[1] + (keypoints["bounding_box"][3] * 0.03))
-    if neck_width_px:
-        data["neck"] = rounded(pixel_to_cm(neck_width_px * 2, scale))
+    # Neck width is deliberately not estimated: a horizontal mask scan a few
+    # percent below the collar point already lands past the neckline taper
+    # and into the shoulder span, which measured as a "neck" width on real
+    # photos (e.g. a jacket collar) rather than the actual neck opening.
+    # There's no reliable way to isolate just the collar hole from the
+    # garment silhouette without a dedicated collar detector, so we skip it
+    # rather than report a wrong number.
 
     return data
 
 
 def detect_pants_keypoints(contour, mask):
     x, y, w, h = cv2.boundingRect(contour)
-    cx = x + w / 2
     contour_points = contour.reshape(-1, 2)
 
     top_band = points_in_y_band(contour_points, y, y + h * 0.08)
     left_waist = min(top_band, key=lambda p: p[0]) if top_band else None
     right_waist = max(top_band, key=lambda p: p[0]) if top_band else None
 
+    # The true crotch notch is, by a wide margin, the single deepest
+    # concavity in the whole silhouette (pocket flaps and fabric folds are
+    # noticeably shallower) - anchoring on depth alone is more reliable
+    # than assuming it sits near the horizontal center, since legs laid
+    # flat are rarely perfectly symmetric around the waistband's midpoint.
     defects = convexity_defect_points(contour)
-    crotch_candidates = [
-        d for d in defects
-        if abs(d["point"][0] - cx) < w * 0.25 and d["point"][1] > y + h * 0.3
-    ]
+    crotch_candidates = [d for d in defects if d["point"][1] > y + h * 0.3]
     crotch = max(crotch_candidates, key=lambda d: d["depth"])["point"] if crotch_candidates else None
 
     bottom_band = points_in_y_band(contour_points, y + h * 0.92, y + h)
@@ -423,7 +443,27 @@ def process_garment_measurement(
         }
     image = resize_for_measurement(image)
 
-    scale_result = calculate_scale(image, ref_object, ref_width_cm, ref_height_cm, reference_box)
+    # A flat-lay photo has to frame the whole garment, so the marker often
+    # ends up much smaller relative to the frame than in a body photo (where
+    # it's held close to the subject). The body-photo pipeline's 0.5%
+    # minimum-area filter throws away markers this small, so use a lower
+    # floor here. There's also no "body" to avoid overlapping, so the
+    # body-side position gap doesn't apply to garment photos either.
+    scale_result = calculate_scale(
+        image,
+        ref_object,
+        ref_width_cm,
+        ref_height_cm,
+        reference_box,
+        min_area_ratio=0.0015,
+        require_body_side_gap=False,
+        # A small marker's outline often comes out of Canny+morph-close as
+        # several disconnected fragments rather than one clean closed loop,
+        # so RETR_EXTERNAL (only top-level closed contours) can miss it
+        # entirely. RETR_LIST considers every contour found and lets the
+        # existing area/ratio/rectangularity scoring pick the real one.
+        retrieval_mode=cv2.RETR_LIST,
+    )
     if scale_result is None or scale_result.get("quality", 0.0) < 0.6:
         return {
             "success": False,

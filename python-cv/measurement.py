@@ -119,13 +119,20 @@ def resize_for_measurement(image, max_dimension=1280):
     return cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_AREA)
 
 
-def detect_reference_object(image, real_width, real_height):
+def detect_reference_object(
+    image,
+    real_width,
+    real_height,
+    min_area_ratio=0.005,
+    require_body_side_gap=True,
+    retrieval_mode=cv2.RETR_EXTERNAL,
+):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(edges, retrieval_mode, cv2.CHAIN_APPROX_SIMPLE)
 
     best = None
     best_score = 0.0
@@ -134,7 +141,7 @@ def detect_reference_object(image, real_width, real_height):
     expected_ratio = max(real_width, real_height) / min(real_width, real_height)
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area < image_area * 0.005 or area > image_area * 0.3:
+        if area < image_area * min_area_ratio or area > image_area * 0.3:
             continue
 
         peri = cv2.arcLength(contour, True)
@@ -155,7 +162,7 @@ def detect_reference_object(image, real_width, real_height):
         rectangularity = min(1.0, area / max(1.0, rect_w * rect_h))
         center_x = x + bound_w / 2
         at_body_side = center_x < image_w * 0.43 or center_x > image_w * 0.57
-        if ratio_quality < 0.72 or rectangularity < 0.62 or not at_body_side:
+        if ratio_quality < 0.72 or rectangularity < 0.62 or (require_body_side_gap and not at_body_side):
             continue
 
         area_quality = min(1.0, area / (image_area * 0.06))
@@ -444,7 +451,16 @@ def calibrated_distance_cm(start, end, calibration):
     return math.hypot(delta_x_cm, delta_y_cm)
 
 
-def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, manual_box=None):
+def calculate_scale(
+    image,
+    ref_object,
+    ref_width_cm=None,
+    ref_height_cm=None,
+    manual_box=None,
+    min_area_ratio=0.005,
+    require_body_side_gap=True,
+    retrieval_mode=cv2.RETR_EXTERNAL,
+):
     real_width, real_height = get_reference_dimensions(ref_object, ref_width_cm, ref_height_cm)
     manual_result = refine_manual_reference_contour(image, manual_box, real_width, real_height)
     contour = manual_result["contour"] if manual_result else None
@@ -456,7 +472,9 @@ def calculate_scale(image, ref_object, ref_width_cm=None, ref_height_cm=None, ma
         "refined": True,
     }
     if contour is None:
-        contour = detect_reference_object(image, real_width, real_height)
+        contour = detect_reference_object(
+            image, real_width, real_height, min_area_ratio, require_body_side_gap, retrieval_mode
+        )
         if contour is not None and manual_result:
             source = "auto_after_manual_roi"
             detection_quality = 0.82
