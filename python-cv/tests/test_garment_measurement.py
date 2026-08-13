@@ -45,6 +45,17 @@ def make_pants_mask():
     return mask
 
 
+def make_skirt_mask():
+    """Synthetic flat-lay skirt: narrower waistband at top, flared A-line
+    hem at the bottom, no crotch fork."""
+    mask = np.zeros((400, 300), np.uint8)
+    poly = np.array([
+        [110, 20], [190, 20], [220, 40], [260, 360], [40, 360], [80, 40],
+    ], dtype=np.int32)
+    cv2.fillPoly(mask, [poly], 255)
+    return mask
+
+
 @unittest.skipUnless(HAS_REAL_CV, "OpenCV is required")
 class GarmentMeasurementGeometryTest(unittest.TestCase):
     def test_shirt_keypoints_locate_shoulders_above_armpits_not_on_sleeves(self):
@@ -106,6 +117,34 @@ class GarmentMeasurementGeometryTest(unittest.TestCase):
         fields = {item["field"] for item in invalid}
         self.assertIn("chest", fields)
         self.assertNotIn("shirt_length", fields)
+
+    def test_skirt_keypoints_find_waist_narrower_than_hem(self):
+        mask = make_skirt_mask()
+        contour = gm.extract_contour(mask)
+        keypoints = gm.detect_skirt_keypoints(contour, mask)
+
+        for key in ("left_waist", "right_waist", "left_hem", "right_hem"):
+            self.assertIsNotNone(keypoints[key])
+
+        waist_width = keypoints["right_waist"][0] - keypoints["left_waist"][0]
+        hem_width = keypoints["right_hem"][0] - keypoints["left_hem"][0]
+        self.assertLess(waist_width, hem_width)
+
+    def test_skirt_length_matches_waist_to_hem_distance(self):
+        mask = make_skirt_mask()
+        contour = gm.extract_contour(mask)
+        keypoints = gm.detect_skirt_keypoints(contour, mask)
+        scale = 10.0
+        data = gm.measure_skirt(keypoints, mask, scale)
+
+        for field in ("waist", "hips", "hem_width", "skirt_length"):
+            self.assertIn(field, data)
+            self.assertGreater(data[field], 0)
+
+        # Waistband (y=20) to hem (y=360) is 340px -> 34cm at 10px/cm;
+        # the top/bottom band scans sample a few rows of the sloped A-line
+        # edges rather than the exact extreme y, so allow some slack.
+        self.assertAlmostEqual(data["skirt_length"], 34.0, delta=3.0)
 
 
 @unittest.skipUnless(HAS_REAL_CV, "OpenCV is required")

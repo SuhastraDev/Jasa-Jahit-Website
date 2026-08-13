@@ -49,6 +49,10 @@ GARMENT_MEASUREMENT_LIMITS_CM = {
     "outseam": (60, 150),
     "rise": (15, 70),
     "ankle": (14, 60),
+    "waist": (50, 220),
+    "hips": (60, 230),
+    "skirt_length": (20, 120),
+    "hem_width": (30, 250),
 }
 
 GARMENT_LABELS = {
@@ -66,6 +70,10 @@ GARMENT_LABELS = {
     "outseam": "outseam",
     "rise": "rise/pesak",
     "ankle": "bukaan bawah",
+    "waist": "pinggang rok",
+    "hips": "pinggul rok",
+    "skirt_length": "panjang rok",
+    "hem_width": "lebar bawah rok",
 }
 
 
@@ -344,6 +352,62 @@ def measure_pants(keypoints, mask, scale):
     return data
 
 
+def detect_skirt_keypoints(contour, mask):
+    """A skirt is geometrically much simpler than pants: no crotch fork,
+    just a waistband tapering (or not) down to a hem — so this only needs
+    the top and bottom bands, unlike detect_pants_keypoints."""
+    x, y, w, h = cv2.boundingRect(contour)
+    contour_points = contour.reshape(-1, 2)
+
+    top_band = points_in_y_band(contour_points, y, y + h * 0.08)
+    left_waist = min(top_band, key=lambda p: p[0]) if top_band else None
+    right_waist = max(top_band, key=lambda p: p[0]) if top_band else None
+
+    bottom_band = points_in_y_band(contour_points, y + h * 0.92, y + h)
+    left_hem = min(bottom_band, key=lambda p: p[0]) if bottom_band else None
+    right_hem = max(bottom_band, key=lambda p: p[0]) if bottom_band else None
+
+    return {
+        "left_waist": left_waist,
+        "right_waist": right_waist,
+        "left_hem": left_hem,
+        "right_hem": right_hem,
+        "bounding_box": (x, y, w, h),
+    }
+
+
+def measure_skirt(keypoints, mask, scale):
+    data = {}
+    x, y, w, h = keypoints["bounding_box"]
+    left_waist = keypoints.get("left_waist")
+    right_waist = keypoints.get("right_waist")
+    left_hem = keypoints.get("left_hem")
+    right_hem = keypoints.get("right_hem")
+
+    if left_waist and right_waist:
+        waist_width_px = euclidean_distance(left_waist, right_waist)
+        # Reuses the generic "waist"/"hips" fields (already in the DB
+        # schema from the old body-photo pipeline) rather than adding
+        # skirt-specific waist/hip columns - a skirt's waistband and hip
+        # width map onto exactly the same real-world measurements.
+        data["waist"] = rounded(pixel_to_cm(waist_width_px * 2, scale))
+        waist_y = (left_waist[1] + right_waist[1]) / 2
+    else:
+        waist_y = y
+
+    hip_width_px = width_at_y(mask, y + h * 0.25)
+    if hip_width_px:
+        data["hips"] = rounded(pixel_to_cm(hip_width_px * 2, scale))
+
+    if left_hem and right_hem:
+        hem_width_px = euclidean_distance(left_hem, right_hem)
+        data["hem_width"] = rounded(pixel_to_cm(hem_width_px * 2, scale))
+        hem_y = (left_hem[1] + right_hem[1]) / 2
+        data["skirt_length"] = rounded(pixel_to_cm(abs(hem_y - waist_y), scale))
+
+    return data
+
+
 def bicep_sample_point(shoulder, cuff, ratio=0.35):
     """A point along the shoulder-to-cuff line, closer to the shoulder,
     where the upper arm (bicep) width is sampled. The sleeve is treated as
@@ -444,7 +508,7 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
                     "upper_arm", "Lingkar Lengan", bicep_span[0], bicep_span[1],
                     note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
                 )
-    else:
+    elif garment_type == "pants":
         for key, label in PANTS_KEYPOINT_LABELS:
             add_point(key, label, keypoints.get(key))
 
@@ -492,6 +556,41 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
             "ankle", "Lingkar Kaki Bawah", left_ankle, right_ankle,
             note="Diukur per kaki lalu dirata-rata; garis ini hanya penanda posisi.",
         )
+    elif garment_type == "skirt":
+        for key, label in SKIRT_KEYPOINT_LABELS:
+            add_point(key, label, keypoints.get(key))
+
+        left_waist = keypoints.get("left_waist")
+        right_waist = keypoints.get("right_waist")
+        x, y, w, h = keypoints["bounding_box"]
+
+        add_line(
+            "waist", "Lingkar Pinggang", left_waist, right_waist,
+            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+        )
+
+        hip_span = row_extent(mask, y + h * 0.25)
+        if hip_span:
+            add_point("left_hip", "Pinggul Kiri", hip_span[0])
+            add_point("right_hip", "Pinggul Kanan", hip_span[1])
+            add_line(
+                "hips", "Lingkar Pinggul", hip_span[0], hip_span[1],
+                note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+            )
+
+        left_hem = keypoints.get("left_hem")
+        right_hem = keypoints.get("right_hem")
+        add_line(
+            "hem_width", "Lebar Bawah Rok", left_hem, right_hem,
+            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
+        )
+
+        if left_waist and right_waist and left_hem and right_hem:
+            waist_mid = ((left_waist[0] + right_waist[0]) / 2, (left_waist[1] + right_waist[1]) / 2)
+            hem_mid = ((left_hem[0] + right_hem[0]) / 2, (left_hem[1] + right_hem[1]) / 2)
+            add_point("waist_mid", "Tengah Pinggang", waist_mid)
+            add_point("hem_mid", "Tengah Bawah", hem_mid)
+            add_line("skirt_length", "Panjang Rok", waist_mid, hem_mid)
 
     image_h, image_w = mask.shape[:2]
     return {"image_width": image_w, "image_height": image_h, "points": points, "lines": lines}
@@ -516,8 +615,16 @@ PANTS_KEYPOINT_LABELS = [
     ("right_ankle", "Kaki Kanan"),
 ]
 
+SKIRT_KEYPOINT_LABELS = [
+    ("left_waist", "Pinggang Kiri"),
+    ("right_waist", "Pinggang Kanan"),
+    ("left_hem", "Bawah Kiri"),
+    ("right_hem", "Bawah Kanan"),
+]
+
 SHIRT_MEASUREMENT_LINES = [("left_armpit", "right_armpit"), ("left_shoulder", "right_shoulder")]
 PANTS_MEASUREMENT_LINES = [("left_waist", "right_waist")]
+SKIRT_MEASUREMENT_LINES = [("left_waist", "right_waist"), ("left_hem", "right_hem")]
 
 
 def draw_measurement_line(image, keypoints, key_a, key_b, color=(255, 90, 0)):
@@ -550,8 +657,18 @@ def render_debug_overlay(
     if marker_contour is not None:
         cv2.drawContours(overlay, [marker_contour], -1, (0, 165, 255), 3)
 
-    labels = SHIRT_KEYPOINT_LABELS if garment_type == "shirt" else PANTS_KEYPOINT_LABELS
-    lines = SHIRT_MEASUREMENT_LINES if garment_type == "shirt" else PANTS_MEASUREMENT_LINES
+    keypoint_labels_by_type = {
+        "shirt": SHIRT_KEYPOINT_LABELS,
+        "pants": PANTS_KEYPOINT_LABELS,
+        "skirt": SKIRT_KEYPOINT_LABELS,
+    }
+    measurement_lines_by_type = {
+        "shirt": SHIRT_MEASUREMENT_LINES,
+        "pants": PANTS_MEASUREMENT_LINES,
+        "skirt": SKIRT_MEASUREMENT_LINES,
+    }
+    labels = keypoint_labels_by_type.get(garment_type, [])
+    lines = measurement_lines_by_type.get(garment_type, [])
 
     for key_a, key_b in lines:
         draw_measurement_line(overlay, keypoints, key_a, key_b)
@@ -608,10 +725,10 @@ def process_garment_measurement(
     ref_height_cm=None,
     reference_box=None,
 ):
-    if garment_type not in ("shirt", "pants"):
+    if garment_type not in ("shirt", "pants", "skirt"):
         return {
             "success": False,
-            "error": "Jenis pakaian harus 'shirt' atau 'pants'.",
+            "error": "Jenis pakaian harus 'shirt', 'pants', atau 'skirt'.",
             "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
         }
 
@@ -687,10 +804,14 @@ def process_garment_measurement(
         keypoints = detect_shirt_keypoints(contour, mask)
         data = measure_shirt(keypoints, mask, scale)
         expected_fields = ("shoulder_width", "chest", "shirt_length", "arm_length")
-    else:
+    elif garment_type == "pants":
         keypoints = detect_pants_keypoints(contour, mask)
         data = measure_pants(keypoints, mask, scale)
         expected_fields = ("pants_waist", "pants_hips", "inseam", "outseam")
+    else:
+        keypoints = detect_skirt_keypoints(contour, mask)
+        data = measure_skirt(keypoints, mask, scale)
+        expected_fields = ("waist", "hips", "skirt_length")
 
     if not data:
         return {

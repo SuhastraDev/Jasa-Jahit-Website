@@ -37,6 +37,8 @@ class MeasurementController extends Controller
         'inseam',
         'outseam',
         'rise',
+        'skirt_length',
+        'hem_width',
     ];
 
     private const BODYM_FIELDS = [
@@ -103,24 +105,29 @@ class MeasurementController extends Controller
         $request->validate([
             'shirt_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'pants_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'skirt_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'ref_object' => 'required|in:a4,ktp',
             'ref_width_cm' => 'nullable|numeric|min:1',
             'ref_height_cm' => 'nullable|numeric|min:1',
             'shirt_reference_box' => 'nullable|string',
             'pants_reference_box' => 'nullable|string',
+            'skirt_reference_box' => 'nullable|string',
         ], [
             'shirt_photo.max' => 'Foto baju terlalu besar. Maksimal 5MB.',
             'pants_photo.max' => 'Foto celana terlalu besar. Maksimal 5MB.',
+            'skirt_photo.max' => 'Foto rok terlalu besar. Maksimal 5MB.',
             'shirt_photo.image' => 'Foto baju harus berupa file gambar.',
             'pants_photo.image' => 'Foto celana harus berupa file gambar.',
+            'skirt_photo.image' => 'Foto rok harus berupa file gambar.',
             'shirt_photo.mimes' => 'Foto baju harus berformat JPG, JPEG, PNG, atau WEBP.',
             'pants_photo.mimes' => 'Foto celana harus berformat JPG, JPEG, PNG, atau WEBP.',
+            'skirt_photo.mimes' => 'Foto rok harus berformat JPG, JPEG, PNG, atau WEBP.',
         ]);
 
-        if (!$request->hasFile('shirt_photo') && !$request->hasFile('pants_photo')) {
+        if (!$request->hasFile('shirt_photo') && !$request->hasFile('pants_photo') && !$request->hasFile('skirt_photo')) {
             return back()
                 ->withInput()
-                ->with('error', 'Upload minimal satu foto: baju atau celana.');
+                ->with('error', 'Upload minimal satu foto: baju, celana, atau rok.');
         }
 
         [$refWidthCm, $refHeightCm] = $this->resolveReferenceDimensions(
@@ -132,6 +139,7 @@ class MeasurementController extends Controller
         $garments = [
             'shirt' => ['photo' => 'shirt_photo', 'box' => 'shirt_reference_box', 'path_key' => 'frontPhotoPath', 'label' => 'Baju'],
             'pants' => ['photo' => 'pants_photo', 'box' => 'pants_reference_box', 'path_key' => 'sidePhotoPath', 'label' => 'Celana'],
+            'skirt' => ['photo' => 'skirt_photo', 'box' => 'skirt_reference_box', 'path_key' => 'backPhotoPath', 'label' => 'Rok'],
         ];
 
         $data = [];

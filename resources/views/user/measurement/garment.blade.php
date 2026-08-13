@@ -108,6 +108,20 @@
                         </div>
                     </div>
 
+                    <div class="border-t border-gray-100 pt-5">
+                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                            <input type="checkbox" x-model="wantSkirt" class="rounded text-blue-600">
+                            <span class="text-sm font-bold text-gray-800">Ukur Rok</span>
+                        </label>
+                        <div x-show="wantSkirt" x-cloak class="rounded-lg border border-gray-200 p-4">
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Foto rok rata + KTP/A4 di sampingnya</label>
+                            <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp"
+                                class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <input type="hidden" name="skirt_reference_box" value="">
+                            @error('skirt_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+
                     <button type="submit" class="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700">
                         Validasi dan Hitung Ukuran
                     </button>
@@ -165,6 +179,7 @@
         return {
             wantShirt: true,
             wantPants: false,
+            wantSkirt: false,
             submitting: false,
             stage: 0,
             // Mirrors the actual backend pipeline order (measurement.py's

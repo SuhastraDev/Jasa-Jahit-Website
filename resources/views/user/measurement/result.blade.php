@@ -12,8 +12,6 @@
                 'fields' => [
                     ['Lebar bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
                     ['Lingkar dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
-                    ['Lingkar pinggang', 'waist', 'lingkar', 'Keliling pinggang badan pada posisi alami.'],
-                    ['Lingkar pinggul', 'hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
                     ['Panjang lengan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
                     ['Lingkar lengan', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
                     ['Lingkar tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
@@ -32,6 +30,18 @@
                     ['Panjang celana', 'outseam', 'panjang', 'Jarak dari pinggang hingga pergelangan kaki bagian luar.'],
                     ['Lingkar kaki bagian bawah', 'ankle', 'lingkar', 'Keliling pergelangan kaki untuk menentukan bukaan bawah celana.'],
                     ['Lingkar kaki bagian atas', 'thigh', 'lingkar', 'Keliling bagian paha yang paling lebar.'],
+                ],
+            ],
+            [
+                'title' => 'Ukuran Rok',
+                'caption' => 'Ukuran utama untuk membentuk pinggang, pinggul, dan panjang rok.',
+                'eyebrow' => 'ROK',
+                'dot' => 'bg-purple-600',
+                'fields' => [
+                    ['Lingkar pinggang', 'waist', 'lingkar', 'Keliling pada posisi ban pinggang rok.'],
+                    ['Lingkar pinggul', 'hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
+                    ['Panjang rok', 'skirt_length', 'panjang', 'Jarak dari pinggang hingga batas bawah rok.'],
+                    ['Lebar bawah rok', 'hem_width', 'lingkar', 'Keliling pada bagian bawah/hem rok.'],
                 ],
             ],
         ];

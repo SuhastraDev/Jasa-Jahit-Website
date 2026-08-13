@@ -195,24 +195,24 @@ async def measure(
 
 @app.post("/measure/garment")
 async def measure_garment(
-    photo: UploadFile = File(..., description="Foto pakaian (baju/celana) rata di lantai/meja"),
-    garment_type: str = Form(..., description="Jenis pakaian: 'shirt' atau 'pants'"),
+    photo: UploadFile = File(..., description="Foto pakaian (baju/celana/rok) rata di lantai/meja"),
+    garment_type: str = Form(..., description="Jenis pakaian: 'shirt', 'pants', atau 'skirt'"),
     ref_object: str = Form(..., description="Jenis marker referensi: a4, ktp, custom"),
     ref_width_cm: float = Form(None, description="Lebar benda referensi (cm) jika custom"),
     ref_height_cm: float = Form(None, description="Tinggi benda referensi (cm) jika custom"),
     reference_box: str = Form(None, description="Koordinat manual benda patokan"),
 ):
     """
-    Analyze a flat-lay garment photo (shirt or pants laid flat next to a
-    reference marker) and estimate its measurements. Synchronous — no
+    Analyze a flat-lay garment photo (shirt, pants, or skirt laid flat next
+    to a reference marker) and estimate its measurements. Synchronous — no
     pose/segmentation model involved, so this is much lighter than /measure.
 
     - **photo**: Image of the garment laid flat, reference marker beside it
-    - **garment_type**: 'shirt' or 'pants'
+    - **garment_type**: 'shirt', 'pants', or 'skirt'
     - **ref_object**: Type of reference marker ('a4', 'ktp', 'custom')
     """
-    if garment_type not in ("shirt", "pants"):
-        raise HTTPException(status_code=422, detail="garment_type harus 'shirt' atau 'pants'")
+    if garment_type not in ("shirt", "pants", "skirt"):
+        raise HTTPException(status_code=422, detail="garment_type harus 'shirt', 'pants', atau 'skirt'")
 
     if ref_object not in ("a4", "ktp", "atm", "custom"):
         raise HTTPException(status_code=422, detail="ref_object harus 'a4', 'ktp', atau 'custom'")
