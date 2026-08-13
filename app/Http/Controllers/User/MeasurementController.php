@@ -197,7 +197,10 @@ class MeasurementController extends Controller
                     $cleanPath = "{$folder}/{$garmentType}_clean_" . uniqid() . '.jpg';
                     Storage::disk('public')->put($cleanPath, $decodedClean);
                     $interactiveOverlays[$config['label']] = [
-                        'photo_url' => asset('storage/' . $cleanPath),
+                        // Stored as a relative path (not an absolute asset() URL) so
+                        // it survives being persisted to garment_overlays_json and
+                        // re-resolved correctly later regardless of domain.
+                        'photo_path' => $cleanPath,
                         'geometry' => $result['overlay'],
                     ];
                 }
@@ -507,6 +510,7 @@ class MeasurementController extends Controller
             'confidence_score' => 'nullable|numeric|min:0|max:1',
             'quality_score' => 'nullable|numeric|min:0|max:1',
             'raw_cv_json' => 'nullable|string',
+            'garment_overlays_json' => 'nullable|string',
             'bodym_data_json' => 'nullable|string',
             'bodym_per_field_confidence_json' => 'nullable|string',
             'bodym_prediction_intervals_cm_json' => 'nullable|string',
@@ -560,6 +564,7 @@ class MeasurementController extends Controller
             $rawCv = is_array($decoded) ? $decoded : null;
         }
 
+        $garmentOverlays = $this->decodeJsonInput($validated['garment_overlays_json'] ?? null);
         $bodymData = $this->decodeJsonInput($validated['bodym_data_json'] ?? null);
         $bodymConfidence = $this->decodeJsonInput($validated['bodym_per_field_confidence_json'] ?? null);
         $bodymIntervals = $this->decodeJsonInput($validated['bodym_prediction_intervals_cm_json'] ?? null);
@@ -585,6 +590,7 @@ class MeasurementController extends Controller
             'confidence_score' => $validated['confidence_score'] ?? null,
             'quality_score' => $validated['quality_score'] ?? null,
             'raw_cv_json' => $rawCv,
+            'garment_overlays_json' => $garmentOverlays,
             'bodym_data' => $bodymData,
             'bodym_per_field_confidence' => $bodymConfidence,
             'bodym_prediction_intervals_cm' => $bodymIntervals,
@@ -621,6 +627,42 @@ class MeasurementController extends Controller
         return redirect()
             ->route('user.measurement.garment-index')
             ->with('success', 'Data ukuran badan berhasil disimpan!');
+    }
+
+    /**
+     * Buka kembali satu data ukuran yang sudah tersimpan — tampilan sama
+     * persis dengan halaman hasil analisis (termasuk foto + overlay
+     * interaktif kalau tersedia), hanya saja dalam mode baca saja.
+     */
+    public function show(Measurement $measurement)
+    {
+        if ((int) $measurement->user_id !== (int) auth()->id()) {
+            abort(403);
+        }
+
+        $data = [];
+        foreach (self::MEASUREMENT_FIELDS as $field) {
+            if ($measurement->{$field} !== null) {
+                $data[$field] = (float) $measurement->{$field};
+            }
+        }
+
+        $interactiveOverlays = [];
+        foreach (($measurement->garment_overlays_json ?? []) as $label => $overlayData) {
+            if (empty($overlayData['photo_path']) || empty($overlayData['geometry'])) {
+                continue;
+            }
+            $interactiveOverlays[$label] = [
+                'photo_url' => asset('storage/' . $overlayData['photo_path']),
+                'geometry' => $overlayData['geometry'],
+            ];
+        }
+
+        return view('user.measurement.show', [
+            'measurement' => $measurement,
+            'data' => $data,
+            'interactiveOverlays' => $interactiveOverlays,
+        ]);
     }
 
     /**

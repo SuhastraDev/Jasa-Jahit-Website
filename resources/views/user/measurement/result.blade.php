@@ -102,7 +102,7 @@
                         <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
                         <div class="relative" x-data="{ tip: null, tx: 0, ty: 0 }" x-ref="wrap{{ $loop->index }}"
                             @mousemove="const r = $el.getBoundingClientRect(); tx = $event.clientX - r.left; ty = $event.clientY - r.top;">
-                            <img src="{{ $overlayData['photo_url'] }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
+                            <img src="{{ $overlayData['photo_url'] ?? asset('storage/' . $overlayData['photo_path']) }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
                             <svg viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full">
                                 @foreach($geometry['lines'] as $line)
                                     <line x1="{{ $line['points'][0][0] }}" y1="{{ $line['points'][0][1] }}" x2="{{ $line['points'][1][0] }}" y2="{{ $line['points'][1][1] }}"
@@ -152,6 +152,7 @@
         <input type="hidden" name="confidence_score" value="{{ $confidence }}">
         <input type="hidden" name="quality_score" value="{{ $qualityScore }}">
         <input type="hidden" name="raw_cv_json" value='@json($rawCvJson)'>
+        <input type="hidden" name="garment_overlays_json" value='@json($interactiveOverlays ?? [])'>
         <input type="hidden" name="bodym_data_json" value='@json($bodymData ?? [])'>
         <input type="hidden" name="bodym_per_field_confidence_json" value='@json($bodymPerFieldConfidence)'>
         <input type="hidden" name="bodym_prediction_intervals_cm_json" value='@json($bodymPredictionIntervals)'>

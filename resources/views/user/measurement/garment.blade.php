@@ -141,7 +141,7 @@
                 @else
                     <div class="space-y-3">
                         @foreach($measurements as $m)
-                        <div class="border border-gray-100 rounded-xl p-4">
+                        <a href="{{ route('user.measurement.show', $m) }}" class="block border border-gray-100 rounded-xl p-4 transition-colors hover:border-blue-200 hover:bg-blue-50/30">
                             <div class="flex justify-between items-start mb-3">
                                 <div>
                                     <p class="text-xs font-semibold text-gray-500">{{ $m->created_at->format('d M Y, H:i') }}</p>
@@ -151,7 +151,7 @@
                                     @endif
                                     @if($m->is_edited)<span class="inline-block mt-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">Diedit</span>@endif
                                 </div>
-                                <form action="{{ route('user.measurement.destroy', $m) }}" method="POST" onsubmit="return confirm('Hapus data ukuran ini?')">
+                                <form action="{{ route('user.measurement.destroy', $m) }}" method="POST" onsubmit="event.stopPropagation(); return confirm('Hapus data ukuran ini?')" onclick="event.stopPropagation()">
                                     @csrf @method('DELETE')
                                     <button class="text-gray-300 hover:text-red-500 transition-colors p-0.5">Hapus</button>
                                 </form>
@@ -164,7 +164,7 @@
                                 </div>
                                 @endforeach
                             </dl>
-                        </div>
+                        </a>
                         @endforeach
                     </div>
                 @endif
