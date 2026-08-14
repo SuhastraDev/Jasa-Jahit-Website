@@ -170,6 +170,13 @@
                             <div x-show="tip" x-text="tip" x-cloak
                                 class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white shadow-lg"
                                 :style="`left:${tx}px; top:${ty - 10}px`"></div>
+                            {{-- Right-click menu for a custom line: klik kanan garis tambahan -> Edit Nama / Hapus. --}}
+                            <div x-show="contextMenu.visible" x-cloak @click.outside="contextMenu.visible = false"
+                                class="absolute z-20 min-w-[9rem] rounded-lg border border-slate-200 bg-white py-1 text-xs font-bold text-slate-700 shadow-lg"
+                                :style="`left:${contextMenu.x}px; top:${contextMenu.y}px`">
+                                <button type="button" @click="editCustomLabel(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">Edit Nama Label</button>
+                                <button type="button" @click="removeCustomLine(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Hapus Ukuran Ini</button>
+                            </div>
                         </div>
                     </div>
                 @endforeach
@@ -344,11 +351,12 @@
             tip: null,
             tx: 0,
             ty: 0,
-            els: { points: {}, lines: {} },
+            els: { points: {}, lines: {}, labels: {} },
             addMode: false,
             pendingPointId: null,
             customCounter: 0,
             customPointCounter: 0,
+            contextMenu: { visible: false, x: 0, y: 0, field: null },
 
             init(root) {
                 this.root = root;
@@ -403,10 +411,10 @@
                 this.dragId = null;
             },
             resetPoints() {
-                // Only resets auto-detected points back to their server
-                // position - custom points/lines the user added on purpose
-                // aren't in `original` at all, so they're untouched here.
-                // They're removed individually via their own "x" button.
+                // Auto-detected points go back to their server position, and
+                // any custom (user-added) lines/points are cleared entirely -
+                // "Reset" means back to exactly what detection produced.
+                [...this.lines].filter((l) => l.custom).forEach((l) => this.removeCustomLine(l.field));
                 Object.keys(this.original).forEach((id) => {
                     this.points[id] = { ...this.original[id] };
                 });
@@ -423,15 +431,28 @@
                 });
                 this.lines.forEach((line) => {
                     const el = this.els.lines[line.field];
-                    if (!el || !line.draggable) return;
-                    const [aId, bId] = line.point_ids;
-                    const a = this.resolvedPoint(aId);
-                    const b = this.resolvedPoint(bId);
-                    el.setAttribute('x1', a.x);
-                    el.setAttribute('y1', a.y);
-                    el.setAttribute('x2', b.x);
-                    el.setAttribute('y2', b.y);
+                    if (el && line.draggable) {
+                        const [aId, bId] = line.point_ids;
+                        const a = this.resolvedPoint(aId);
+                        const b = this.resolvedPoint(bId);
+                        el.setAttribute('x1', a.x);
+                        el.setAttribute('y1', a.y);
+                        el.setAttribute('x2', b.x);
+                        el.setAttribute('y2', b.y);
+                    }
+                    this.positionCustomLabel(line.field);
                 });
+            },
+            positionCustomLabel(field) {
+                const text = this.els.labels[field];
+                if (!text) return;
+                const line = this.lineByField(field);
+                const [aId, bId] = line.point_ids;
+                const a = this.resolvedPoint(aId);
+                const b = this.resolvedPoint(bId);
+                text.setAttribute('x', (a.x + b.x) / 2);
+                text.setAttribute('y', (a.y + b.y) / 2 - 10);
+                text.textContent = line.label;
             },
             syncInputs() {
                 this.lines.forEach((line) => {
@@ -513,19 +534,48 @@
                 });
                 el.addEventListener('mouseenter', () => { this.tip = this.lineTooltip(field); });
                 el.addEventListener('mouseleave', () => { this.tip = null; });
+                el.addEventListener('dblclick', () => this.editCustomLabel(field));
+                el.addEventListener('contextmenu', (e) => this.openContextMenu(field, e));
                 // Insert before the first <circle> so points stay visually on top.
                 this.$refs.svg.insertBefore(el, this.$refs.svg.querySelector('circle'));
                 this.els.lines[field] = el;
 
+                // Label written directly on the photo at the line's midpoint
+                // (not just on hover) - only for custom lines, the
+                // auto-detected ones stay hover-only to avoid cluttering the
+                // photo with a dozen text labels.
+                const text = createSvgEl('text', {
+                    'text-anchor': 'middle', fill: '#7c3aed', 'font-size': 16, 'font-weight': 800,
+                    stroke: 'white', 'stroke-width': 4, 'paint-order': 'stroke', class: 'pointer-events-none select-none',
+                });
+                this.$refs.svg.appendChild(text);
+                this.els.labels[field] = text;
+
                 this.render();
                 this.renderCustomFieldsSection();
+            },
+            editCustomLabel(field) {
+                const line = this.lineByField(field);
+                if (!line) return;
+                const next = window.prompt('Nama ukuran ini:', line.label);
+                if (next === null) return;
+                line.label = next.trim() || line.label;
+                this.positionCustomLabel(field);
+                this.renderCustomFieldsSection();
+            },
+            openContextMenu(field, evt) {
+                evt.preventDefault();
+                const rect = this.$refs.svg.closest('.relative.touch-none').getBoundingClientRect();
+                this.contextMenu = { visible: true, x: evt.clientX - rect.left, y: evt.clientY - rect.top, field };
             },
             removeCustomLine(field) {
                 const line = this.lineByField(field);
                 if (!line) return;
                 this.lines = this.lines.filter((l) => l.field !== field);
                 this.els.lines[field]?.remove();
+                this.els.labels[field]?.remove();
                 delete this.els.lines[field];
+                delete this.els.labels[field];
 
                 // Drop a custom point only if no other line still uses it.
                 line.point_ids.forEach((id) => {
@@ -584,6 +634,7 @@
 
                     article.querySelector('[data-role="label"]').addEventListener('input', (e) => {
                         line.label = e.target.value || 'Ukuran Baru';
+                        this.positionCustomLabel(line.field);
                     });
                     article.querySelector('[data-role="remove"]').addEventListener('click', () => this.removeCustomLine(line.field));
                     article.querySelector('[data-role="multiplier"]').addEventListener('click', () => {
