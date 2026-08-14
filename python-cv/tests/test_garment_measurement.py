@@ -146,6 +146,61 @@ class GarmentMeasurementGeometryTest(unittest.TestCase):
         # edges rather than the exact extreme y, so allow some slack.
         self.assertAlmostEqual(data["skirt_length"], 34.0, delta=3.0)
 
+    def test_overlay_geometry_exposes_scale_and_point_referenced_lines(self):
+        mask = make_shirt_mask()
+        contour = gm.extract_contour(mask)
+        keypoints = gm.detect_shirt_keypoints(contour, mask)
+        scale = 10.0
+        data = gm.measure_shirt(keypoints, mask, scale)
+
+        overlay = gm.build_overlay_geometry("shirt", keypoints, data, mask, scale)
+
+        self.assertEqual(overlay["scale"], scale)
+        point_ids = {p["id"] for p in overlay["points"]}
+        self.assertIn("left_shoulder", point_ids)
+
+        lines_by_field = {line["field"]: line for line in overlay["lines"]}
+        self.assertIn("chest", lines_by_field)
+        chest_line = lines_by_field["chest"]
+        # A circumference field (flat width x2) must carry multiplier=2 so
+        # the frontend can recompute value_cm after a drag without
+        # duplicating this file's doubling convention.
+        self.assertEqual(chest_line["multiplier"], 2)
+        self.assertEqual(set(chest_line["point_ids"]), {"left_armpit", "right_armpit"})
+        for point_id in chest_line["point_ids"]:
+            self.assertIn(point_id, point_ids)
+
+        shoulder_line = lines_by_field["shoulder_width"]
+        self.assertEqual(shoulder_line["multiplier"], 1)
+
+    def test_overlay_geometry_marks_derived_points_non_draggable(self):
+        mask = make_pants_mask()
+        contour = gm.extract_contour(mask)
+        keypoints = gm.detect_pants_keypoints(contour, mask)
+        scale = 10.0
+        data = gm.measure_pants(keypoints, mask, scale)
+
+        overlay = gm.build_overlay_geometry("pants", keypoints, data, mask, scale)
+        points_by_id = {p["id"]: p for p in overlay["points"]}
+
+        # waist_mid is the midpoint of left/right waist - the frontend must
+        # recompute it from those sources rather than let it be dragged as
+        # independent state.
+        self.assertIn("waist_mid", points_by_id)
+        self.assertFalse(points_by_id["waist_mid"]["draggable"])
+        self.assertEqual(set(points_by_id["waist_mid"]["derived_from"]), {"left_waist", "right_waist"})
+
+        # A real detected keypoint stays freely draggable.
+        self.assertTrue(points_by_id["left_waist"]["draggable"])
+
+        # The ankle line is a decorative position marker (real value is an
+        # average of two separate per-leg scans, not this line's length) -
+        # it must be flagged non-draggable so the frontend doesn't let a
+        # drag silently produce a number that contradicts how it's computed.
+        lines_by_field = {line["field"]: line for line in overlay["lines"]}
+        self.assertIn("ankle", lines_by_field)
+        self.assertFalse(lines_by_field["ankle"]["draggable"])
+
 
 @unittest.skipUnless(HAS_REAL_CV, "OpenCV is required")
 class ProcessGarmentMeasurementTest(unittest.TestCase):

@@ -94,26 +94,60 @@
     @if(!empty($interactiveOverlays))
         <div class="mb-8">
             <p class="mb-1 text-xs font-black uppercase tracking-wide text-slate-500">Visual Deteksi — Titik &amp; Garis Ukur</p>
-            <p class="mb-3 text-xs text-slate-500">Arahkan kursor ke titik biru atau garis oranye untuk lihat nilainya dalam cm.</p>
+            <p class="mb-3 text-xs text-slate-500">Seret titik biru untuk mengoreksi posisinya — ukuran cm ikut dihitung ulang otomatis dan tersinkron ke kolom di bawah. Titik abu-abu &amp; garis putus-putus mengikuti titik lain, tidak bisa digeser sendiri.</p>
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 @foreach($interactiveOverlays as $label => $overlayData)
-                    @php $geometry = $overlayData['geometry']; @endphp
-                    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
-                        <div class="relative" x-data="{ tip: null, tx: 0, ty: 0 }" x-ref="wrap{{ $loop->index }}"
+                    @php
+                        $geometry = $overlayData['geometry'];
+                        $slug = \Illuminate\Support\Str::slug($label);
+                        $pointsById = collect($geometry['points'])->keyBy('id');
+                        $resolvePoint = function ($id) use (&$resolvePoint, $pointsById) {
+                            $point = $pointsById[$id];
+                            if (!empty($point['derived_from'])) {
+                                [$a, $b] = array_map($resolvePoint, $point['derived_from']);
+                                return ['x' => ($a['x'] + $b['x']) / 2, 'y' => ($a['y'] + $b['y']) / 2];
+                            }
+                            return ['x' => $point['x'], 'y' => $point['y']];
+                        };
+                    @endphp
+                    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" x-data="garmentOverlay(@js($geometry), @js($label), @js($slug))" x-init="init($el)">
+                        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-2">
+                            <span class="text-xs font-bold text-slate-600">{{ $label }}</span>
+                            <button type="button" @click="resetPoints()" class="rounded-md px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50">Reset titik</button>
+                        </div>
+                        <div class="relative touch-none"
                             @mousemove="const r = $el.getBoundingClientRect(); tx = $event.clientX - r.left; ty = $event.clientY - r.top;">
                             <img src="{{ $overlayData['photo_url'] ?? asset('storage/' . $overlayData['photo_path']) }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
-                            <svg viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full">
+                            {{-- Points/lines are rendered statically here (not via Alpine x-for) -
+                                 <template x-for> inside <svg> silently breaks: browsers parse the
+                                 template's content in the HTML namespace, so cloned <circle>/<line>
+                                 elements come out as non-SVG nodes with cx/cy/fill never applied.
+                                 The JS below finds these by id and updates their attributes
+                                 imperatively on drag instead. --}}
+                            <svg x-ref="svg" viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full"
+                                @pointermove.window="onDrag($event)" @pointerup.window="endDrag()" @pointercancel.window="endDrag()">
                                 @foreach($geometry['lines'] as $line)
-                                    <line x1="{{ $line['points'][0][0] }}" y1="{{ $line['points'][0][1] }}" x2="{{ $line['points'][1][0] }}" y2="{{ $line['points'][1][1] }}"
-                                        stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
-                                        @mouseenter="tip = '{{ addslashes($line['label']) }}: {{ $line['value_cm'] }} cm'"
+                                    @php
+                                        $pa = $resolvePoint($line['point_ids'][0]);
+                                        $pb = $resolvePoint($line['point_ids'][1]);
+                                    @endphp
+                                    <line id="ov-{{ $slug }}-line-{{ $line['field'] }}"
+                                        x1="{{ $pa['x'] }}" y1="{{ $pa['y'] }}" x2="{{ $pb['x'] }}" y2="{{ $pb['y'] }}"
+                                        stroke="{{ $line['draggable'] ? '#f97316' : '#94a3b8' }}" stroke-width="5" stroke-linecap="round"
+                                        @if(!$line['draggable']) stroke-dasharray="6 5" @endif
+                                        opacity="{{ $line['draggable'] ? '0.75' : '0.55' }}"
+                                        class="cursor-pointer transition-opacity hover:opacity-100"
+                                        @mouseenter="tip = lineTooltip('{{ $line['field'] }}')"
                                         @mouseleave="tip = null"></line>
                                 @endforeach
                                 @foreach($geometry['points'] as $point)
-                                    <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="11" fill="#2563eb" stroke="white" stroke-width="3"
-                                        class="cursor-pointer transition-opacity hover:opacity-80"
-                                        @mouseenter="tip = '{{ addslashes($point['label']) }}'"
+                                    <circle id="ov-{{ $slug }}-point-{{ $point['id'] }}"
+                                        cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="11"
+                                        fill="{{ $point['draggable'] ? '#2563eb' : '#94a3b8' }}" stroke="white" stroke-width="3"
+                                        style="touch-action: none;"
+                                        class="{{ $point['draggable'] ? 'cursor-grab active:cursor-grabbing transition-opacity hover:opacity-80' : 'cursor-default' }}"
+                                        @pointerdown="startDrag('{{ $point['id'] }}', $event)"
+                                        @mouseenter="tip = pointTooltip('{{ $point['id'] }}')"
                                         @mouseleave="tip = null"></circle>
                                 @endforeach
                             </svg>
@@ -152,7 +186,7 @@
         <input type="hidden" name="confidence_score" value="{{ $confidence }}">
         <input type="hidden" name="quality_score" value="{{ $qualityScore }}">
         <input type="hidden" name="raw_cv_json" value='@json($rawCvJson)'>
-        <input type="hidden" name="garment_overlays_json" value='@json($interactiveOverlays ?? [])'>
+        <input type="hidden" id="garment-overlays-json-input" name="garment_overlays_json" value='@json($interactiveOverlays ?? [])'>
         <input type="hidden" name="bodym_data_json" value='@json($bodymData ?? [])'>
         <input type="hidden" name="bodym_per_field_confidence_json" value='@json($bodymPerFieldConfidence)'>
         <input type="hidden" name="bodym_prediction_intervals_cm_json" value='@json($bodymPredictionIntervals)'>
@@ -219,4 +253,176 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+    // A midpoint point (waist_mid, hem_mid) has no state of its own - it's
+    // always the average of its two source points, resolved recursively so
+    // it stays in sync with wherever the sources currently are.
+    function resolveOverlayPoint(points, meta, id) {
+        const info = meta[id];
+        if (info.derived_from) {
+            const [aId, bId] = info.derived_from;
+            const a = resolveOverlayPoint(points, meta, aId);
+            const b = resolveOverlayPoint(points, meta, bId);
+            return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        }
+        return points[id];
+    }
+
+    // Mirrors the px->cm + circumference-doubling convention from
+    // garment_measurement.py's pixel_to_cm()/multiplier so a dragged point
+    // produces the exact same number the server would have computed at
+    // that pixel distance - never a client-side approximation.
+    function computeOverlayLineValueCm(points, meta, scale, line) {
+        if (!line.draggable) return line.value_cm;
+        const [aId, bId] = line.point_ids;
+        const a = resolveOverlayPoint(points, meta, aId);
+        const b = resolveOverlayPoint(points, meta, bId);
+        const distPx = Math.hypot(a.x - b.x, a.y - b.y);
+        return Math.round((distPx / scale) * line.multiplier * 100) / 100;
+    }
+
+    window.__garmentOverlayState = window.__garmentOverlayState || {};
+
+    // The <circle>/<line> elements are server-rendered as plain static SVG
+    // (see result.blade.php) - this component finds them by id and updates
+    // their cx/cy/x1/y1/x2/y2 attributes directly on drag, rather than
+    // letting Alpine re-render them (x-for inside <svg> doesn't work, see
+    // the comment in the blade file). Alpine only owns the tooltip state
+    // (tip/tx/ty) and the reset button here, both plain HTML.
+    function garmentOverlay(geometry, label, slug) {
+        const meta = Object.fromEntries(geometry.points.map((p) => [p.id, p]));
+        const linesByField = Object.fromEntries(geometry.lines.map((l) => [l.field, l]));
+        const initialPoints = Object.fromEntries(geometry.points.map((p) => [p.id, { x: p.x, y: p.y }]));
+
+        return {
+            label,
+            scale: geometry.scale,
+            meta,
+            points: JSON.parse(JSON.stringify(initialPoints)),
+            original: initialPoints,
+            lines: geometry.lines,
+            dragId: null,
+            tip: null,
+            tx: 0,
+            ty: 0,
+            els: { points: {}, lines: {} },
+
+            init(root) {
+                Object.keys(meta).forEach((id) => {
+                    this.els.points[id] = root.querySelector('#ov-' + slug + '-point-' + CSS.escape(id));
+                });
+                geometry.lines.forEach((line) => {
+                    this.els.lines[line.field] = root.querySelector('#ov-' + slug + '-line-' + CSS.escape(line.field));
+                });
+                window.__garmentOverlayState[this.label] = this;
+                this.syncInputs();
+            },
+            resolvedPoint(id) {
+                return resolveOverlayPoint(this.points, this.meta, id);
+            },
+            lineValueCm(line) {
+                return computeOverlayLineValueCm(this.points, this.meta, this.scale, line);
+            },
+            lineTooltip(field) {
+                const line = linesByField[field];
+                const value = this.lineValueCm(line);
+                return line.label + ': ' + value + ' cm' + (line.note ? ' — ' + line.note : '');
+            },
+            pointTooltip(id) {
+                return this.meta[id].label + (this.meta[id].draggable ? '' : ' (mengikuti titik lain)');
+            },
+            startDrag(id, evt) {
+                if (!this.meta[id].draggable) return;
+                this.dragId = id;
+                evt.preventDefault();
+            },
+            onDrag(evt) {
+                if (!this.dragId) return;
+                const svg = this.$refs.svg;
+                const rect = svg.getBoundingClientRect();
+                const viewBox = svg.viewBox.baseVal;
+                this.points[this.dragId] = {
+                    x: Math.round(((evt.clientX - rect.left) / rect.width) * viewBox.width),
+                    y: Math.round(((evt.clientY - rect.top) / rect.height) * viewBox.height),
+                };
+                this.render();
+                this.syncInputs();
+            },
+            endDrag() {
+                this.dragId = null;
+            },
+            resetPoints() {
+                this.points = JSON.parse(JSON.stringify(this.original));
+                this.render();
+                this.syncInputs();
+            },
+            render() {
+                Object.entries(this.meta).forEach(([id, info]) => {
+                    const el = this.els.points[id];
+                    if (!el) return;
+                    const p = this.resolvedPoint(id);
+                    el.setAttribute('cx', p.x);
+                    el.setAttribute('cy', p.y);
+                });
+                this.lines.forEach((line) => {
+                    const el = this.els.lines[line.field];
+                    if (!el || !line.draggable) return;
+                    const [aId, bId] = line.point_ids;
+                    const a = this.resolvedPoint(aId);
+                    const b = this.resolvedPoint(bId);
+                    el.setAttribute('x1', a.x);
+                    el.setAttribute('y1', a.y);
+                    el.setAttribute('x2', b.x);
+                    el.setAttribute('y2', b.y);
+                });
+            },
+            syncInputs() {
+                this.lines.forEach((line) => {
+                    if (!line.draggable) return;
+                    const input = document.getElementById('measurement-' + line.field);
+                    if (!input) return;
+                    const value = this.lineValueCm(line);
+                    if (input.value !== String(value)) {
+                        input.value = value;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                });
+            },
+            serializeGeometry() {
+                return {
+                    ...geometry,
+                    points: geometry.points.map((p) => ({ ...p, ...this.resolvedPoint(p.id) })),
+                    lines: this.lines.map((line) => ({ ...line, value_cm: this.lineValueCm(line) })),
+                };
+            },
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const hidden = document.getElementById('garment-overlays-json-input');
+        const form = hidden ? hidden.closest('form') : null;
+        if (!form || !hidden) return;
+
+        // Persist any manual point corrections into the same payload that
+        // gets saved to Measurement.garment_overlays_json, so reopening a
+        // saved result later (show.blade.php) reflects the corrected
+        // points/values rather than the original auto-detected ones.
+        form.addEventListener('submit', () => {
+            let payload = {};
+            try {
+                payload = JSON.parse(hidden.value || '{}');
+            } catch (e) {
+                payload = {};
+            }
+            Object.entries(window.__garmentOverlayState || {}).forEach(([label, component]) => {
+                if (!payload[label]) return;
+                payload[label].geometry = component.serializeGeometry();
+            });
+            hidden.value = JSON.stringify(payload);
+        });
+    });
+</script>
+@endpush
 @endsection

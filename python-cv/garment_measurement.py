@@ -146,7 +146,19 @@ def extract_contour(mask):
     contour = max(contours, key=cv2.contourArea)
     if cv2.contourArea(contour) < mask.shape[0] * mask.shape[1] * 0.02:
         return None
-    return contour
+    return smooth_contour(contour)
+
+
+def smooth_contour(contour):
+    """Collapse small pixel-level noise from fabric wrinkles/folds into the
+    nearest straight run, without rounding off real notches - armpit/crotch
+    notches are tens of pixels deep, wrinkle noise is a few pixels, so a
+    small epsilon (relative to the contour's own perimeter, so it scales
+    with photo resolution) removes the latter while leaving the former
+    intact for convexity-defect detection downstream."""
+    perimeter = cv2.arcLength(contour, True)
+    epsilon = 0.002 * perimeter
+    return cv2.approxPolyDP(contour, epsilon, True)
 
 
 def convexity_defect_points(contour):
@@ -469,61 +481,74 @@ def row_extent(mask, y):
     return (int(cols[0]), y), (int(cols[-1]), y)
 
 
-def build_overlay_geometry(garment_type, keypoints, data, mask):
-    """Point/line coordinates (pixel space of the measured image) behind
-    every numeric field that was successfully computed, so the frontend can
-    draw an interactive overlay (hover a line -> see its cm value) instead
-    of a static baked-in image."""
-    points = []
+def build_overlay_geometry(garment_type, keypoints, data, mask, scale):
+    """Point/line geometry (pixel space of the measured image) behind every
+    numeric field that was successfully computed, so the frontend can draw
+    an interactive overlay: hover a line for its cm value, or drag a
+    draggable point and have the connected line(s) recompute their cm value
+    client-side from the new pixel distance (using the `scale`/`multiplier`
+    shipped alongside, so the frontend never has to duplicate this file's
+    px->cm or circumference-doubling logic).
+
+    Lines reference points by id (`point_ids`) rather than embedding raw
+    coordinates twice, so a point's position has exactly one source of
+    truth - the frontend can move a point once and every line that
+    references it updates consistently."""
+    points_by_id = {}
     lines = []
 
-    def add_point(point_id, label, point):
+    def add_point(point_id, label, point, draggable=True, derived_from=None):
         if point is None:
             return
-        points.append({"id": point_id, "label": label, "x": int(point[0]), "y": int(point[1])})
+        entry = {
+            "id": point_id, "label": label,
+            "x": int(point[0]), "y": int(point[1]),
+            "draggable": draggable,
+        }
+        if derived_from:
+            entry["derived_from"] = derived_from
+        points_by_id[point_id] = entry
 
-    def add_line(field, label, point_a, point_b, note=None):
-        if point_a is None or point_b is None or field not in data:
+    def add_line(field, label, id_a, id_b, multiplier=1, note=None, draggable=True):
+        if field not in data or id_a not in points_by_id or id_b not in points_by_id:
             return
         entry = {
             "field": field,
             "label": label,
             "value_cm": data[field],
-            "points": [[int(point_a[0]), int(point_a[1])], [int(point_b[0]), int(point_b[1])]],
+            "point_ids": [id_a, id_b],
+            "multiplier": multiplier,
+            "draggable": draggable,
         }
         if note:
             entry["note"] = note
         lines.append(entry)
 
+    CIRCUMFERENCE_NOTE = "Lebar rata ditampilkan; keliling ≈ 2× nilai ini."
+
     if garment_type == "shirt":
         for key, label in SHIRT_KEYPOINT_LABELS:
             add_point(key, label, keypoints.get(key))
 
-        add_line("shoulder_width", "Lebar Bahu", keypoints.get("left_shoulder"), keypoints.get("right_shoulder"))
-        add_line(
-            "chest", "Lingkar Dada", keypoints.get("left_armpit"), keypoints.get("right_armpit"),
-            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-        )
-        add_line("shirt_length", "Panjang Badan", keypoints.get("collar"), keypoints.get("hem"))
+        add_line("shoulder_width", "Lebar Bahu", "left_shoulder", "right_shoulder")
+        add_line("chest", "Lingkar Dada", "left_armpit", "right_armpit", multiplier=2, note=CIRCUMFERENCE_NOTE)
+        add_line("shirt_length", "Panjang Badan", "collar", "hem")
 
         left_shoulder = keypoints.get("left_shoulder")
         left_armpit = keypoints.get("left_armpit")
         if left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
-            cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
-            add_line("arm_length", "Panjang Lengan", left_shoulder, cuff)
+            cuff_id = "left_cuff" if keypoints["left_cuff"][0] <= left_armpit[0] else "right_cuff"
+            cuff = keypoints[cuff_id]
+            add_line("arm_length", "Panjang Lengan", "left_shoulder", cuff_id)
 
-        if "upper_arm" in data and left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
-            cuff = keypoints["left_cuff"] if keypoints["left_cuff"][0] <= left_armpit[0] else keypoints["right_cuff"]
-            bicep_point = bicep_sample_point(left_shoulder, cuff)
-            sleeve_span_px = euclidean_distance(left_shoulder, cuff)
-            bicep_span = local_row_segment(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
-            if bicep_span:
-                add_point("left_bicep", "Lengan Atas Kiri", bicep_span[0])
-                add_point("right_bicep", "Lengan Atas Kanan", bicep_span[1])
-                add_line(
-                    "upper_arm", "Lingkar Lengan", bicep_span[0], bicep_span[1],
-                    note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-                )
+            if "upper_arm" in data:
+                bicep_point = bicep_sample_point(left_shoulder, cuff)
+                sleeve_span_px = euclidean_distance(left_shoulder, cuff)
+                bicep_span = local_row_segment(mask, bicep_point[1], bicep_point[0], max(sleeve_span_px * 0.6, 24))
+                if bicep_span:
+                    add_point("left_bicep", "Lengan Atas Kiri", bicep_span[0])
+                    add_point("right_bicep", "Lengan Atas Kanan", bicep_span[1])
+                    add_line("upper_arm", "Lingkar Lengan", "left_bicep", "right_bicep", multiplier=2, note=CIRCUMFERENCE_NOTE)
     elif garment_type == "pants":
         for key, label in PANTS_KEYPOINT_LABELS:
             add_point(key, label, keypoints.get(key))
@@ -533,44 +558,44 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
         crotch = keypoints.get("crotch")
         x, y, w, h = keypoints["bounding_box"]
 
-        add_line(
-            "pants_waist", "Lingkar Pinggang", left_waist, right_waist,
-            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-        )
+        add_line("pants_waist", "Lingkar Pinggang", "left_waist", "right_waist", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
         hip_span = row_extent(mask, y + h * 0.18)
         if hip_span:
             add_point("left_hip", "Pinggul Kiri", hip_span[0])
             add_point("right_hip", "Pinggul Kanan", hip_span[1])
-            add_line(
-                "pants_hips", "Lingkar Pinggul", hip_span[0], hip_span[1],
-                note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-            )
+            add_line("pants_hips", "Lingkar Pinggul", "left_hip", "right_hip", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
         if left_waist and right_waist and crotch:
             waist_mid = ((left_waist[0] + right_waist[0]) / 2, (left_waist[1] + right_waist[1]) / 2)
-            add_point("waist_mid", "Tengah Pinggang", waist_mid)
-            add_line("rise", "Panjang Pesak", waist_mid, crotch)
+            # Not independently draggable: it's the midpoint of left/right
+            # waist, so the frontend recomputes it whenever either source
+            # point moves rather than treating it as its own state.
+            add_point("waist_mid", "Tengah Pinggang", waist_mid, draggable=False, derived_from=["left_waist", "right_waist"])
+            add_line("rise", "Panjang Pesak", "waist_mid", "crotch")
 
             thigh_span = row_extent(mask, crotch[1] + h * 0.05)
             if thigh_span:
                 add_point("left_thigh", "Paha Kiri", thigh_span[0])
                 add_point("right_thigh", "Paha Kanan", thigh_span[1])
-                add_line(
-                    "thigh", "Lingkar Paha", thigh_span[0], thigh_span[1],
-                    note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-                )
+                # Scan already spans both legs at once, so unlike the other
+                # circumference fields this is NOT doubled - see measure_pants.
+                add_line("thigh", "Lingkar Paha", "left_thigh", "right_thigh", multiplier=1, note=CIRCUMFERENCE_NOTE)
 
-            left_ankle = keypoints.get("left_ankle")
-            if left_ankle:
-                add_line("outseam", "Panjang Celana (Luar)", waist_mid, left_ankle)
-                add_line("inseam", "Inseam", crotch, left_ankle)
+            if keypoints.get("left_ankle"):
+                add_line("outseam", "Panjang Celana (Luar)", "waist_mid", "left_ankle")
+                add_line("inseam", "Inseam", "crotch", "left_ankle")
 
-        left_ankle = keypoints.get("left_ankle")
-        right_ankle = keypoints.get("right_ankle")
+        # left_ankle/right_ankle stay draggable (outseam/inseam above use
+        # left_ankle), but this line itself is not: the real ankle value is
+        # the average of two independent per-leg scans, not the distance
+        # between these two points, so dragging them wouldn't change a
+        # number that's actually computed that way - draggable=False keeps
+        # it an honest position marker instead of a misleading control.
         add_line(
-            "ankle", "Lingkar Kaki Bawah", left_ankle, right_ankle,
-            note="Diukur per kaki lalu dirata-rata; garis ini hanya penanda posisi.",
+            "ankle", "Lingkar Kaki Bawah", "left_ankle", "right_ankle", multiplier=2,
+            note="Diukur per kaki lalu dirata-rata; garis ini hanya penanda posisi, tidak mengikuti geseran.",
+            draggable=False,
         )
     elif garment_type == "skirt":
         for key, label in SKIRT_KEYPOINT_LABELS:
@@ -578,38 +603,35 @@ def build_overlay_geometry(garment_type, keypoints, data, mask):
 
         left_waist = keypoints.get("left_waist")
         right_waist = keypoints.get("right_waist")
+        left_hem = keypoints.get("left_hem")
+        right_hem = keypoints.get("right_hem")
         x, y, w, h = keypoints["bounding_box"]
 
-        add_line(
-            "waist", "Lingkar Pinggang", left_waist, right_waist,
-            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-        )
+        add_line("waist", "Lingkar Pinggang", "left_waist", "right_waist", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
         hip_span = row_extent(mask, y + h * 0.25)
         if hip_span:
             add_point("left_hip", "Pinggul Kiri", hip_span[0])
             add_point("right_hip", "Pinggul Kanan", hip_span[1])
-            add_line(
-                "hips", "Lingkar Pinggul", hip_span[0], hip_span[1],
-                note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-            )
+            add_line("hips", "Lingkar Pinggul", "left_hip", "right_hip", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
-        left_hem = keypoints.get("left_hem")
-        right_hem = keypoints.get("right_hem")
-        add_line(
-            "hem_width", "Lebar Bawah Rok", left_hem, right_hem,
-            note="Lebar rata ditampilkan; keliling ≈ 2× nilai ini.",
-        )
+        add_line("hem_width", "Lebar Bawah Rok", "left_hem", "right_hem", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
         if left_waist and right_waist and left_hem and right_hem:
             waist_mid = ((left_waist[0] + right_waist[0]) / 2, (left_waist[1] + right_waist[1]) / 2)
             hem_mid = ((left_hem[0] + right_hem[0]) / 2, (left_hem[1] + right_hem[1]) / 2)
-            add_point("waist_mid", "Tengah Pinggang", waist_mid)
-            add_point("hem_mid", "Tengah Bawah", hem_mid)
-            add_line("skirt_length", "Panjang Rok", waist_mid, hem_mid)
+            add_point("waist_mid", "Tengah Pinggang", waist_mid, draggable=False, derived_from=["left_waist", "right_waist"])
+            add_point("hem_mid", "Tengah Bawah", hem_mid, draggable=False, derived_from=["left_hem", "right_hem"])
+            add_line("skirt_length", "Panjang Rok", "waist_mid", "hem_mid")
 
     image_h, image_w = mask.shape[:2]
-    return {"image_width": image_w, "image_height": image_h, "points": points, "lines": lines}
+    return {
+        "image_width": image_w,
+        "image_height": image_h,
+        "scale": scale,
+        "points": list(points_by_id.values()),
+        "lines": lines,
+    }
 
 
 SHIRT_KEYPOINT_LABELS = [
@@ -902,6 +924,6 @@ def process_garment_measurement(
         "measurement_method": "garment_flat_lay",
         "debug_image_base64": debug_image_base64,
         "clean_image_base64": encode_image_base64(image),
-        "overlay": build_overlay_geometry(garment_type, keypoints, data, mask),
+        "overlay": build_overlay_geometry(garment_type, keypoints, data, mask, scale),
         "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
     }
