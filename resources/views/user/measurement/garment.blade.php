@@ -114,6 +114,17 @@
                             <span class="text-sm font-bold text-gray-800">Ukur Rok</span>
                         </label>
                         <div x-show="wantSkirt" x-cloak class="rounded-lg border border-gray-200 p-4">
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Jenis rok</label>
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
+                                    <input type="radio" name="skirt_subtype" value="sempit" checked class="text-blue-600">
+                                    <span class="text-sm font-semibold text-gray-700">Rok Sempit</span>
+                                </label>
+                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
+                                    <input type="radio" name="skirt_subtype" value="sekolah" class="text-blue-600">
+                                    <span class="text-sm font-semibold text-gray-700">Rok Sekolah</span>
+                                </label>
+                            </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto rok rata + KTP/A4 di sampingnya</label>
                             <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp"
                                 class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">

@@ -20,12 +20,15 @@ class MeasurementController extends Controller
     private const MEASUREMENT_FIELDS = [
         'neck',
         'chest',
+        'shirt_waist',
+        'shirt_hips',
         'waist',
         'hips',
         'shoulder_width',
         'shirt_length',
         'arm_length',
         'upper_arm',
+        'sleeve_opening',
         'wrist',
         'height',
         'pants_waist',
@@ -168,6 +171,23 @@ class MeasurementController extends Controller
                 $refHeightCm,
                 $request->input($config['box']),
             );
+
+            // "Rok Sekolah" only needs waist/skirt_length per the shop's
+            // tailoring checklist (a school skirt's fit isn't judged by
+            // hip/hem the way a fitted skirt's is) - the CV side always
+            // computes all 4 skirt fields regardless (cheap, no reason to
+            // special-case the algorithm), this just hides the two that
+            // don't apply for this subtype before they reach the form or
+            // get saved.
+            if ($garmentType === 'skirt' && $request->input('skirt_subtype') === 'sekolah' && ($result['success'] ?? false)) {
+                unset($result['data']['hips'], $result['data']['hem_width']);
+                if (!empty($result['overlay']['lines'])) {
+                    $result['overlay']['lines'] = array_values(array_filter(
+                        $result['overlay']['lines'],
+                        fn ($line) => !in_array($line['field'], ['hips', 'hem_width'], true),
+                    ));
+                }
+            }
 
             // Simpan gambar visual deteksi baik sukses maupun gagal, supaya
             // user bisa lihat persis apa yang dibaca sistem saat troubleshoot.

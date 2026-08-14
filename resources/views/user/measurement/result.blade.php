@@ -12,8 +12,11 @@
                 'fields' => [
                     ['Lebar bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
                     ['Lingkar dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
+                    ['Pinggang', 'shirt_waist', 'lingkar', 'Keliling pinggang badan pada posisi alami.'],
+                    ['Pinggul', 'shirt_hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
                     ['Panjang lengan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
                     ['Lingkar lengan', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
+                    ['Lobang tangan', 'sleeve_opening', 'lingkar', 'Keliling bukaan ujung lengan.'],
                     ['Lingkar tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
                     ['Panjang badan', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
                 ],

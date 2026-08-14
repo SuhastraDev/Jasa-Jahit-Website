@@ -87,6 +87,33 @@ class GarmentMeasurementGeometryTest(unittest.TestCase):
         # Collar (y=20) to hem (y=320) is 300px -> 30cm at 10px/cm.
         self.assertAlmostEqual(data["shirt_length"], 30.0, delta=0.5)
 
+    def test_shirt_measures_waist_hips_sleeve_opening_and_wrist(self):
+        mask = make_shirt_mask()
+        contour = gm.extract_contour(mask)
+        keypoints = gm.detect_shirt_keypoints(contour, mask)
+        # A lower scale (fewer px/cm) than the other shirt tests use, so this
+        # mask's short synthetic sleeve clears MIN_SLEEVE_LENGTH_FOR_BICEP_CM
+        # and the cuff-opening scan actually runs.
+        scale = 5.0
+        data = gm.measure_shirt(keypoints, mask, scale)
+
+        for field in ("shirt_waist", "shirt_hips", "sleeve_opening", "wrist"):
+            self.assertIn(field, data)
+            self.assertGreater(data[field], 0)
+
+        # "Lobang tangan" and "wrist" are the same physical edge on a
+        # flat-lay photo (see measure_shirt) - they must report identically.
+        self.assertEqual(data["sleeve_opening"], data["wrist"])
+
+        overlay = gm.build_overlay_geometry("shirt", keypoints, data, mask, scale)
+        lines_by_field = {line["field"]: line for line in overlay["lines"]}
+        for field in ("shirt_waist", "shirt_hips", "sleeve_opening", "wrist"):
+            self.assertIn(field, lines_by_field)
+            self.assertEqual(lines_by_field[field]["multiplier"], 2)
+        # sleeve_opening and wrist point at the exact same two points -
+        # deliberately no duplicate points for what's one measured edge.
+        self.assertEqual(lines_by_field["sleeve_opening"]["point_ids"], lines_by_field["wrist"]["point_ids"])
+
     def test_pants_keypoints_find_crotch_between_waist_and_hem(self):
         mask = make_pants_mask()
         contour = gm.extract_contour(mask)
