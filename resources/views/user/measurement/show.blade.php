@@ -114,6 +114,12 @@
                                         stroke="{{ !empty($line['custom']) ? '#7c3aed' : '#f97316' }}" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
                                         @mouseenter="tip = '{{ addslashes($line['label']) }}: {{ $line['value_cm'] }} cm'"
                                         @mouseleave="tip = null"></line>
+                                    @if(!empty($line['custom']))
+                                        {{-- Custom lines keep their label visible on the photo itself, matching result.blade.php --}}
+                                        <text x="{{ ($pa['x'] + $pb['x']) / 2 }}" y="{{ ($pa['y'] + $pb['y']) / 2 - 10 }}"
+                                            text-anchor="middle" fill="#7c3aed" font-size="16" font-weight="800"
+                                            stroke="white" stroke-width="4" paint-order="stroke" class="pointer-events-none select-none">{{ $line['label'] }}</text>
+                                    @endif
                                 @endforeach
                                 @foreach($geometry['points'] as $point)
                                     @php $resolved = $resolvePoint($point['id']); @endphp
