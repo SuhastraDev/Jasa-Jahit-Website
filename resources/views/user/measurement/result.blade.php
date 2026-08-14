@@ -61,6 +61,12 @@
         $visibleMeasurementFields = collect($measurementSections)
             ->flatMap(fn ($section) => collect($section['fields'])->pluck(1))
             ->all();
+        // Only show a garment section (Baju/Celana/Rok) if at least one of
+        // its fields actually has a value - e.g. uploading just a shirt
+        // photo shouldn't render empty "Ukuran Celana"/"Ukuran Rok" blocks.
+        $visibleSections = collect($measurementSections)->filter(
+            fn ($section) => collect($section['fields'])->contains(fn ($f) => isset($data[$f[1]]) && is_numeric($data[$f[1]]))
+        )->values();
         $bodymPerFieldConfidence = $bodymMetadata['per_field_confidence'] ?? [];
         $bodymPredictionIntervals = $bodymMetadata['prediction_intervals_cm'] ?? [];
         $isReady = ($confidence ?? 0) >= 0.7 && ($qualityScore ?? 0) >= 0.7;
@@ -177,6 +183,17 @@
                                 <button type="button" @click="editCustomLabel(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">Edit Nama Label</button>
                                 <button type="button" @click="removeCustomLine(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Hapus Ukuran Ini</button>
                             </div>
+                            {{-- Inline visual label editor for a custom line - shown right on
+                                 top of the photo at the line's midpoint, replacing a native
+                                 prompt() dialog. --}}
+                            <div x-show="editingField" x-cloak
+                                class="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                                :style="`left:${editX}px; top:${editY}px`">
+                                <input type="text" x-ref="labelEditInput" x-model="editingValue"
+                                    @keydown.enter="confirmLabelEdit()" @keydown.escape="cancelLabelEdit()" @blur="confirmLabelEdit()"
+                                    @click.stop
+                                    class="w-40 rounded-md border-2 border-violet-500 bg-white px-2 py-1 text-center text-xs font-black text-violet-700 shadow-lg focus:outline-none">
+                            </div>
                         </div>
                     </div>
                 @endforeach
@@ -228,7 +245,7 @@
         @endforeach
 
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-10">
-            @foreach($measurementSections as $section)
+            @foreach($visibleSections as $section)
                 <section aria-labelledby="{{ str($section['title'])->slug() }}">
                     <div class="mb-4 flex items-start gap-3 border-b border-slate-200 pb-4">
                         <span class="mt-1 h-10 w-1 shrink-0 rounded-full {{ $section['dot'] }}"></span>
@@ -357,6 +374,10 @@
             customCounter: 0,
             customPointCounter: 0,
             contextMenu: { visible: false, x: 0, y: 0, field: null },
+            editingField: null,
+            editingValue: '',
+            editX: 0,
+            editY: 0,
 
             init(root) {
                 this.root = root;
@@ -394,6 +415,20 @@
                 return {
                     x: Math.round(((evt.clientX - rect.left) / rect.width) * viewBox.width),
                     y: Math.round(((evt.clientY - rect.top) / rect.height) * viewBox.height),
+                };
+            },
+            // Inverse of viewBoxPoint: viewBox coordinates -> pixels relative
+            // to the wrapping <div>, for positioning plain-HTML overlays
+            // (the inline label editor) that live outside the <svg> itself.
+            // The <svg> fills that div exactly (absolute inset-0), so its
+            // own bounding box doubles as the wrapper-relative origin.
+            viewBoxToScreen(point) {
+                const svg = this.$refs.svg;
+                const rect = svg.getBoundingClientRect();
+                const viewBox = svg.viewBox.baseVal;
+                return {
+                    x: (point.x / viewBox.width) * rect.width,
+                    y: (point.y / viewBox.height) * rect.height,
                 };
             },
             startDrag(id, evt) {
@@ -443,16 +478,25 @@
                     this.positionCustomLabel(line.field);
                 });
             },
-            positionCustomLabel(field) {
-                const text = this.els.labels[field];
-                if (!text) return;
+            labelMidpoint(field) {
                 const line = this.lineByField(field);
                 const [aId, bId] = line.point_ids;
                 const a = this.resolvedPoint(aId);
                 const b = this.resolvedPoint(bId);
-                text.setAttribute('x', (a.x + b.x) / 2);
-                text.setAttribute('y', (a.y + b.y) / 2 - 10);
-                text.textContent = line.label;
+                return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10 };
+            },
+            positionCustomLabel(field) {
+                const text = this.els.labels[field];
+                if (!text) return;
+                const mid = this.labelMidpoint(field);
+                text.setAttribute('x', mid.x);
+                text.setAttribute('y', mid.y);
+                text.textContent = this.lineByField(field).label;
+                if (this.editingField === field) {
+                    const screen = this.viewBoxToScreen(mid);
+                    this.editX = screen.x;
+                    this.editY = screen.y;
+                }
             },
             syncInputs() {
                 this.lines.forEach((line) => {
@@ -557,11 +601,31 @@
             editCustomLabel(field) {
                 const line = this.lineByField(field);
                 if (!line) return;
-                const next = window.prompt('Nama ukuran ini:', line.label);
-                if (next === null) return;
-                line.label = next.trim() || line.label;
-                this.positionCustomLabel(field);
-                this.renderCustomFieldsSection();
+                // A small text input placed right on the photo at the line's
+                // midpoint, instead of a native prompt() dialog - visually
+                // in place, not a disruptive popup.
+                const screen = this.viewBoxToScreen(this.labelMidpoint(field));
+                this.editX = screen.x;
+                this.editY = screen.y;
+                this.editingValue = line.label;
+                this.editingField = field;
+                this.$nextTick(() => {
+                    this.$refs.labelEditInput?.focus();
+                    this.$refs.labelEditInput?.select();
+                });
+            },
+            confirmLabelEdit() {
+                if (!this.editingField) return;
+                const line = this.lineByField(this.editingField);
+                if (line) {
+                    line.label = this.editingValue.trim() || line.label;
+                    this.positionCustomLabel(this.editingField);
+                    this.renderCustomFieldsSection();
+                }
+                this.editingField = null;
+            },
+            cancelLabelEdit() {
+                this.editingField = null;
             },
             openContextMenu(field, evt) {
                 evt.preventDefault();
@@ -571,6 +635,8 @@
             removeCustomLine(field) {
                 const line = this.lineByField(field);
                 if (!line) return;
+                if (this.editingField === field) this.editingField = null;
+                if (this.contextMenu.field === field) this.contextMenu.visible = false;
                 this.lines = this.lines.filter((l) => l.field !== field);
                 this.els.lines[field]?.remove();
                 this.els.labels[field]?.remove();
