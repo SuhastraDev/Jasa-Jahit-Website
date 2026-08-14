@@ -114,11 +114,18 @@
                         };
                     @endphp
                     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" x-data="garmentOverlay(@js($geometry), @js($label), @js($slug))" x-init="init($el)">
-                        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-2">
+                        <div class="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
                             <span class="text-xs font-bold text-slate-600">{{ $label }}</span>
-                            <button type="button" @click="resetPoints()" class="rounded-md px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50">Reset titik</button>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" @click="toggleAddMode()"
+                                    :class="addMode ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
+                                    class="rounded-md px-2 py-1 text-[11px] font-bold transition-colors"
+                                    x-text="addMode ? 'Selesai Menambah' : '+ Tambah Ukuran'"></button>
+                                <button type="button" @click="resetPoints()" class="rounded-md px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50">Reset titik</button>
+                            </div>
                         </div>
-                        <div class="relative touch-none"
+                        <p x-show="addMode" x-cloak class="border-b border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-semibold text-blue-700">Klik 2 titik di foto untuk membuat garis ukur baru.</p>
+                        <div class="relative touch-none" :class="addMode ? 'cursor-crosshair' : ''" @click="onSvgClick($event)"
                             @mousemove="const r = $el.getBoundingClientRect(); tx = $event.clientX - r.left; ty = $event.clientY - r.top;">
                             <img src="{{ $overlayData['photo_url'] ?? asset('storage/' . $overlayData['photo_path']) }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
                             {{-- Points/lines are rendered statically here (not via Alpine x-for) -
@@ -126,8 +133,14 @@
                                  template's content in the HTML namespace, so cloned <circle>/<line>
                                  elements come out as non-SVG nodes with cx/cy/fill never applied.
                                  The JS below finds these by id and updates their attributes
-                                 imperatively on drag instead. --}}
-                            <svg x-ref="svg" viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full"
+                                 imperatively on drag instead. Custom (user-added) points/lines are
+                                 built the same imperative way via createElementNS, see garmentOverlay().
+                                 :class/@click deliberately live on this wrapping <div>, not the <svg>
+                                 itself - Alpine binding those directly on an <svg> element throws
+                                 internally (confirmed by hand in a browser), same family of issue as
+                                 the x-for-in-svg namespace bug above. --}}
+                            <svg x-ref="svg" viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet"
+                                class="absolute inset-0 h-full w-full"
                                 @pointermove.window="onDrag($event)" @pointerup.window="endDrag()" @pointercancel.window="endDrag()">
                                 @foreach($geometry['lines'] as $line)
                                     @php
@@ -176,7 +189,7 @@
         </div>
     @endif
 
-    <form action="{{ route('user.measurement.store') }}" method="POST" x-data="{ edited: false }">
+    <form action="{{ route('user.measurement.store') }}" method="POST" x-data="{ edited: false }" @input="edited = true">
         @csrf
         <input type="hidden" name="front_photo_path" value="{{ $frontPhotoPath }}">
         <input type="hidden" name="side_photo_path" value="{{ $sidePhotoPath }}">
@@ -245,6 +258,17 @@
             @endforeach
         </div>
 
+        @if(!empty($interactiveOverlays))
+            <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+                @foreach($interactiveOverlays as $label => $overlayData)
+                    {{-- Populated purely by renderCustomFieldsSection() in JS when the
+                         user adds a custom line via "+ Tambah Ukuran" on this card's
+                         photo - empty/hidden until then. --}}
+                    <div id="custom-fields-{{ \Illuminate\Support\Str::slug($label) }}" class="hidden" data-garment-label="{{ $label }}"></div>
+                @endforeach
+            </div>
+        @endif
+
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:relative sm:mx-0 sm:flex sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
             <p class="mb-3 text-xs font-semibold text-amber-700 sm:mb-0" x-show="edited" x-cloak>Perubahan manual akan ikut disimpan.</p>
             <div class="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:gap-3">
@@ -288,15 +312,25 @@
 
     window.__garmentOverlayState = window.__garmentOverlayState || {};
 
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    function createSvgEl(tag, attrs) {
+        const el = document.createElementNS(SVG_NS, tag);
+        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        return el;
+    }
+
     // The <circle>/<line> elements are server-rendered as plain static SVG
     // (see result.blade.php) - this component finds them by id and updates
     // their cx/cy/x1/y1/x2/y2 attributes directly on drag, rather than
     // letting Alpine re-render them (x-for inside <svg> doesn't work, see
     // the comment in the blade file). Alpine only owns the tooltip state
-    // (tip/tx/ty) and the reset button here, both plain HTML.
+    // (tip/tx/ty) and the reset button here, both plain HTML. Custom
+    // (user-added) points/lines are built the same imperative way via
+    // createSvgEl() and registered into the exact same `points`/`meta`/
+    // `lines`/`els` structures as the auto-detected ones, so drag, tooltip,
+    // and save-on-submit all work identically without a parallel code path.
     function garmentOverlay(geometry, label, slug) {
         const meta = Object.fromEntries(geometry.points.map((p) => [p.id, p]));
-        const linesByField = Object.fromEntries(geometry.lines.map((l) => [l.field, l]));
         const initialPoints = Object.fromEntries(geometry.points.map((p) => [p.id, { x: p.x, y: p.y }]));
 
         return {
@@ -305,18 +339,23 @@
             meta,
             points: JSON.parse(JSON.stringify(initialPoints)),
             original: initialPoints,
-            lines: geometry.lines,
+            lines: [...geometry.lines],
             dragId: null,
             tip: null,
             tx: 0,
             ty: 0,
             els: { points: {}, lines: {} },
+            addMode: false,
+            pendingPointId: null,
+            customCounter: 0,
+            customPointCounter: 0,
 
             init(root) {
+                this.root = root;
                 Object.keys(meta).forEach((id) => {
                     this.els.points[id] = root.querySelector('#ov-' + slug + '-point-' + CSS.escape(id));
                 });
-                geometry.lines.forEach((line) => {
+                this.lines.forEach((line) => {
                     this.els.lines[line.field] = root.querySelector('#ov-' + slug + '-line-' + CSS.escape(line.field));
                 });
                 window.__garmentOverlayState[this.label] = this;
@@ -328,28 +367,35 @@
             lineValueCm(line) {
                 return computeOverlayLineValueCm(this.points, this.meta, this.scale, line);
             },
+            lineByField(field) {
+                return this.lines.find((l) => l.field === field);
+            },
             lineTooltip(field) {
-                const line = linesByField[field];
+                const line = this.lineByField(field);
                 const value = this.lineValueCm(line);
                 return line.label + ': ' + value + ' cm' + (line.note ? ' — ' + line.note : '');
             },
             pointTooltip(id) {
-                return this.meta[id].label + (this.meta[id].draggable ? '' : ' (mengikuti titik lain)');
+                const info = this.meta[id];
+                return info.label + (info.draggable ? '' : ' (mengikuti titik lain)');
+            },
+            viewBoxPoint(evt) {
+                const svg = this.$refs.svg;
+                const rect = svg.getBoundingClientRect();
+                const viewBox = svg.viewBox.baseVal;
+                return {
+                    x: Math.round(((evt.clientX - rect.left) / rect.width) * viewBox.width),
+                    y: Math.round(((evt.clientY - rect.top) / rect.height) * viewBox.height),
+                };
             },
             startDrag(id, evt) {
-                if (!this.meta[id].draggable) return;
+                if (this.addMode || !this.meta[id].draggable) return;
                 this.dragId = id;
                 evt.preventDefault();
             },
             onDrag(evt) {
                 if (!this.dragId) return;
-                const svg = this.$refs.svg;
-                const rect = svg.getBoundingClientRect();
-                const viewBox = svg.viewBox.baseVal;
-                this.points[this.dragId] = {
-                    x: Math.round(((evt.clientX - rect.left) / rect.width) * viewBox.width),
-                    y: Math.round(((evt.clientY - rect.top) / rect.height) * viewBox.height),
-                };
+                this.points[this.dragId] = this.viewBoxPoint(evt);
                 this.render();
                 this.syncInputs();
             },
@@ -357,12 +403,18 @@
                 this.dragId = null;
             },
             resetPoints() {
-                this.points = JSON.parse(JSON.stringify(this.original));
+                // Only resets auto-detected points back to their server
+                // position - custom points/lines the user added on purpose
+                // aren't in `original` at all, so they're untouched here.
+                // They're removed individually via their own "x" button.
+                Object.keys(this.original).forEach((id) => {
+                    this.points[id] = { ...this.original[id] };
+                });
                 this.render();
                 this.syncInputs();
             },
             render() {
-                Object.entries(this.meta).forEach(([id, info]) => {
+                Object.keys(this.meta).forEach((id) => {
                     const el = this.els.points[id];
                     if (!el) return;
                     const p = this.resolvedPoint(id);
@@ -396,11 +448,160 @@
             serializeGeometry() {
                 return {
                     ...geometry,
-                    points: geometry.points.map((p) => ({ ...p, ...this.resolvedPoint(p.id) })),
+                    points: Object.keys(this.meta).map((id) => ({ ...this.meta[id], ...this.resolvedPoint(id) })),
                     lines: this.lines.map((line) => ({ ...line, value_cm: this.lineValueCm(line) })),
                 };
             },
+
+            // --- Custom (user-added) measurements -----------------------
+
+            toggleAddMode() {
+                this.addMode = !this.addMode;
+                this.pendingPointId = null;
+            },
+            onSvgClick(evt) {
+                if (!this.addMode) return;
+                let pointId;
+                const prefix = 'ov-' + slug + '-point-';
+                if (evt.target.tagName === 'circle' && evt.target.id.startsWith(prefix)) {
+                    // Re-use an existing point (auto-detected or custom)
+                    // instead of dropping a duplicate on top of it.
+                    pointId = evt.target.id.slice(prefix.length);
+                } else {
+                    pointId = this.createCustomPoint(this.viewBoxPoint(evt));
+                }
+
+                if (this.pendingPointId === null) {
+                    this.pendingPointId = pointId;
+                    return;
+                }
+                if (this.pendingPointId !== pointId) {
+                    this.createCustomLine(this.pendingPointId, pointId);
+                }
+                this.pendingPointId = null;
+            },
+            createCustomPoint(pos) {
+                this.customPointCounter++;
+                const id = 'custom_pt_' + slug + '_' + this.customPointCounter;
+                this.meta[id] = { id, label: 'Titik ukur', draggable: true };
+                this.points[id] = pos;
+                const el = createSvgEl('circle', {
+                    id: 'ov-' + slug + '-point-' + id,
+                    cx: pos.x, cy: pos.y, r: 11, fill: '#7c3aed', stroke: 'white', 'stroke-width': 3,
+                    style: 'touch-action: none;', class: 'cursor-grab active:cursor-grabbing transition-opacity hover:opacity-80',
+                });
+                el.addEventListener('pointerdown', (e) => this.startDrag(id, e));
+                el.addEventListener('mouseenter', () => { this.tip = this.pointTooltip(id); });
+                el.addEventListener('mouseleave', () => { this.tip = null; });
+                this.$refs.svg.appendChild(el);
+                this.els.points[id] = el;
+                return id;
+            },
+            createCustomLine(idA, idB) {
+                this.customCounter++;
+                const field = 'custom_' + slug + '_' + this.customCounter;
+                const line = {
+                    field, label: 'Ukuran Baru ' + this.customCounter, value_cm: 0,
+                    point_ids: [idA, idB], multiplier: 1, draggable: true, custom: true,
+                };
+                this.lines.push(line);
+
+                const el = createSvgEl('line', {
+                    id: 'ov-' + slug + '-line-' + field,
+                    stroke: '#7c3aed', 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0.75,
+                    class: 'cursor-pointer transition-opacity hover:opacity-100',
+                });
+                el.addEventListener('mouseenter', () => { this.tip = this.lineTooltip(field); });
+                el.addEventListener('mouseleave', () => { this.tip = null; });
+                // Insert before the first <circle> so points stay visually on top.
+                this.$refs.svg.insertBefore(el, this.$refs.svg.querySelector('circle'));
+                this.els.lines[field] = el;
+
+                this.render();
+                this.renderCustomFieldsSection();
+            },
+            removeCustomLine(field) {
+                const line = this.lineByField(field);
+                if (!line) return;
+                this.lines = this.lines.filter((l) => l.field !== field);
+                this.els.lines[field]?.remove();
+                delete this.els.lines[field];
+
+                // Drop a custom point only if no other line still uses it.
+                line.point_ids.forEach((id) => {
+                    if (!id.startsWith('custom_pt_')) return;
+                    const stillUsed = this.lines.some((l) => l.point_ids.includes(id));
+                    if (stillUsed) return;
+                    this.els.points[id]?.remove();
+                    delete this.els.points[id];
+                    delete this.points[id];
+                    delete this.meta[id];
+                });
+
+                this.renderCustomFieldsSection();
+            },
+            renderCustomFieldsSection() {
+                const container = document.getElementById('custom-fields-' + slug);
+                if (!container) return;
+                const customLines = this.lines.filter((l) => l.custom);
+                container.classList.toggle('hidden', customLines.length === 0);
+                container.innerHTML = '';
+                if (customLines.length === 0) return;
+
+                const heading = document.createElement('div');
+                heading.className = 'mb-3 flex items-center gap-2 border-b border-slate-200 pb-3';
+                heading.innerHTML = '<span class="mt-1 h-10 w-1 shrink-0 rounded-full bg-violet-600"></span>'
+                    + '<div><p class="text-[10px] font-black text-violet-600">' + escapeHtml(this.label.toUpperCase())
+                    + '</p><h2 class="mt-0.5 text-lg font-black text-slate-950">Ukuran Tambahan</h2></div>';
+                container.appendChild(heading);
+
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 gap-3 sm:grid-cols-2';
+                container.appendChild(grid);
+
+                customLines.forEach((line) => {
+                    const value = this.lineValueCm(line);
+                    const article = document.createElement('article');
+                    article.dataset.customField = '1';
+                    article.className = 'rounded-lg border border-violet-200 bg-violet-50/40 p-4 shadow-sm';
+                    article.innerHTML = `
+                        <div class="flex items-start justify-between gap-2">
+                            <input type="text" value="${escapeHtml(line.label)}" data-role="label"
+                                class="min-w-0 flex-1 border-0 border-b border-dashed border-violet-300 bg-transparent px-0 text-xs font-black leading-5 text-slate-800 focus:border-violet-500 focus:outline-none focus:ring-0">
+                            <button type="button" data-role="remove" title="Hapus ukuran ini"
+                                class="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-black text-red-500 hover:bg-red-50">&times;</button>
+                        </div>
+                        <button type="button" data-role="multiplier"
+                            class="mt-2 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase ${line.multiplier === 2 ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-cyan-200 bg-cyan-50 text-cyan-700'}">
+                            ${line.multiplier === 2 ? 'lingkar' : 'panjang'}
+                        </button>
+                        <div class="mt-3 flex h-11 items-center overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100">
+                            <input id="measurement-${line.field}" type="number" step="0.01" min="0" max="400" name="${escapeHtml(line.field)}" value="${value}"
+                                class="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-base font-black text-slate-950 focus:ring-0">
+                            <span class="flex h-full items-center border-l border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-400">cm</span>
+                        </div>
+                    `;
+
+                    article.querySelector('[data-role="label"]').addEventListener('input', (e) => {
+                        line.label = e.target.value || 'Ukuran Baru';
+                    });
+                    article.querySelector('[data-role="remove"]').addEventListener('click', () => this.removeCustomLine(line.field));
+                    article.querySelector('[data-role="multiplier"]').addEventListener('click', () => {
+                        line.multiplier = line.multiplier === 2 ? 1 : 2;
+                        this.syncInputs();
+                        this.renderCustomFieldsSection();
+                    });
+
+                    grid.appendChild(article);
+                });
+            },
         };
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     document.addEventListener('DOMContentLoaded', () => {

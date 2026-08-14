@@ -668,6 +668,7 @@ class MeasurementController extends Controller
         }
 
         $interactiveOverlays = [];
+        $customMeasurements = [];
         foreach (($measurement->garment_overlays_json ?? []) as $label => $overlayData) {
             if (empty($overlayData['photo_path']) || empty($overlayData['geometry'])) {
                 continue;
@@ -676,12 +677,28 @@ class MeasurementController extends Controller
                 'photo_url' => asset('storage/' . $overlayData['photo_path']),
                 'geometry' => $overlayData['geometry'],
             ];
+
+            // Custom (user-added) measurement lines are stored inline with
+            // the rest of this card's geometry (see garmentOverlay() in
+            // result.blade.php) rather than as fixed columns - flatten them
+            // out here so show.blade.php can list them without knowing
+            // anything about the overlay geometry structure.
+            foreach ($overlayData['geometry']['lines'] ?? [] as $line) {
+                if (!empty($line['custom'])) {
+                    $customMeasurements[] = [
+                        'garment' => $label,
+                        'label' => $line['label'],
+                        'value_cm' => $line['value_cm'],
+                    ];
+                }
+            }
         }
 
         return view('user.measurement.show', [
             'measurement' => $measurement,
             'data' => $data,
             'interactiveOverlays' => $interactiveOverlays,
+            'customMeasurements' => $customMeasurements,
         ]);
     }
 

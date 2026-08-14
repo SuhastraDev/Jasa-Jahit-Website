@@ -87,7 +87,18 @@
             <p class="mb-3 text-xs text-slate-500">Arahkan kursor ke titik biru atau garis oranye untuk lihat nilainya dalam cm.</p>
             <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 @foreach($interactiveOverlays as $label => $overlayData)
-                    @php $geometry = $overlayData['geometry']; @endphp
+                    @php
+                        $geometry = $overlayData['geometry'];
+                        $pointsById = collect($geometry['points'])->keyBy('id');
+                        $resolvePoint = function ($id) use (&$resolvePoint, $pointsById) {
+                            $point = $pointsById[$id];
+                            if (!empty($point['derived_from'])) {
+                                [$a, $b] = array_map($resolvePoint, $point['derived_from']);
+                                return ['x' => ($a['x'] + $b['x']) / 2, 'y' => ($a['y'] + $b['y']) / 2];
+                            }
+                            return ['x' => $point['x'], 'y' => $point['y']];
+                        };
+                    @endphp
                     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                         <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
                         <div class="relative" x-data="{ tip: null, tx: 0, ty: 0 }" x-ref="wrap{{ $loop->index }}"
@@ -95,13 +106,18 @@
                             <img src="{{ $overlayData['photo_url'] }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
                             <svg viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full">
                                 @foreach($geometry['lines'] as $line)
-                                    <line x1="{{ $line['points'][0][0] }}" y1="{{ $line['points'][0][1] }}" x2="{{ $line['points'][1][0] }}" y2="{{ $line['points'][1][1] }}"
-                                        stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
+                                    @php
+                                        $pa = $resolvePoint($line['point_ids'][0]);
+                                        $pb = $resolvePoint($line['point_ids'][1]);
+                                    @endphp
+                                    <line x1="{{ $pa['x'] }}" y1="{{ $pa['y'] }}" x2="{{ $pb['x'] }}" y2="{{ $pb['y'] }}"
+                                        stroke="{{ !empty($line['custom']) ? '#7c3aed' : '#f97316' }}" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
                                         @mouseenter="tip = '{{ addslashes($line['label']) }}: {{ $line['value_cm'] }} cm'"
                                         @mouseleave="tip = null"></line>
                                 @endforeach
                                 @foreach($geometry['points'] as $point)
-                                    <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="11" fill="#2563eb" stroke="white" stroke-width="3"
+                                    @php $resolved = $resolvePoint($point['id']); @endphp
+                                    <circle cx="{{ $resolved['x'] }}" cy="{{ $resolved['y'] }}" r="11" fill="{{ str_starts_with($point['id'], 'custom_pt_') ? '#7c3aed' : '#2563eb' }}" stroke="white" stroke-width="3"
                                         class="cursor-pointer transition-opacity hover:opacity-80"
                                         @mouseenter="tip = '{{ addslashes($point['label']) }}'"
                                         @mouseleave="tip = null"></circle>
@@ -163,6 +179,31 @@
             <p class="text-sm text-slate-500">Tidak ada data ukuran tersimpan.</p>
         @endforelse
     </div>
+
+    @if(!empty($customMeasurements))
+        <div class="mt-8">
+            <div class="mb-4 flex items-start gap-3 border-b border-slate-200 pb-4">
+                <span class="mt-1 h-10 w-1 shrink-0 rounded-full bg-violet-600"></span>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-black text-violet-600">TAMBAHAN</p>
+                    <h2 class="mt-0.5 text-lg font-black text-slate-950">Ukuran Tambahan</h2>
+                    <p class="mt-1 text-xs leading-5 text-slate-500">Ukuran custom yang ditambahkan manual di foto.</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                @foreach($customMeasurements as $custom)
+                    <article class="rounded-lg border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
+                        <p class="text-xs font-black leading-5 text-slate-800">{{ $custom['label'] }}</p>
+                        <p class="mt-1 text-[11px] leading-5 text-slate-500">{{ $custom['garment'] }}</p>
+                        <div class="mt-3 flex h-11 items-center rounded-lg border border-slate-200 bg-white px-3">
+                            <span class="text-base font-black text-slate-950">{{ round((float) $custom['value_cm'], 2) }}</span>
+                            <span class="ml-1 text-xs font-bold text-slate-400">cm</span>
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     <div class="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:relative sm:mx-0 sm:flex sm:items-center sm:justify-between sm:bg-transparent sm:px-0 sm:shadow-none">
         <div class="flex flex-col-reverse gap-2 sm:ml-auto sm:flex-row sm:gap-3">
