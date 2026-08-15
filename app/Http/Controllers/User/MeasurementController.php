@@ -154,6 +154,10 @@ class MeasurementController extends Controller
 
         $debugImages = [];
         $interactiveOverlays = [];
+        // Garments that failed specifically because the KTP/A4 marker wasn't
+        // found - gets its own prominent, actionable warning on the result
+        // page rather than being just one more line buried in $errors.
+        $markerIssues = [];
 
         foreach ($garments as $garmentType => $config) {
             if (!$request->hasFile($config['photo'])) {
@@ -201,7 +205,14 @@ class MeasurementController extends Controller
             }
 
             if (!($result['success'] ?? false)) {
-                $errors[] = "{$config['label']}: " . ($result['error'] ?? 'Analisis gagal.');
+                $message = $result['error'] ?? 'Analisis gagal.';
+                $correction = $result['correction'] ?? null;
+                $errors[] = $correction
+                    ? "{$config['label']}: {$message} Saran: {$correction}"
+                    : "{$config['label']}: {$message}";
+                if (($result['failed_reason'] ?? null) === 'reference_not_detected') {
+                    $markerIssues[] = $config['label'];
+                }
                 continue;
             }
 
@@ -231,7 +242,8 @@ class MeasurementController extends Controller
             return back()
                 ->withInput()
                 ->with('error', implode(' ', $errors) ?: 'Analisis tidak menghasilkan ukuran apapun.')
-                ->with('debugImages', $debugImages);
+                ->with('debugImages', $debugImages)
+                ->with('markerIssues', $markerIssues);
         }
 
         $confidence = $confidences === [] ? 0.0 : array_sum($confidences) / count($confidences);
@@ -257,6 +269,7 @@ class MeasurementController extends Controller
             'referenceMode' => 'fixed',
             'measurementMethod' => 'garment_flat_lay',
             'partialErrors' => $errors,
+            'markerIssues' => $markerIssues,
             'debugImages' => $debugImages,
             'interactiveOverlays' => $interactiveOverlays,
         ]);

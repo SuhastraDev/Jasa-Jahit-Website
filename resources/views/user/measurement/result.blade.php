@@ -89,6 +89,21 @@
         </div>
     </header>
 
+    @if(!empty($markerIssues))
+        <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p class="flex items-center gap-2 font-bold">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 shrink-0"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                KTP/A4 tidak terbaca untuk: {{ implode(', ', $markerIssues) }}
+            </p>
+            <ul class="mt-2 list-disc space-y-1 pl-9">
+                <li>Letakkan KTP atau kertas A4 RATA di permukaan yang sama dengan pakaian (bukan miring/berdiri/menempel benda lain).</li>
+                <li>Taruh di SAMPING pakaian dengan jarak wajar, seluruh bagian marker harus terlihat penuh (tidak terpotong tepi foto atau tertutup kain).</li>
+                <li>Pastikan pencahayaan cukup dan tidak ada bayangan tebal menutupi marker.</li>
+                <li>Foto tegak lurus dari atas, bukan dari sudut miring.</li>
+            </ul>
+        </div>
+    @endif
+
     @if(!empty($partialErrors))
         <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p class="font-bold">Sebagian foto tidak berhasil dianalisis:</p>
@@ -217,11 +232,23 @@
                 @endforeach
             </div>
         </div>
-    @elseif(!empty($debugImages))
+    @endif
+
+    @php
+        // Debug image is saved for every garment (success or failure) - only
+        // show it here for the ones that FAILED, since a successful garment
+        // already gets the richer interactive overlay card above. Without
+        // this filter, a failed garment's "what the system actually saw"
+        // photo (crucial for a marker-not-detected problem) would silently
+        // vanish whenever at least one other garment in the same submission
+        // succeeded, because this used to be an all-or-nothing @elseif.
+        $failedDebugImages = collect($debugImages ?? [])->reject(fn ($path, $label) => isset($interactiveOverlays[$label]));
+    @endphp
+    @if($failedDebugImages->isNotEmpty())
         <div class="mb-8">
-            <p class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Visual Deteksi — Kontur &amp; Titik Ukur</p>
+            <p class="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">Yang Dibaca Sistem — Foto Gagal Dianalisis</p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                @foreach($debugImages as $label => $path)
+                @foreach($failedDebugImages as $label => $path)
                     <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                         <div class="border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{{ $label }}</div>
                         <img src="{{ asset('storage/' . $path) }}" alt="Deteksi {{ $label }}" class="w-full">
