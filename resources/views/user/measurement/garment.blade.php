@@ -86,9 +86,40 @@
                             <span class="text-sm font-bold text-gray-800">Ukur Baju</span>
                         </label>
                         <div x-show="wantShirt" x-cloak class="rounded-lg border border-gray-200 p-4">
+                            <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
+                                <svg viewBox="0 0 300 280" class="h-40 w-40 shrink-0">
+                                    <path d="M110,18 L190,18 L232,58 L272,95 L242,120 L212,92 L212,258 L88,258 L88,92 L58,120 L28,95 L68,58 Z"
+                                        fill="#dbeafe" stroke="#3b82f6" stroke-width="3"/>
+                                    <line x1="70" y1="55" x2="230" y2="55" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="90" y1="92" x2="210" y2="92" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="95" y1="150" x2="205" y2="150" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="90" y1="195" x2="210" y2="195" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="70" y1="55" x2="43" y2="107" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="150" y1="20" x2="150" y2="256" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    @foreach([['1',150,50],['2',150,87],['3',150,145],['4',150,190],['5',56,80],['6',239,73],['7',43,107],['8',249,107],['9',150,270]] as [$num,$x,$y])
+                                        <circle cx="{{ $x }}" cy="{{ $y }}" r="10" fill="#2563eb"/>
+                                        <text x="{{ $x }}" y="{{ $y + 4 }}" text-anchor="middle" font-size="11" font-weight="800" fill="white">{{ $num }}</text>
+                                    @endforeach
+                                </svg>
+                                <div class="flex-1 text-xs text-gray-600">
+                                    <p class="mb-1.5 font-bold text-gray-800">Foto dari atas, bagian DEPAN baju menghadap ke atas (kerah &amp; kancing terlihat).</p>
+                                    <ol class="grid grid-cols-2 gap-x-3 gap-y-0.5 list-none">
+                                        <li><b>1</b> Lebar Bahu</li>
+                                        <li><b>2</b> Lingkar Dada</li>
+                                        <li><b>3</b> Pinggang</li>
+                                        <li><b>4</b> Pinggul</li>
+                                        <li><b>5</b> Panjang Lengan</li>
+                                        <li><b>6</b> Lingkar Lengan</li>
+                                        <li><b>7</b> Lobang Tangan</li>
+                                        <li><b>8</b> Lingkar Tangan</li>
+                                        <li><b>9</b> Panjang Badan</li>
+                                    </ol>
+                                </div>
+                            </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto baju rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="shirt_photo" accept="image/jpeg,image/png,image/webp"
+                            <input type="file" name="shirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'shirt')"
                                 class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <img x-show="preview.shirt" :src="preview.shirt" x-cloak alt="Preview foto baju" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="shirt_reference_box" value="">
                             @error('shirt_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -100,9 +131,37 @@
                             <span class="text-sm font-bold text-gray-800">Ukur Celana</span>
                         </label>
                         <div x-show="wantPants" x-cloak class="rounded-lg border border-gray-200 p-4">
+                            <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
+                                <svg viewBox="0 0 260 320" class="h-40 w-40 shrink-0">
+                                    <path d="M70,20 L190,20 L190,140 L225,300 L175,300 L150,150 L110,150 L85,300 L35,300 L70,140 Z"
+                                        fill="#dbeafe" stroke="#3b82f6" stroke-width="3"/>
+                                    <line x1="70" y1="20" x2="190" y2="20" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="70" y1="140" x2="190" y2="140" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="130" y1="20" x2="130" y2="150" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="70" y1="20" x2="35" y2="300" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="35" y1="300" x2="85" y2="300" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="97" y1="172" x2="183" y2="172" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    @foreach([['1',130,15],['2',130,135],['3',115,85],['4',52,160],['5',60,300],['6',140,172]] as [$num,$x,$y])
+                                        <circle cx="{{ $x }}" cy="{{ $y }}" r="10" fill="#2563eb"/>
+                                        <text x="{{ $x }}" y="{{ $y + 4 }}" text-anchor="middle" font-size="11" font-weight="800" fill="white">{{ $num }}</text>
+                                    @endforeach
+                                </svg>
+                                <div class="flex-1 text-xs text-gray-600">
+                                    <p class="mb-1.5 font-bold text-gray-800">Foto dari atas, kedua kaki celana terentang rata &amp; simetris.</p>
+                                    <ol class="grid grid-cols-2 gap-x-3 gap-y-0.5 list-none">
+                                        <li><b>1</b> Lingkar Pinggang</li>
+                                        <li><b>2</b> Lingkar Pinggul</li>
+                                        <li><b>3</b> Panjang Pesak</li>
+                                        <li><b>4</b> Panjang Celana</li>
+                                        <li><b>5</b> Lingkar Kaki</li>
+                                        <li><b>6</b> Lingkar Paha</li>
+                                    </ol>
+                                </div>
+                            </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto celana rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="pants_photo" accept="image/jpeg,image/png,image/webp"
+                            <input type="file" name="pants_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'pants')"
                                 class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <img x-show="preview.pants" :src="preview.pants" x-cloak alt="Preview foto celana" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="pants_reference_box" value="">
                             @error('pants_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -114,6 +173,29 @@
                             <span class="text-sm font-bold text-gray-800">Ukur Rok</span>
                         </label>
                         <div x-show="wantSkirt" x-cloak class="rounded-lg border border-gray-200 p-4">
+                            <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
+                                <svg viewBox="0 0 260 260" class="h-40 w-40 shrink-0">
+                                    <path d="M100,20 L160,20 L200,240 L60,240 Z" fill="#dbeafe" stroke="#3b82f6" stroke-width="3"/>
+                                    <line x1="100" y1="20" x2="160" y2="20" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="90" y1="80" x2="170" y2="80" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="130" y1="20" x2="130" y2="240" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    <line x1="60" y1="240" x2="200" y2="240" stroke="#f97316" stroke-width="2.5" stroke-dasharray="5 3"/>
+                                    @foreach([['1',130,15],['2',130,75],['3',150,130],['4',130,245]] as [$num,$x,$y])
+                                        <circle cx="{{ $x }}" cy="{{ $y }}" r="10" fill="#2563eb"/>
+                                        <text x="{{ $x }}" y="{{ $y + 4 }}" text-anchor="middle" font-size="11" font-weight="800" fill="white">{{ $num }}</text>
+                                    @endforeach
+                                </svg>
+                                <div class="flex-1 text-xs text-gray-600">
+                                    <p class="mb-1.5 font-bold text-gray-800">Foto dari atas, rok direbahkan simetris dari pinggang ke bawah.</p>
+                                    <ol class="grid grid-cols-2 gap-x-3 gap-y-0.5 list-none">
+                                        <li><b>1</b> Pinggang</li>
+                                        <li><b>2</b> Pinggul</li>
+                                        <li><b>3</b> Panjang Rok</li>
+                                        <li><b>4</b> Keliling Bawah Rok</li>
+                                    </ol>
+                                    <p class="mt-1.5 text-[11px] text-gray-400">Rok Sekolah cuma butuh Pinggang (1) &amp; Panjang Rok (3).</p>
+                                </div>
+                            </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Jenis rok</label>
                             <div class="grid grid-cols-2 gap-3 mb-4">
                                 <label class="flex items-center gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
@@ -126,8 +208,9 @@
                                 </label>
                             </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto rok rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp"
+                            <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'skirt')"
                                 class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <img x-show="preview.skirt" :src="preview.skirt" x-cloak alt="Preview foto rok" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="skirt_reference_box" value="">
                             @error('skirt_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -199,6 +282,12 @@
             wantSkirt: false,
             submitting: false,
             stage: 0,
+            preview: { shirt: null, pants: null, skirt: null },
+            previewPhoto(event, key) {
+                const file = event.target.files[0];
+                if (this.preview[key]) URL.revokeObjectURL(this.preview[key]);
+                this.preview[key] = file ? URL.createObjectURL(file) : null;
+            },
             // Mirrors the actual backend pipeline order (measurement.py's
             // calculate_scale -> segment_garment -> detect_*_keypoints ->
             // measure_*), advanced on a timer since the request itself is

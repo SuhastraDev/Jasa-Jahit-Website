@@ -239,7 +239,10 @@ class ProcessGarmentMeasurementTest(unittest.TestCase):
             "source": "auto",
             "quality": 0.9,
             "axis_scales": [10.0, 10.0],
-            "processing": {},
+            "processing": {
+                "plane_size_cm": [21.0, 29.7],
+                "corners": [[0, 0], [210, 0], [210, 297], [0, 297]],
+            },
         }
 
     def test_rejects_when_reference_marker_not_detected(self):
@@ -275,9 +278,32 @@ class ProcessGarmentMeasurementTest(unittest.TestCase):
         self.assertIn("chest", result["data"])
         self.assertEqual(result["measurement_method"], "garment_flat_lay")
 
+        # The detected reference marker (which object, its measured vs
+        # expected size) must be surfaced so the result page can show the
+        # user what was actually read, not just used it internally.
+        box = result["overlay"]["reference_box"]
+        self.assertEqual(box["label"], "Kertas A4")
+        self.assertEqual(box["measured_size_cm"], [21.0, 29.7])
+        self.assertEqual(box["expected_size_cm"], [21.0, 29.7])
+        self.assertTrue(box["size_ok"])
+        self.assertEqual(len(box["corners"]), 4)
+
     def test_rejects_unknown_garment_type(self):
         result = gm.process_garment_measurement(b"fake", "hat", "a4")
         self.assertFalse(result["success"])
+
+
+class ReferenceSizeMatchesTest(unittest.TestCase):
+    def test_matches_within_tolerance(self):
+        self.assertTrue(gm.reference_size_matches((8.6, 5.3), (8.56, 5.398)))
+
+    def test_matches_when_orientation_is_swapped(self):
+        # Marker photographed rotated 90 degrees - still a correct read.
+        self.assertTrue(gm.reference_size_matches((5.4, 8.5), (8.56, 5.398)))
+
+    def test_rejects_a_clearly_different_object(self):
+        # e.g. selected "KTP" but an A4 sheet was actually in frame.
+        self.assertFalse(gm.reference_size_matches((21.0, 29.7), (8.56, 5.398)))
 
 
 if __name__ == "__main__":

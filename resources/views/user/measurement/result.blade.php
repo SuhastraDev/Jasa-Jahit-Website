@@ -148,6 +148,17 @@
                             <svg x-ref="svg" viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet"
                                 class="absolute inset-0 h-full w-full"
                                 @pointermove.window="onDrag($event)" @pointerup.window="endDrag()" @pointercancel.window="endDrag()">
+                                @if(!empty($geometry['reference_box']))
+                                    @php $box = $geometry['reference_box']; @endphp
+                                    {{-- Which marker (KTP/A4) was actually detected - drawn first so
+                                         the garment's own measurement lines/points stay on top. --}}
+                                    <polygon points="{{ collect($box['corners'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}"
+                                        fill="{{ $box['size_ok'] ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)' }}"
+                                        stroke="{{ $box['size_ok'] ? '#22c55e' : '#f59e0b' }}" stroke-width="4" stroke-dasharray="8 4"></polygon>
+                                    <text x="{{ $box['corners'][0][0] }}" y="{{ max(0, $box['corners'][0][1] - 12) }}"
+                                        fill="{{ $box['size_ok'] ? '#16a34a' : '#d97706' }}" font-size="18" font-weight="800"
+                                        stroke="white" stroke-width="4" paint-order="stroke" class="pointer-events-none select-none">{{ $box['label'] }} terdeteksi</text>
+                                @endif
                                 @foreach($geometry['lines'] as $line)
                                     @php
                                         $pa = $resolvePoint($line['point_ids'][0]);
@@ -195,6 +206,13 @@
                                     class="w-40 rounded-md border-2 border-violet-500 bg-white px-2 py-1 text-center text-xs font-black text-violet-700 shadow-lg focus:outline-none">
                             </div>
                         </div>
+                        @if(!empty($geometry['reference_box']))
+                            @php $box = $geometry['reference_box']; @endphp
+                            <div class="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-[11px] font-semibold {{ $box['size_ok'] ? 'text-green-700' : 'text-amber-700' }}">
+                                <span class="h-2 w-2 shrink-0 rounded-full {{ $box['size_ok'] ? 'bg-green-500' : 'bg-amber-500' }}"></span>
+                                <span>Marker: {{ $box['label'] }} — terbaca {{ $box['measured_size_cm'][0] }}×{{ $box['measured_size_cm'][1] }} cm (asli {{ $box['expected_size_cm'][0] }}×{{ $box['expected_size_cm'][1] }} cm){{ $box['size_ok'] ? '' : ' — ukuran tidak cocok, cek apakah benda referensi sudah sesuai pilihan' }}</span>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

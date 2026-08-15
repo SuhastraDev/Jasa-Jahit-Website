@@ -105,6 +105,15 @@
                             @mousemove="const r = $el.getBoundingClientRect(); tx = $event.clientX - r.left; ty = $event.clientY - r.top;">
                             <img src="{{ $overlayData['photo_url'] }}" alt="Deteksi {{ $label }}" class="block w-full select-none" draggable="false">
                             <svg viewBox="0 0 {{ $geometry['image_width'] }} {{ $geometry['image_height'] }}" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 h-full w-full">
+                                @if(!empty($geometry['reference_box']))
+                                    @php $box = $geometry['reference_box']; @endphp
+                                    <polygon points="{{ collect($box['corners'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}"
+                                        fill="{{ $box['size_ok'] ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)' }}"
+                                        stroke="{{ $box['size_ok'] ? '#22c55e' : '#f59e0b' }}" stroke-width="4" stroke-dasharray="8 4"></polygon>
+                                    <text x="{{ $box['corners'][0][0] }}" y="{{ max(0, $box['corners'][0][1] - 12) }}"
+                                        fill="{{ $box['size_ok'] ? '#16a34a' : '#d97706' }}" font-size="18" font-weight="800"
+                                        stroke="white" stroke-width="4" paint-order="stroke" class="pointer-events-none select-none">{{ $box['label'] }} terdeteksi</text>
+                                @endif
                                 @foreach($geometry['lines'] as $line)
                                     @php
                                         $pa = $resolvePoint($line['point_ids'][0]);
@@ -133,6 +142,13 @@
                                 class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white shadow-lg"
                                 :style="`left:${tx}px; top:${ty - 10}px`"></div>
                         </div>
+                        @if(!empty($geometry['reference_box']))
+                            @php $box = $geometry['reference_box']; @endphp
+                            <div class="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-[11px] font-semibold {{ $box['size_ok'] ? 'text-green-700' : 'text-amber-700' }}">
+                                <span class="h-2 w-2 shrink-0 rounded-full {{ $box['size_ok'] ? 'bg-green-500' : 'bg-amber-500' }}"></span>
+                                <span>Marker: {{ $box['label'] }} — terbaca {{ $box['measured_size_cm'][0] }}×{{ $box['measured_size_cm'][1] }} cm (asli {{ $box['expected_size_cm'][0] }}×{{ $box['expected_size_cm'][1] }} cm){{ $box['size_ok'] ? '' : ' — ukuran tidak cocok' }}</span>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

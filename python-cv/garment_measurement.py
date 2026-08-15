@@ -28,9 +28,27 @@ from measurement import (
     rounded,
     width_at_y,
 )
-from utils import euclidean_distance, pixel_to_cm
+from utils import euclidean_distance, get_reference_dimensions, pixel_to_cm
 
 GARMENT_RESPONSE_CONTRACT_VERSION = "garment-response.v1"
+
+REFERENCE_OBJECT_LABELS = {"a4": "Kertas A4", "ktp": "KTP", "atm": "KTP"}
+
+
+def reference_size_matches(measured, expected, tolerance=0.20):
+    """Whether a detected marker's measured size plausibly matches the
+    selected reference object (KTP/A4), checked against both the given
+    orientation and the swapped one - the marker is landscape, so a photo
+    taken with it rotated 90 degrees is still a correct detection, not a
+    mismatch."""
+    def relative_error(a, b):
+        return abs(a - b) / b if b else 1.0
+
+    measured_w, measured_h = measured
+    expected_w, expected_h = expected
+    normal_error = max(relative_error(measured_w, expected_w), relative_error(measured_h, expected_h))
+    swapped_error = max(relative_error(measured_w, expected_h), relative_error(measured_h, expected_w))
+    return min(normal_error, swapped_error) <= tolerance
 
 # Below this, the bicep sample point (ratio=0.35 along shoulder->cuff)
 # still falls inside the armhole curve rather than on straight sleeve
@@ -519,7 +537,7 @@ def row_extent(mask, y):
     return (int(cols[0]), y), (int(cols[-1]), y)
 
 
-def build_overlay_geometry(garment_type, keypoints, data, mask, scale):
+def build_overlay_geometry(garment_type, keypoints, data, mask, scale, reference_box=None):
     """Point/line geometry (pixel space of the measured image) behind every
     numeric field that was successfully computed, so the frontend can draw
     an interactive overlay: hover a line for its cm value, or drag a
@@ -692,13 +710,16 @@ def build_overlay_geometry(garment_type, keypoints, data, mask, scale):
             add_line("skirt_length", "Panjang Rok", "waist_mid", "hem_mid")
 
     image_h, image_w = mask.shape[:2]
-    return {
+    result = {
         "image_width": image_w,
         "image_height": image_h,
         "scale": scale,
         "points": list(points_by_id.values()),
         "lines": lines,
     }
+    if reference_box:
+        result["reference_box"] = reference_box
+    return result
 
 
 SHIRT_KEYPOINT_LABELS = [
@@ -981,6 +1002,21 @@ def process_garment_measurement(
         status_ok=True,
     )
 
+    # Which reference marker was actually detected/used has never been
+    # surfaced to the user before - only baked into the debug image, which
+    # isn't shown once analysis succeeds. Expose it as its own overlay
+    # field instead so the result photo can draw a box around it and state
+    # plainly "KTP terdeteksi" / "Kertas A4 terdeteksi".
+    expected_size_cm = get_reference_dimensions(ref_object, ref_width_cm, ref_height_cm)
+    measured_size_cm = tuple(scale_result["processing"]["plane_size_cm"])
+    detected_reference_box = {
+        "corners": scale_result["processing"]["corners"],
+        "label": REFERENCE_OBJECT_LABELS.get(ref_object, ref_object.upper()),
+        "measured_size_cm": [round(measured_size_cm[0], 2), round(measured_size_cm[1], 2)],
+        "expected_size_cm": [round(expected_size_cm[0], 2), round(expected_size_cm[1], 2)],
+        "size_ok": reference_size_matches(measured_size_cm, expected_size_cm),
+    }
+
     return {
         "success": True,
         "garment_type": garment_type,
@@ -991,6 +1027,6 @@ def process_garment_measurement(
         "measurement_method": "garment_flat_lay",
         "debug_image_base64": debug_image_base64,
         "clean_image_base64": encode_image_base64(image),
-        "overlay": build_overlay_geometry(garment_type, keypoints, data, mask, scale),
+        "overlay": build_overlay_geometry(garment_type, keypoints, data, mask, scale, detected_reference_box),
         "response_contract_version": GARMENT_RESPONSE_CONTRACT_VERSION,
     }
