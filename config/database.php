@@ -97,8 +97,16 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Emulated prepares must stay off for pgsql: with it on, PDO
+            // stringifies bound PHP booleans (true/false) to "1"/"0" before
+            // they reach Postgres, and Postgres's strict boolean type
+            // rejects comparing it to an integer ("operator does not exist:
+            // boolean = integer") - breaks any ->where('bool_column', ...)
+            // call (is_read, is_edited, etc). MySQL never hit this because
+            // its booleans are just tinyint, so this only ever showed up in
+            // production against Postgres.
             'options' => extension_loaded('pdo_pgsql') ? array_filter([
-                PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', true),
+                PDO::ATTR_EMULATE_PREPARES => env('DB_EMULATE_PREPARES', false),
             ], fn ($value) => $value !== null) : [],
         ],
 
