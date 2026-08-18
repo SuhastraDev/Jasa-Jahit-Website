@@ -353,7 +353,7 @@
                                     ['manual_waist','waist','Lingkar Pinggang','cm','required'],
                                     ['manual_hips','hips','Lingkar Pinggul','cm',''],
                                     ['manual_shoulder_width','shoulder_width','Lebar Bahu','cm',''],
-                                    ['manual_arm_length','arm_length','Panjang Lengan','cm',''],
+                                    ['manual_arm_length','arm_length','Panjang Tangan','cm',''],
                                     ['manual_height','height','Tinggi Badan','cm',''],
                                 ] as [$name,$key,$label,$unit,$req])
                                 <div class="bg-gray-50 rounded-xl p-3">

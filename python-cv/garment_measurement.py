@@ -84,16 +84,16 @@ GARMENT_MEASUREMENT_LIMITS_CM = {
 }
 
 GARMENT_LABELS = {
-    "neck": "leher",
-    "chest": "dada",
-    "shirt_waist": "pinggang baju",
-    "shirt_hips": "pinggul baju",
-    "shoulder_width": "lebar bahu",
-    "shirt_length": "panjang baju",
-    "arm_length": "panjang lengan",
-    "upper_arm": "lingkar lengan",
-    "sleeve_opening": "lobang tangan",
-    "wrist": "pergelangan",
+    "neck": "Leher",
+    "chest": "Lingkar Dada",
+    "shirt_waist": "Pinggang",
+    "shirt_hips": "Pinggul",
+    "shoulder_width": "Lebar Bahu",
+    "shirt_length": "Panjang Baju",
+    "arm_length": "Panjang Tangan",
+    "upper_arm": "Lingkar Lengan Atas",
+    "sleeve_opening": "Bukaan Lengan",
+    "wrist": "Lingkar pergelangan tangan",
     "pants_waist": "pinggang celana",
     "pants_hips": "pinggul celana",
     "thigh": "paha",
@@ -588,7 +588,7 @@ def build_overlay_geometry(garment_type, keypoints, data, mask, scale, reference
 
         add_line("shoulder_width", "Lebar Bahu", "left_shoulder", "right_shoulder")
         add_line("chest", "Lingkar Dada", "left_armpit", "right_armpit", multiplier=2, note=CIRCUMFERENCE_NOTE)
-        add_line("shirt_length", "Panjang Badan", "collar", "hem")
+        add_line("shirt_length", "Panjang Baju", "collar", "hem")
 
         left_armpit = keypoints.get("left_armpit")
         right_armpit = keypoints.get("right_armpit")
@@ -614,7 +614,7 @@ def build_overlay_geometry(garment_type, keypoints, data, mask, scale, reference
         if left_shoulder and left_armpit and keypoints.get("left_cuff") and keypoints.get("right_cuff"):
             cuff_id = "left_cuff" if keypoints["left_cuff"][0] <= left_armpit[0] else "right_cuff"
             cuff = keypoints[cuff_id]
-            add_line("arm_length", "Panjang Lengan", "left_shoulder", cuff_id)
+            add_line("arm_length", "Panjang Tangan", "left_shoulder", cuff_id)
             sleeve_span_px = euclidean_distance(left_shoulder, cuff)
 
             if "upper_arm" in data:
@@ -623,7 +623,7 @@ def build_overlay_geometry(garment_type, keypoints, data, mask, scale, reference
                 if bicep_span:
                     add_point("left_bicep", "Lengan Atas Kiri", bicep_span[0])
                     add_point("right_bicep", "Lengan Atas Kanan", bicep_span[1])
-                    add_line("upper_arm", "Lingkar Lengan", "left_bicep", "right_bicep", multiplier=2, note=CIRCUMFERENCE_NOTE)
+                    add_line("upper_arm", "Lingkar Lengan Atas", "left_bicep", "right_bicep", multiplier=2, note=CIRCUMFERENCE_NOTE)
 
             if "sleeve_opening" in data:
                 cuff_edge_point = bicep_sample_point(left_shoulder, cuff, ratio=0.92)
@@ -631,9 +631,9 @@ def build_overlay_geometry(garment_type, keypoints, data, mask, scale, reference
                 if cuff_edge_span:
                     add_point("left_cuff_edge", "Ujung Lengan Kiri", cuff_edge_span[0])
                     add_point("right_cuff_edge", "Ujung Lengan Kanan", cuff_edge_span[1])
-                    add_line("sleeve_opening", "Lobang Tangan", "left_cuff_edge", "right_cuff_edge", multiplier=2, note=CIRCUMFERENCE_NOTE)
+                    add_line("sleeve_opening", "Bukaan Lengan", "left_cuff_edge", "right_cuff_edge", multiplier=2, note=CIRCUMFERENCE_NOTE)
                     if "wrist" in data:
-                        add_line("wrist", "Pergelangan Tangan", "left_cuff_edge", "right_cuff_edge", multiplier=2, note=CIRCUMFERENCE_NOTE)
+                        add_line("wrist", "Lingkar pergelangan tangan", "left_cuff_edge", "right_cuff_edge", multiplier=2, note=CIRCUMFERENCE_NOTE)
     elif garment_type == "pants":
         for key, label in PANTS_KEYPOINT_LABELS:
             add_point(key, label, keypoints.get(key))

@@ -123,15 +123,26 @@
                                         <li><b>2</b> Lingkar Dada</li>
                                         <li><b>3</b> Pinggang</li>
                                         <li><b>4</b> Pinggul</li>
-                                        <li><b>5</b> Panjang Lengan</li>
-                                        <li><b>6</b> Lingkar Lengan</li>
-                                        <li><b>7</b> Lobang Tangan</li>
-                                        <li><b>8</b> Lingkar Tangan</li>
-                                        <li><b>9</b> Panjang Badan</li>
+                                        <li><b>5</b> Panjang Tangan</li>
+                                        <li><b>6</b> Lingkar Lengan Atas</li>
+                                        <li><b>7</b> Bukaan Lengan</li>
+                                        <li><b>8</b> Lingkar pergelangan tangan</li>
+                                        <li><b>9</b> Panjang Baju</li>
                                     </ol>
                                 </div>
                             </div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-2">Foto baju rata + KTP/A4 di sampingnya</label>
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Jenis pakaian</label>
+                            <div class="mb-4 grid grid-cols-2 gap-3">
+                                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
+                                    <input type="radio" name="shirt_subtype" value="baju" checked class="text-blue-600">
+                                    <span class="text-sm font-semibold text-gray-700">Baju</span>
+                                </label>
+                                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
+                                    <input type="radio" name="shirt_subtype" value="gamis" class="text-blue-600">
+                                    <span class="text-sm font-semibold text-gray-700">Gamis</span>
+                                </label>
+                            </div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Foto baju/gamis rata + KTP/A4 di sampingnya</label>
                             <input type="file" name="shirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'shirt')"
                                 class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
                             <img x-show="preview.shirt" :src="preview.shirt" x-cloak alt="Preview foto baju" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
@@ -208,19 +219,7 @@
                                         <li><b>3</b> Panjang Rok</li>
                                         <li><b>4</b> Keliling Bawah Rok</li>
                                     </ol>
-                                    <p class="mt-1.5 text-[11px] text-gray-400">Rok Sekolah cuma butuh Pinggang (1) &amp; Panjang Rok (3).</p>
                                 </div>
-                            </div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-2">Jenis rok</label>
-                            <div class="grid grid-cols-2 gap-3 mb-4">
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
-                                    <input type="radio" name="skirt_subtype" value="sempit" checked class="text-blue-600">
-                                    <span class="text-sm font-semibold text-gray-700">Rok Sempit</span>
-                                </label>
-                                <label class="flex items-center gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
-                                    <input type="radio" name="skirt_subtype" value="sekolah" class="text-blue-600">
-                                    <span class="text-sm font-semibold text-gray-700">Rok Sekolah</span>
-                                </label>
                             </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto rok rata + KTP/A4 di sampingnya</label>
                             <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'skirt')"

@@ -10,15 +10,15 @@
                 'eyebrow' => 'BAGIAN ATAS',
                 'dot' => 'bg-blue-600',
                 'fields' => [
-                    ['Lebar bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
-                    ['Lingkar dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
+                    ['Lebar Bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
+                    ['Lingkar Dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
                     ['Pinggang', 'shirt_waist', 'lingkar', 'Keliling pinggang badan pada posisi alami.'],
                     ['Pinggul', 'shirt_hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
-                    ['Panjang lengan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
-                    ['Lingkar lengan', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
-                    ['Lobang tangan', 'sleeve_opening', 'lingkar', 'Keliling bukaan ujung lengan.'],
-                    ['Lingkar tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
-                    ['Panjang badan', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
+                    ['Panjang Tangan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
+                    ['Lingkar Lengan Atas', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
+                    ['Bukaan Lengan', 'sleeve_opening', 'lingkar', 'Keliling bukaan ujung lengan.'],
+                    ['Lingkar pergelangan tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
+                    ['Panjang Baju', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
                 ],
             ],
             [
@@ -120,13 +120,13 @@
                                         $pb = $resolvePoint($line['point_ids'][1]);
                                     @endphp
                                     <line x1="{{ $pa['x'] }}" y1="{{ $pa['y'] }}" x2="{{ $pb['x'] }}" y2="{{ $pb['y'] }}"
-                                        stroke="{{ !empty($line['custom']) ? '#7c3aed' : '#f97316' }}" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
+                                        stroke="#f97316" stroke-width="5" stroke-linecap="round" opacity="0.75" class="cursor-pointer transition-opacity hover:opacity-100"
                                         @mouseenter="tip = '{{ addslashes($line['label']) }}: {{ $line['value_cm'] }} cm'"
                                         @mouseleave="tip = null"></line>
                                     @if(!empty($line['custom']))
-                                        {{-- Custom lines keep their label visible on the photo itself, matching result.blade.php --}}
+                                        {{-- Manual lines use the same orange visual language as detected lines. --}}
                                         <text x="{{ ($pa['x'] + $pb['x']) / 2 }}" y="{{ ($pa['y'] + $pb['y']) / 2 - 10 }}"
-                                            text-anchor="middle" fill="#7c3aed" font-size="16" font-weight="800"
+                                            text-anchor="middle" fill="#f97316" font-size="16" font-weight="800"
                                             stroke="white" stroke-width="4" paint-order="stroke" class="pointer-events-none select-none">{{ $line['label'] }}</text>
                                     @endif
                                 @endforeach

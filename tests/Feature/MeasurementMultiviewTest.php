@@ -297,13 +297,13 @@ class MeasurementMultiviewTest extends TestCase
             ->get(route('user.measurement.analysis-result', $jobId))
             ->assertOk()
             ->assertSee('Ukuran Baju')
-            ->assertSee('Lebar bahu')
-            ->assertSee('Lingkar dada')
-            ->assertSee('Lingkar pinggang')
-            ->assertSee('Lingkar pinggul')
-            ->assertSee('Panjang lengan')
-            ->assertSee('Lingkar tangan')
-            ->assertSee('Panjang badan')
+            ->assertSee('Lebar Bahu')
+            ->assertSee('Lingkar Dada')
+            ->assertSee('Pinggang')
+            ->assertSee('Pinggul')
+            ->assertSee('Panjang Tangan')
+            ->assertSee('Lingkar pergelangan tangan')
+            ->assertSee('Panjang Baju')
             ->assertSee('Ukuran Celana')
             ->assertSee('Panjang pesak')
             ->assertSee('Panjang celana')
@@ -325,6 +325,19 @@ class MeasurementMultiviewTest extends TestCase
             ->assertDontSeeText('Tinggi badan')
             ->assertDontSeeText('Pemeriksaan Tiga Foto')
             ->assertDontSeeText('Perspektif dikoreksi');
+    }
+
+    public function test_garment_page_offers_baju_and_gamis_without_school_skirt(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($user)
+            ->get(route('user.measurement.garment-index'))
+            ->assertOk()
+            ->assertSee('Jenis pakaian')
+            ->assertSee('name="shirt_subtype" value="baju"', false)
+            ->assertSee('name="shirt_subtype" value="gamis"', false)
+            ->assertDontSeeText('Rok Sekolah');
     }
 
     public function test_failed_background_analysis_keeps_the_problematic_photo_detail(): void
@@ -486,10 +499,10 @@ class MeasurementMultiviewTest extends TestCase
 
         $analysis->assertOk();
         $analysis->assertSee('Hasil Pengukuran Baju dan Celana');
-        $analysis->assertSee('Lingkar dada');
-        $analysis->assertSee('Lebar bahu');
-        $analysis->assertSee('Panjang lengan');
-        $analysis->assertSee('Panjang badan');
+        $analysis->assertSee('Lingkar Dada');
+        $analysis->assertSee('Lebar Bahu');
+        $analysis->assertSee('Panjang Tangan');
+        $analysis->assertSee('Panjang Baju');
         $analysis->assertSee('Panjang pesak');
         $analysis->assertSee('Panjang celana');
 
@@ -571,7 +584,7 @@ class MeasurementMultiviewTest extends TestCase
             'original_bodym_leg_length' => 94.0,
         ]);
 
-        $response->assertRedirect(route('user.measurement.index'));
+        $response->assertRedirect(route('user.measurement.garment-index'));
         $this->assertDatabaseHas('measurements', [
             'user_id' => $user->id,
             'measurement_method' => 'bodym_ml',

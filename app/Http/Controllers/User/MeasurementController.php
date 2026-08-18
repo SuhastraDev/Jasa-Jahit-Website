@@ -110,6 +110,7 @@ class MeasurementController extends Controller
             'pants_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'skirt_photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'ref_object' => 'required|in:a4,ktp',
+            'shirt_subtype' => 'nullable|in:baju,gamis',
             'ref_width_cm' => 'nullable|numeric|min:1',
             'ref_height_cm' => 'nullable|numeric|min:1',
             'shirt_reference_box' => 'nullable|string',
@@ -140,7 +141,12 @@ class MeasurementController extends Controller
         );
 
         $garments = [
-            'shirt' => ['photo' => 'shirt_photo', 'box' => 'shirt_reference_box', 'path_key' => 'frontPhotoPath', 'label' => 'Baju'],
+            'shirt' => [
+                'photo' => 'shirt_photo',
+                'box' => 'shirt_reference_box',
+                'path_key' => 'frontPhotoPath',
+                'label' => $request->input('shirt_subtype') === 'gamis' ? 'Gamis' : 'Baju',
+            ],
             'pants' => ['photo' => 'pants_photo', 'box' => 'pants_reference_box', 'path_key' => 'sidePhotoPath', 'label' => 'Celana'],
             'skirt' => ['photo' => 'skirt_photo', 'box' => 'skirt_reference_box', 'path_key' => 'backPhotoPath', 'label' => 'Rok'],
         ];
@@ -175,23 +181,6 @@ class MeasurementController extends Controller
                 $refHeightCm,
                 $request->input($config['box']),
             );
-
-            // "Rok Sekolah" only needs waist/skirt_length per the shop's
-            // tailoring checklist (a school skirt's fit isn't judged by
-            // hip/hem the way a fitted skirt's is) - the CV side always
-            // computes all 4 skirt fields regardless (cheap, no reason to
-            // special-case the algorithm), this just hides the two that
-            // don't apply for this subtype before they reach the form or
-            // get saved.
-            if ($garmentType === 'skirt' && $request->input('skirt_subtype') === 'sekolah' && ($result['success'] ?? false)) {
-                unset($result['data']['hips'], $result['data']['hem_width']);
-                if (!empty($result['overlay']['lines'])) {
-                    $result['overlay']['lines'] = array_values(array_filter(
-                        $result['overlay']['lines'],
-                        fn ($line) => !in_array($line['field'], ['hips', 'hem_width'], true),
-                    ));
-                }
-            }
 
             // Simpan gambar visual deteksi baik sukses maupun gagal, supaya
             // user bisa lihat persis apa yang dibaca sistem saat troubleshoot.
@@ -614,7 +603,7 @@ class MeasurementController extends Controller
             'ref_width_cm' => $validated['ref_width_cm'] ?? null,
             'ref_height_cm' => $validated['ref_height_cm'] ?? null,
             'reference_mode' => $validated['reference_mode'] ?? 'fixed',
-            'measurement_method' => $validated['measurement_method']
+            'measurement_method' => ($validated['measurement_method'] ?? null)
                 ?: (($validated['bodym_status'] ?? null) === 'ok' ? 'bodym_ml' : 'multiview_cv'),
             'bodym_contract_version' => $validated['bodym_contract_version'] ?? null,
             'bodym_response_contract_version' => $validated['bodym_response_contract_version'] ?? null,

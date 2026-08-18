@@ -10,15 +10,15 @@
                 'eyebrow' => 'BAGIAN ATAS',
                 'dot' => 'bg-blue-600',
                 'fields' => [
-                    ['Lebar bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
-                    ['Lingkar dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
+                    ['Lebar Bahu', 'shoulder_width', 'lebar', 'Jarak lurus dari ujung bahu kiri ke ujung bahu kanan.'],
+                    ['Lingkar Dada', 'chest', 'lingkar', 'Keliling bagian dada yang paling lebar.'],
                     ['Pinggang', 'shirt_waist', 'lingkar', 'Keliling pinggang badan pada posisi alami.'],
                     ['Pinggul', 'shirt_hips', 'lingkar', 'Keliling bagian pinggul yang paling lebar.'],
-                    ['Panjang lengan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
-                    ['Lingkar lengan', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
-                    ['Lobang tangan', 'sleeve_opening', 'lingkar', 'Keliling bukaan ujung lengan.'],
-                    ['Lingkar tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
-                    ['Panjang badan', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
+                    ['Panjang Tangan', 'arm_length', 'panjang', 'Jarak dari ujung bahu hingga pergelangan tangan.'],
+                    ['Lingkar Lengan Atas', 'upper_arm', 'lingkar', 'Keliling lengan atas (bisep), diukur sepertiga dari bahu ke arah manset.'],
+                    ['Bukaan Lengan', 'sleeve_opening', 'lingkar', 'Keliling bukaan ujung lengan.'],
+                    ['Lingkar pergelangan tangan', 'wrist', 'lingkar', 'Keliling pergelangan tangan untuk menentukan bukaan lengan.'],
+                    ['Panjang Baju', 'shirt_length', 'panjang', 'Jarak dari bahu hingga batas bawah badan baju.'],
                 ],
             ],
             [
@@ -181,12 +181,11 @@
                                     @endphp
                                     <line id="ov-{{ $slug }}-line-{{ $line['field'] }}"
                                         x1="{{ $pa['x'] }}" y1="{{ $pa['y'] }}" x2="{{ $pb['x'] }}" y2="{{ $pb['y'] }}"
-                                        stroke="{{ $line['draggable'] ? '#f97316' : '#94a3b8' }}" stroke-width="5" stroke-linecap="round"
+                                        data-system-line="true"
+                                        stroke="#f97316" stroke-width="5" stroke-linecap="round"
                                         @if(!$line['draggable']) stroke-dasharray="6 5" @endif
                                         opacity="{{ $line['draggable'] ? '0.75' : '0.55' }}"
-                                        class="cursor-pointer transition-opacity hover:opacity-100"
-                                        @mouseenter="tip = lineTooltip('{{ $line['field'] }}')"
-                                        @mouseleave="tip = null"></line>
+                                        class="cursor-pointer transition-opacity hover:opacity-100"></line>
                                 @endforeach
                                 @foreach($geometry['points'] as $point)
                                     <circle id="ov-{{ $slug }}-point-{{ $point['id'] }}"
@@ -202,14 +201,14 @@
                             <div x-show="tip" x-text="tip" x-cloak
                                 class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white shadow-lg"
                                 :style="`left:${tx}px; top:${ty - 10}px`"></div>
-                            {{-- Right-click menu for a custom line: klik kanan garis tambahan -> Edit Nama / Hapus. --}}
+                            {{-- Semua garis, termasuk hasil deteksi awal, punya kontrol rename/hapus yang sama. --}}
                             <div x-show="contextMenu.visible" x-cloak @click.outside="contextMenu.visible = false"
                                 class="absolute z-20 min-w-[9rem] rounded-lg border border-slate-200 bg-white py-1 text-xs font-bold text-slate-700 shadow-lg"
                                 :style="`left:${contextMenu.x}px; top:${contextMenu.y}px`">
-                                <button type="button" @click="editCustomLabel(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">Edit Nama Label</button>
-                                <button type="button" @click="removeCustomLine(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Hapus Ukuran Ini</button>
+                                <button type="button" @click="editLineLabel(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50">Edit Nama Label</button>
+                                <button type="button" @click="removeLine(contextMenu.field); contextMenu.visible = false" class="block w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Hapus Garis Ini</button>
                             </div>
-                            {{-- Inline visual label editor for a custom line - shown right on
+                            {{-- Inline visual label editor for any line - shown right on
                                  top of the photo at the line's midpoint, replacing a native
                                  prompt() dialog. --}}
                             <div x-show="editingField" x-cloak
@@ -401,14 +400,18 @@
     function garmentOverlay(geometry, label, slug) {
         const meta = Object.fromEntries(geometry.points.map((p) => [p.id, p]));
         const initialPoints = Object.fromEntries(geometry.points.map((p) => [p.id, { x: p.x, y: p.y }]));
+        const initialMeta = JSON.parse(JSON.stringify(meta));
+        const initialLines = JSON.parse(JSON.stringify(geometry.lines || []));
 
         return {
             label,
             scale: geometry.scale,
             meta,
+            initialMeta,
             points: JSON.parse(JSON.stringify(initialPoints)),
             original: initialPoints,
-            lines: [...geometry.lines],
+            initialLines,
+            lines: JSON.parse(JSON.stringify(initialLines)),
             dragId: null,
             tip: null,
             tx: 0,
@@ -430,7 +433,16 @@
                     this.els.points[id] = root.querySelector('#ov-' + slug + '-point-' + CSS.escape(id));
                 });
                 this.lines.forEach((line) => {
-                    this.els.lines[line.field] = root.querySelector('#ov-' + slug + '-line-' + CSS.escape(line.field));
+                    const lineElement = root.querySelector('#ov-' + slug + '-line-' + CSS.escape(line.field));
+                    this.els.lines[line.field] = lineElement;
+                    if (!lineElement) return;
+                    lineElement.addEventListener('mouseenter', () => { this.tip = this.lineTooltip(line.field); });
+                    lineElement.addEventListener('mouseleave', () => { this.tip = null; });
+                    lineElement.addEventListener('dblclick', () => this.editLineLabel(line.field));
+                    lineElement.addEventListener('contextmenu', (event) => {
+                        event.preventDefault();
+                        this.openContextMenu(line.field, event);
+                    });
                 });
                 window.__garmentOverlayState[this.label] = this;
                 this.syncInputs();
@@ -491,12 +503,18 @@
                 this.dragId = null;
             },
             resetPoints() {
-                // Auto-detected points go back to their server position, and
-                // any custom (user-added) lines/points are cleared entirely -
-                // "Reset" means back to exactly what detection produced.
-                [...this.lines].filter((l) => l.custom).forEach((l) => this.removeCustomLine(l.field));
+                // Restore the complete server result, including a built-in
+                // line that the user deleted. Custom lines and points are
+                // removed because Reset means "hasil deteksi awal".
+                [...this.lines].filter((l) => l.custom).forEach((l) => this.removeLine(l.field));
+                this.meta = JSON.parse(JSON.stringify(this.initialMeta));
                 Object.keys(this.original).forEach((id) => {
                     this.points[id] = { ...this.original[id] };
+                });
+                this.lines = JSON.parse(JSON.stringify(this.initialLines));
+                this.lines.forEach((line) => {
+                    const el = this.els.lines[line.field];
+                    if (el) el.removeAttribute('display');
                 });
                 this.render();
                 this.syncInputs();
@@ -511,7 +529,7 @@
                 });
                 this.lines.forEach((line) => {
                     const el = this.els.lines[line.field];
-                    if (el && line.draggable) {
+                    if (el) {
                         const [aId, bId] = line.point_ids;
                         const a = this.resolvedPoint(aId);
                         const b = this.resolvedPoint(bId);
@@ -618,12 +636,12 @@
 
                 const el = createSvgEl('line', {
                     id: 'ov-' + slug + '-line-' + field,
-                    stroke: '#7c3aed', 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0.75,
+                    stroke: '#f97316', 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0.75,
                     class: 'cursor-pointer transition-opacity hover:opacity-100',
                 });
                 el.addEventListener('mouseenter', () => { this.tip = this.lineTooltip(field); });
                 el.addEventListener('mouseleave', () => { this.tip = null; });
-                el.addEventListener('dblclick', () => this.editCustomLabel(field));
+                el.addEventListener('dblclick', () => this.editLineLabel(field));
                 el.addEventListener('contextmenu', (e) => this.openContextMenu(field, e));
                 // Insert before the first <circle> so points stay visually on top.
                 this.$refs.svg.insertBefore(el, this.$refs.svg.querySelector('circle'));
@@ -634,7 +652,7 @@
                 // auto-detected ones stay hover-only to avoid cluttering the
                 // photo with a dozen text labels.
                 const text = createSvgEl('text', {
-                    'text-anchor': 'middle', fill: '#7c3aed', 'font-size': 16, 'font-weight': 800,
+                    'text-anchor': 'middle', fill: '#f97316', 'font-size': 16, 'font-weight': 800,
                     stroke: 'white', 'stroke-width': 4, 'paint-order': 'stroke', class: 'pointer-events-none select-none',
                 });
                 this.$refs.svg.appendChild(text);
@@ -643,7 +661,7 @@
                 this.render();
                 this.renderCustomFieldsSection();
             },
-            editCustomLabel(field) {
+            editLineLabel(field) {
                 const line = this.lineByField(field);
                 if (!line) return;
                 // A small text input placed right on the photo at the line's
@@ -658,6 +676,10 @@
                     this.$refs.labelEditInput?.focus();
                     this.$refs.labelEditInput?.select();
                 });
+            },
+            editCustomLabel(field) {
+                // Backward-compatible alias for saved inline handlers.
+                this.editLineLabel(field);
             },
             confirmLabelEdit() {
                 if (!this.editingField) return;
@@ -677,16 +699,27 @@
                 const rect = this.$refs.svg.closest('.relative.touch-none').getBoundingClientRect();
                 this.contextMenu = { visible: true, x: evt.clientX - rect.left, y: evt.clientY - rect.top, field };
             },
-            removeCustomLine(field) {
+            removeLine(field) {
                 const line = this.lineByField(field);
                 if (!line) return;
                 if (this.editingField === field) this.editingField = null;
                 if (this.contextMenu.field === field) this.contextMenu.visible = false;
                 this.lines = this.lines.filter((l) => l.field !== field);
-                this.els.lines[field]?.remove();
+                const lineElement = this.els.lines[field];
+                if (lineElement?.dataset.systemLine === 'true') {
+                    lineElement.setAttribute('display', 'none');
+                } else {
+                    lineElement?.remove();
+                    delete this.els.lines[field];
+                }
                 this.els.labels[field]?.remove();
-                delete this.els.lines[field];
                 delete this.els.labels[field];
+
+                const measurementInput = document.getElementById('measurement-' + field);
+                if (measurementInput) {
+                    measurementInput.value = '';
+                    measurementInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
 
                 // Drop a custom point only if no other line still uses it.
                 line.point_ids.forEach((id) => {
@@ -700,6 +733,10 @@
                 });
 
                 this.renderCustomFieldsSection();
+            },
+            removeCustomLine(field) {
+                // Backward-compatible alias for reset and older saved markup.
+                this.removeLine(field);
             },
             renderCustomFieldsSection() {
                 const container = document.getElementById('custom-fields-' + slug);
