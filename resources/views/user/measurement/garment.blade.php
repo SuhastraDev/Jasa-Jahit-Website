@@ -4,6 +4,41 @@
 
 <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8" x-data="garmentUpload()">
 
+    <div x-show="reference.open" x-cloak x-transition.opacity
+        id="reference-modal"
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-4"
+        @click.self="closeReference()"
+        @keydown.escape.window="reference.open && closeReference()">
+        <div role="dialog" aria-modal="true" aria-labelledby="reference-modal-title"
+            class="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            @click.stop>
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+                <div>
+                    <p class="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">Referensi pengukuran</p>
+                    <h2 id="reference-modal-title" class="mt-1 text-lg font-black text-slate-900" x-text="reference.title"></h2>
+                </div>
+                <button type="button" x-ref="referenceClose" @click="closeReference()"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label="Tutup gambar referensi" title="Tutup">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-5 w-5">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="min-h-0 overflow-auto bg-slate-50 p-3 sm:p-5">
+                <img x-show="reference.image && !referenceImageFailed" :src="reference.image" :alt="reference.title"
+                    @load="referenceImageFailed = false" x-on:error="referenceImageFailed = true"
+                    class="mx-auto max-h-[70vh] w-auto max-w-full rounded-xl object-contain shadow-sm">
+                <div x-show="referenceImageFailed" x-cloak class="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
+                    Gambar referensi belum dapat dimuat.
+                </div>
+            </div>
+            <div class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500 sm:px-6">
+                Gunakan gambar ini sebagai acuan posisi pakaian dan bagian yang akan diukur.
+            </div>
+        </div>
+    </div>
+
     <div x-show="submitting" x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
         <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
@@ -96,10 +131,20 @@
                     </div>
 
                     <div class="border-t border-gray-100 pt-5">
-                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" x-model="wantShirt" class="rounded text-blue-600">
-                            <span class="text-sm font-bold text-gray-800">Ukur Baju</span>
-                        </label>
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                                <input type="checkbox" x-model="wantShirt" class="rounded text-blue-600">
+                                <span class="text-sm font-bold text-gray-800">Ukur Baju</span>
+                            </label>
+                            <button type="button" @click="openReference('shirt')"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                aria-label="Lihat referensi Ukur Baju" aria-controls="reference-modal" title="Lihat referensi Ukur Baju">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.9 7.5 7.55 5 12 5s8.1 2.5 9.94 6.65a1 1 0 0 1 0 .7C20.1 16.5 16.45 19 12 19s-8.1-2.5-9.94-6.65Z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
                         <div x-show="wantShirt" x-cloak class="rounded-lg border border-gray-200 p-4">
                             <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
                                 <svg viewBox="0 0 300 280" class="h-40 w-40 shrink-0">
@@ -134,11 +179,11 @@
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Jenis pakaian</label>
                             <div class="mb-4 grid grid-cols-2 gap-3">
                                 <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
-                                    <input type="radio" name="shirt_subtype" value="baju" checked class="text-blue-600">
+                                    <input type="radio" name="shirt_subtype" value="baju" x-model="shirtSubtype" checked class="text-blue-600">
                                     <span class="text-sm font-semibold text-gray-700">Baju</span>
                                 </label>
                                 <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 p-3 has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
-                                    <input type="radio" name="shirt_subtype" value="gamis" class="text-blue-600">
+                                    <input type="radio" name="shirt_subtype" value="gamis" x-model="shirtSubtype" class="text-blue-600">
                                     <span class="text-sm font-semibold text-gray-700">Gamis</span>
                                 </label>
                             </div>
@@ -152,10 +197,20 @@
                     </div>
 
                     <div class="border-t border-gray-100 pt-5">
-                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" x-model="wantPants" class="rounded text-blue-600">
-                            <span class="text-sm font-bold text-gray-800">Ukur Celana</span>
-                        </label>
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                                <input type="checkbox" x-model="wantPants" class="rounded text-blue-600">
+                                <span class="text-sm font-bold text-gray-800">Ukur Celana</span>
+                            </label>
+                            <button type="button" @click="openReference('pants')"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                aria-label="Lihat referensi Ukur Celana" aria-controls="reference-modal" title="Lihat referensi Ukur Celana">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.9 7.5 7.55 5 12 5s8.1 2.5 9.94 6.65a1 1 0 0 1 0 .7C20.1 16.5 16.45 19 12 19s-8.1-2.5-9.94-6.65Z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
                         <div x-show="wantPants" x-cloak class="rounded-lg border border-gray-200 p-4">
                             <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
                                 <svg viewBox="0 0 260 320" class="h-40 w-40 shrink-0">
@@ -194,10 +249,20 @@
                     </div>
 
                     <div class="border-t border-gray-100 pt-5">
-                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                            <input type="checkbox" x-model="wantSkirt" class="rounded text-blue-600">
-                            <span class="text-sm font-bold text-gray-800">Ukur Rok</span>
-                        </label>
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                                <input type="checkbox" x-model="wantSkirt" class="rounded text-blue-600">
+                                <span class="text-sm font-bold text-gray-800">Ukur Rok</span>
+                            </label>
+                            <button type="button" @click="openReference('skirt')"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                aria-label="Lihat referensi Ukur Rok" aria-controls="reference-modal" title="Lihat referensi Ukur Rok">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                                    <path d="M2.06 12.35a1 1 0 0 1 0-.7C3.9 7.5 7.55 5 12 5s8.1 2.5 9.94 6.65a1 1 0 0 1 0 .7C20.1 16.5 16.45 19 12 19s-8.1-2.5-9.94-6.65Z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
                         <div x-show="wantSkirt" x-cloak class="rounded-lg border border-gray-200 p-4">
                             <div class="mb-4 flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-start">
                                 <svg viewBox="0 0 260 260" class="h-40 w-40 shrink-0">
@@ -294,9 +359,46 @@
             wantShirt: true,
             wantPants: false,
             wantSkirt: false,
+            shirtSubtype: 'baju',
             submitting: false,
             stage: 0,
             preview: { shirt: null, pants: null, skirt: null },
+            reference: { open: false, title: '', image: '', trigger: null },
+            referenceImageFailed: false,
+            referenceCatalog: {
+                shirt: {
+                    baju: { title: 'Referensi Baju', image: "{{ asset('referensi/kemeja.jpeg') }}" },
+                    gamis: { title: 'Referensi Gamis', image: "{{ asset('referensi/gamis.jpeg') }}" },
+                },
+                pants: { title: 'Referensi Celana', image: "{{ asset('referensi/celana.jpeg') }}" },
+                skirt: { title: 'Referensi Rok', image: "{{ asset('referensi/rok.jpeg') }}" },
+            },
+            openReference(type) {
+                const item = type === 'shirt'
+                    ? this.referenceCatalog.shirt[this.shirtSubtype]
+                    : this.referenceCatalog[type];
+
+                if (!item) return;
+
+                this.reference.trigger = document.activeElement;
+                this.reference.title = item.title;
+                this.reference.image = item.image;
+                this.referenceImageFailed = false;
+                this.reference.open = true;
+                document.body.classList.add('overflow-hidden');
+                this.$nextTick(() => {
+                    if (this.$refs.referenceClose) this.$refs.referenceClose.focus();
+                });
+            },
+            closeReference() {
+                const trigger = this.reference.trigger;
+                this.reference.open = false;
+                this.reference.trigger = null;
+                document.body.classList.remove('overflow-hidden');
+                if (trigger && typeof trigger.focus === 'function') {
+                    this.$nextTick(() => trigger.focus());
+                }
+            },
             previewPhoto(event, key) {
                 const file = event.target.files[0];
                 if (this.preview[key]) URL.revokeObjectURL(this.preview[key]);

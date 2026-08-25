@@ -337,6 +337,13 @@ class MeasurementMultiviewTest extends TestCase
             ->assertSee('Jenis pakaian')
             ->assertSee('name="shirt_subtype" value="baju"', false)
             ->assertSee('name="shirt_subtype" value="gamis"', false)
+            ->assertSee('Lihat referensi Ukur Baju')
+            ->assertSee('Lihat referensi Ukur Celana')
+            ->assertSee('Lihat referensi Ukur Rok')
+            ->assertSee('referensi/kemeja.jpeg')
+            ->assertSee('referensi/gamis.jpeg')
+            ->assertSee('referensi/celana.jpeg')
+            ->assertSee('referensi/rok.jpeg')
             ->assertDontSeeText('Rok Sekolah');
     }
 
