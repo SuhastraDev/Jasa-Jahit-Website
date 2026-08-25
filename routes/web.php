@@ -49,9 +49,13 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
     // === Ukur Baju/Celana Flat-Lay (CV) — alur aktif ===
     Route::get('/ukur-baju-celana', [MeasurementController::class, 'garmentIndex'])->name('user.measurement.garment-index');
     Route::post('/ukur-baju-celana/analisis', [MeasurementController::class, 'analyzeGarment'])->name('user.measurement.garment-analyze');
-    Route::get('/ukur-baju-celana/{measurement}', [MeasurementController::class, 'show'])->name('user.measurement.show');
+    Route::get('/ukur-baju-celana/{measurement}', [MeasurementController::class, 'show'])
+        ->whereNumber('measurement')
+        ->name('user.measurement.show');
     Route::post('/ukur-badan/simpan', [MeasurementController::class, 'store'])->name('user.measurement.store');
-    Route::delete('/ukur-badan/{measurement}', [MeasurementController::class, 'destroy'])->name('user.measurement.destroy');
+    Route::delete('/ukur-badan/{measurement}', [MeasurementController::class, 'destroy'])
+        ->whereNumber('measurement')
+        ->name('user.measurement.destroy');
 
     // === Ukur Badan lewat foto berdiri + MediaPipe (LAMA, nonaktif dari menu) ===
     // Kode & route dibiarkan berfungsi untuk diakses langsung via URL, tidak

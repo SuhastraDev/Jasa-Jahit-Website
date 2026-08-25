@@ -340,6 +340,15 @@ class MeasurementMultiviewTest extends TestCase
             ->assertDontSeeText('Rok Sekolah');
     }
 
+    public function test_reserved_analysis_segment_cannot_be_bound_as_measurement_id(): void
+    {
+        $user = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($user)
+            ->get('/ukur-baju-celana/analisis')
+            ->assertStatus(405);
+    }
+
     public function test_failed_background_analysis_keeps_the_problematic_photo_detail(): void
     {
         $user = User::factory()->create(['role' => 'user']);
