@@ -48,6 +48,11 @@ Route::middleware(['auth', 'verified', 'user'])->group(function () {
 
     // === Ukur Baju/Celana Flat-Lay (CV) — alur aktif ===
     Route::get('/ukur-baju-celana', [MeasurementController::class, 'garmentIndex'])->name('user.measurement.garment-index');
+    Route::get('/ukur-baju-celana/analisis', function () {
+        return redirect()
+            ->route('user.measurement.garment-index')
+            ->with('error', 'Halaman analisis sudah tidak aktif. Silakan unggah foto pakaian kembali.');
+    })->name('user.measurement.garment-analyze.get');
     Route::post('/ukur-baju-celana/analisis', [MeasurementController::class, 'analyzeGarment'])->name('user.measurement.garment-analyze');
     Route::get('/ukur-baju-celana/{measurement}', [MeasurementController::class, 'show'])
         ->whereNumber('measurement')
