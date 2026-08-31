@@ -166,6 +166,22 @@
                     ];
                     $filledMeasurements = collect($measurementLabels)
                         ->filter(fn ($label, $field) => is_numeric($order->measurement->{$field} ?? null));
+
+                    // Titik ukur tambahan (custom) yang digambar manual oleh
+                    // pelanggan di overlay foto pakaian - tidak punya kolom
+                    // tetap di tabel measurements, tersimpan per garment di
+                    // garment_overlays_json.{Garment}.geometry.lines[].custom.
+                    $customMeasurements = collect($order->measurement->garment_overlays_json ?? [])
+                        ->flatMap(function ($garment, $garmentName) {
+                            return collect($garment['geometry']['lines'] ?? [])
+                                ->where('custom', true)
+                                ->map(fn ($line) => [
+                                    'garment' => $garmentName,
+                                    'label'   => $line['label'] ?? $line['field'],
+                                    'value'   => $line['value_cm'] ?? null,
+                                ]);
+                        })
+                        ->filter(fn ($line) => is_numeric($line['value']));
                 @endphp
                 <div class="mt-4 pt-4 border-t">
                     <p class="text-sm text-gray-500 mb-2">Ukuran Pelanggan ({{ $order->measurement->measurement_method ?? 'manual' }}):</p>
@@ -177,6 +193,18 @@
                     </dl>
                     @else
                     <p class="text-sm text-gray-400 italic">Belum ada data ukuran yang terisi.</p>
+                    @endif
+
+                    @if($customMeasurements->isNotEmpty())
+                    <p class="text-sm text-gray-500 mb-2 mt-4">Ukuran Tambahan (Custom):</p>
+                    <dl class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                        @foreach($customMeasurements as $line)
+                        <div>
+                            <dt class="text-gray-400">{{ $line['label'] }} <span class="text-gray-300">({{ $line['garment'] }})</span></dt>
+                            <dd class="font-medium">{{ $line['value'] }} cm</dd>
+                        </div>
+                        @endforeach
+                    </dl>
                     @endif
                 </div>
                 @endif
