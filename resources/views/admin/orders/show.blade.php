@@ -134,15 +134,50 @@
                 @endif
 
                 @if($order->measurement)
+                @php
+                    // Ukuran badan (CV/manual) dan ukuran pakaian (garment flat-lay)
+                    // dipakai bergantian tergantung measurement_method, sehingga
+                    // field yang terisi bisa berbeda antar pesanan.
+                    $measurementLabels = [
+                        'chest'          => 'Lingkar Dada',
+                        'waist'          => 'Pinggang (Badan)',
+                        'hips'           => 'Pinggul (Badan)',
+                        'shoulder_width' => 'Lebar Bahu',
+                        'height'         => 'Tinggi Badan',
+                        'neck'           => 'Lingkar Leher',
+                        'shirt_length'   => 'Panjang Baju',
+                        'shirt_waist'    => 'Pinggang Baju',
+                        'shirt_hips'     => 'Pinggul Baju',
+                        'arm_length'     => 'Panjang Tangan',
+                        'upper_arm'      => 'Lingkar Lengan Atas',
+                        'sleeve_opening' => 'Bukaan Lengan',
+                        'wrist'          => 'Lingkar Pergelangan Tangan',
+                        'pants_waist'    => 'Lingkar Pinggang Celana',
+                        'pants_hips'     => 'Lingkar Pinggul Celana',
+                        'thigh'          => 'Lingkar Paha',
+                        'knee'           => 'Lingkar Lutut',
+                        'calf'           => 'Lingkar Betis',
+                        'ankle'          => 'Lingkar Kaki Bawah',
+                        'inseam'         => 'Panjang Pesak Dalam',
+                        'outseam'        => 'Panjang Celana',
+                        'rise'           => 'Panjang Pesak',
+                        'skirt_length'   => 'Panjang Rok',
+                        'hem_width'      => 'Lebar Bawah',
+                    ];
+                    $filledMeasurements = collect($measurementLabels)
+                        ->filter(fn ($label, $field) => is_numeric($order->measurement->{$field} ?? null));
+                @endphp
                 <div class="mt-4 pt-4 border-t">
-                    <p class="text-sm text-gray-500 mb-2">Ukuran Badan Pelanggan:</p>
+                    <p class="text-sm text-gray-500 mb-2">Ukuran Pelanggan ({{ $order->measurement->measurement_method ?? 'manual' }}):</p>
+                    @if($filledMeasurements->isNotEmpty())
                     <dl class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-                        <div><dt class="text-gray-400">Dada</dt><dd class="font-medium">{{ $order->measurement->chest }} cm</dd></div>
-                        <div><dt class="text-gray-400">Pinggang</dt><dd class="font-medium">{{ $order->measurement->waist }} cm</dd></div>
-                        <div><dt class="text-gray-400">Pinggul</dt><dd class="font-medium">{{ $order->measurement->hips }} cm</dd></div>
-                        <div><dt class="text-gray-400">Bahu</dt><dd class="font-medium">{{ $order->measurement->shoulder_width }} cm</dd></div>
-                        <div><dt class="text-gray-400">Tinggi</dt><dd class="font-medium">{{ $order->measurement->height }} cm</dd></div>
+                        @foreach($filledMeasurements as $field => $label)
+                        <div><dt class="text-gray-400">{{ $label }}</dt><dd class="font-medium">{{ $order->measurement->{$field} }} cm</dd></div>
+                        @endforeach
                     </dl>
+                    @else
+                    <p class="text-sm text-gray-400 italic">Belum ada data ukuran yang terisi.</p>
+                    @endif
                 </div>
                 @endif
             </div>
