@@ -10,7 +10,9 @@ use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\Service;
 use App\Models\Catalog;
+use App\Services\FonnteService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -180,9 +182,38 @@ class OrderController extends Controller
             'changed_by' => auth()->id(),
         ]);
 
+        $this->sendNewOrderNotifications($order);
+
         return redirect()
             ->route('user.orders.show', $order)
             ->with('success', 'Pesanan berhasil dibuat! Kode pesanan Anda: ' . $order->order_code);
+    }
+
+    /**
+     * Kirim notifikasi WA pesanan baru ke pelanggan dan admin.
+     */
+    private function sendNewOrderNotifications(Order $order): void
+    {
+        try {
+            $fonnte = new FonnteService();
+
+            if ($order->user?->phone) {
+                $fonnte->notifyNewOrder($order->user->phone, $order->order_code);
+            }
+
+            $adminPhone = config('services.fonnte.admin_phone');
+            if ($adminPhone) {
+                $fonnte->send(
+                    $adminPhone,
+                    "🔔 *Pesanan Baru #{$order->order_code}*\n\nPelanggan: {$order->user?->name}\nJenis: {$order->clothing_type}\n\nSilakan cek dashboard admin untuk detail."
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[Fonnte] Gagal kirim notifikasi pesanan baru', [
+                'order_code' => $order->order_code,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
