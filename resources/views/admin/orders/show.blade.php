@@ -112,6 +112,24 @@
                         <dd class="text-gray-900">{{ $order->catalog->name }}</dd>
                     </div>
                     @endif
+                    @if($order->clothing_type)
+                    <div>
+                        <dt class="text-gray-500">Jenis Pakaian</dt>
+                        <dd class="text-gray-900">{{ $order->clothing_type }}{{ $order->gender ? ' ('.ucfirst($order->gender).')' : '' }}</dd>
+                    </div>
+                    @endif
+                    @if($order->color)
+                    <div>
+                        <dt class="text-gray-500">Warna</dt>
+                        <dd class="text-gray-900">{{ $order->color }}</dd>
+                    </div>
+                    @endif
+                    @if($order->material)
+                    <div>
+                        <dt class="text-gray-500">Bahan</dt>
+                        <dd class="text-gray-900">{{ $order->material }}</dd>
+                    </div>
+                    @endif
                     <div>
                         <dt class="text-gray-500">Total Harga</dt>
                         <dd class="text-gray-900 font-semibold">
@@ -290,9 +308,11 @@
                     $nextDesc = match($serviceType) {
                         'design'  => 'Konfirmasi pesanan desain. Pelanggan akan membayar, lalu Anda mengerjakan file desainnya.',
                         'permak'  => 'Konfirmasi pesanan permak. Setelah pelanggan bayar, mereka akan mengirim pakaian ke Anda.',
-                        default   => 'Konfirmasi pesanan dan tentukan harga. Pelanggan bisa langsung melakukan pembayaran.',
+                        default   => 'Konfirmasi pesanan. Harga sudah otomatis terisi saat pesanan dibuat.',
                     };
-                    $requiresPrice = true;
+                    // Harga sudah otomatis terisi sejak order dibuat (base_price + biaya bahan).
+                    // Hanya minta input manual kalau order lama belum punya harga sama sekali.
+                    $requiresPrice = !$order->total_price;
                 } elseif ($order->status === 'confirmed') {
                     // Permak: tunggu dulu barang dari pembeli
                     if ($serviceType === 'permak') {

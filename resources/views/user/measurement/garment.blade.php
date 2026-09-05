@@ -39,6 +39,37 @@
         </div>
     </div>
 
+    {{-- Modal kamera: ambil foto langsung untuk shirt/pants/skirt --}}
+    <div x-show="cameraTarget" x-cloak x-transition.opacity
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4"
+        @keydown.escape.window="cameraTarget && closeCamera()">
+        <div role="dialog" aria-modal="true" class="relative flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                <h2 class="text-sm font-black text-slate-900">Ambil Foto Langsung</h2>
+                <button type="button" @click="closeCamera()"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                    aria-label="Tutup kamera" title="Tutup">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-5 w-5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="bg-black">
+                <video x-ref="cameraVideo" autoplay playsinline class="max-h-[60vh] w-full object-contain"></video>
+                <canvas x-ref="cameraCanvas" class="hidden"></canvas>
+            </div>
+            <p x-show="cameraError" x-cloak class="px-5 pt-3 text-xs text-red-600" x-text="cameraError"></p>
+            <div class="flex items-center justify-center gap-3 px-5 py-4">
+                <button type="button" @click="capturePhoto()"
+                    class="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
+                    📷 Jepret
+                </button>
+                <button type="button" @click="closeCamera()"
+                    class="rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
+                    Batal
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div x-show="submitting" x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
         <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
@@ -188,8 +219,14 @@
                                 </label>
                             </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto baju/gamis rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="shirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'shirt')"
-                                class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <div class="flex items-center gap-2">
+                                <input type="file" name="shirt_photo" x-ref="shirtFileInput" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'shirt')"
+                                    class="block flex-1 text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                                <button type="button" @click="openCamera('shirt')"
+                                    class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                                    📷 Ambil Foto
+                                </button>
+                            </div>
                             <img x-show="preview.shirt" :src="preview.shirt" x-cloak alt="Preview foto baju" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="shirt_reference_box" value="">
                             @error('shirt_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -240,8 +277,14 @@
                                 </div>
                             </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto celana rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="pants_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'pants')"
-                                class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <div class="flex items-center gap-2">
+                                <input type="file" name="pants_photo" x-ref="pantsFileInput" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'pants')"
+                                    class="block flex-1 text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                                <button type="button" @click="openCamera('pants')"
+                                    class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                                    📷 Ambil Foto
+                                </button>
+                            </div>
                             <img x-show="preview.pants" :src="preview.pants" x-cloak alt="Preview foto celana" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="pants_reference_box" value="">
                             @error('pants_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -287,8 +330,14 @@
                                 </div>
                             </div>
                             <label class="block text-xs font-semibold text-gray-600 mb-2">Foto rok rata + KTP/A4 di sampingnya</label>
-                            <input type="file" name="skirt_photo" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'skirt')"
-                                class="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                            <div class="flex items-center gap-2">
+                                <input type="file" name="skirt_photo" x-ref="skirtFileInput" accept="image/jpeg,image/png,image/webp" @change="previewPhoto($event, 'skirt')"
+                                    class="block flex-1 text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                                <button type="button" @click="openCamera('skirt')"
+                                    class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                                    📷 Ambil Foto
+                                </button>
+                            </div>
                             <img x-show="preview.skirt" :src="preview.skirt" x-cloak alt="Preview foto rok" class="mt-2 max-h-56 w-full rounded-lg border border-gray-200 object-contain">
                             <input type="hidden" name="skirt_reference_box" value="">
                             @error('skirt_photo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -363,6 +412,9 @@
             submitting: false,
             stage: 0,
             preview: { shirt: null, pants: null, skirt: null },
+            cameraTarget: null,
+            cameraStream: null,
+            cameraError: '',
             reference: { open: false, title: '', image: '', trigger: null },
             referenceImageFailed: false,
             referenceCatalog: {
@@ -403,6 +455,51 @@
                 const file = event.target.files[0];
                 if (this.preview[key]) URL.revokeObjectURL(this.preview[key]);
                 this.preview[key] = file ? URL.createObjectURL(file) : null;
+            },
+            fileInputRef(target) {
+                return { shirt: 'shirtFileInput', pants: 'pantsFileInput', skirt: 'skirtFileInput' }[target];
+            },
+            async openCamera(target) {
+                this.cameraTarget = target;
+                this.cameraError = '';
+                try {
+                    this.cameraStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' },
+                    });
+                    this.$nextTick(() => {
+                        if (this.$refs.cameraVideo) this.$refs.cameraVideo.srcObject = this.cameraStream;
+                    });
+                } catch (e) {
+                    this.cameraError = 'Tidak bisa mengakses kamera. Pastikan izin kamera diaktifkan di browser.';
+                }
+            },
+            capturePhoto() {
+                const video = this.$refs.cameraVideo;
+                const canvas = this.$refs.cameraCanvas;
+                if (!video || !video.videoWidth) return;
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const target = this.cameraTarget;
+                canvas.toBlob((blob) => {
+                    if (!blob) return;
+                    const file = new File([blob], `${target}-camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    const input = this.$refs[this.fileInputRef(target)];
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    input.files = dataTransfer.files;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    this.closeCamera();
+                }, 'image/jpeg', 0.92);
+            },
+            closeCamera() {
+                if (this.cameraStream) {
+                    this.cameraStream.getTracks().forEach((track) => track.stop());
+                    this.cameraStream = null;
+                }
+                this.cameraTarget = null;
             },
             // Mirrors the actual backend pipeline order (measurement.py's
             // calculate_scale -> segment_garment -> detect_*_keypoints ->

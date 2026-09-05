@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\PortfolioController;
 use App\Http\Controllers\Admin\TestimonialController;
 use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\CatalogController;
+use App\Http\Controllers\Admin\FabricController;
+use App\Http\Controllers\Admin\ClothingTypeController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\User\OrderController as UserOrderController;
@@ -123,6 +125,26 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         'update' => 'admin.catalogs.update',
         'destroy' => 'admin.catalogs.destroy',
     ]);
+
+    Route::patch('admin/fabrics/{fabric}/toggle', [FabricController::class, 'toggle'])->name('admin.fabrics.toggle');
+    Route::resource('admin/fabrics', FabricController::class)->names([
+        'index' => 'admin.fabrics.index',
+        'create' => 'admin.fabrics.create',
+        'store' => 'admin.fabrics.store',
+        'edit' => 'admin.fabrics.edit',
+        'update' => 'admin.fabrics.update',
+        'destroy' => 'admin.fabrics.destroy',
+    ])->except(['show']);
+
+    Route::patch('admin/clothing-types/{clothingType}/toggle', [ClothingTypeController::class, 'toggle'])->name('admin.clothing-types.toggle');
+    Route::resource('admin/clothing-types', ClothingTypeController::class)->names([
+        'index' => 'admin.clothing-types.index',
+        'create' => 'admin.clothing-types.create',
+        'store' => 'admin.clothing-types.store',
+        'edit' => 'admin.clothing-types.edit',
+        'update' => 'admin.clothing-types.update',
+        'destroy' => 'admin.clothing-types.destroy',
+    ])->except(['show']);
 
     // === Pesanan Admin ===
     Route::get('/admin/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');

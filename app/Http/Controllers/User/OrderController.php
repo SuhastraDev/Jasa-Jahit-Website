@@ -10,6 +10,8 @@ use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\Service;
 use App\Models\Catalog;
+use App\Models\Fabric;
+use App\Models\ClothingTypeReference;
 use App\Services\FonnteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -36,11 +38,13 @@ class OrderController extends Controller
      */
     public function create()
     {
-        $services     = Service::whereRaw('is_active = true')->get();
-        $catalogs     = Catalog::whereRaw('is_active = true')->with('service')->get();
-        $measurements = Measurement::where('user_id', auth()->id())->latest()->get();
+        $services      = Service::whereRaw('is_active = true')->get();
+        $catalogs      = Catalog::whereRaw('is_active = true')->with('service')->get();
+        $measurements  = Measurement::where('user_id', auth()->id())->latest()->get();
+        $fabrics       = Fabric::where('is_active', true)->orderBy('name')->get();
+        $clothingTypes = ClothingTypeReference::where('is_active', true)->orderBy('name')->get();
 
-        return view('user.orders.create', compact('services', 'catalogs', 'measurements'));
+        return view('user.orders.create', compact('services', 'catalogs', 'measurements', 'fabrics', 'clothingTypes'));
     }
 
     /**
@@ -52,22 +56,14 @@ class OrderController extends Controller
         $service = Service::findOrFail($request->service_id);
         $isDesign = $service->type === 'design';
         $isPermak = $service->type === 'permak';
-        $allowedClothingTypes = [
-            'Kemeja',
-            'Baju Dinas',
-            'Baju Sekolah',
-            'Baju Koko',
-            'Kebaya',
-            'Gamis',
-            'Celana Kain',
-            'Rok Kain',
-        ];
+        $allowedClothingTypes = ClothingTypeReference::where('is_active', true)->pluck('name')->all();
 
         $request->validate([
             'service_id'        => 'required|exists:services,id',
+            'gender'            => 'required|in:pria,wanita',
             'clothing_type'     => ['required', 'string', 'max:100', Rule::in($allowedClothingTypes)],
             'color'             => 'nullable|string|max:100',
-            'material'          => ['nullable', 'string', 'max:100', 'not_regex:/\b(denim|jeans|jean)\b/i'],
+            'fabric_id'         => 'required|exists:fabrics,id',
             'description'       => 'nullable|string|max:1000',
             'catalog_id'        => 'nullable|exists:catalogs,id',
             'measurement_id'    => 'nullable|exists:measurements,id',
@@ -144,6 +140,8 @@ class OrderController extends Controller
         ]);
         $fullAddress = implode(', ', $addressParts);
 
+        $fabric = Fabric::findOrFail($request->fabric_id);
+
         $data = [
             'user_id'        => auth()->id(),
             'service_id'     => $request->service_id,
@@ -151,8 +149,11 @@ class OrderController extends Controller
             'measurement_id' => $measurementId,
             'order_code'     => Order::generateOrderCode(),
             'clothing_type'  => $request->clothing_type,
+            'gender'         => $request->gender,
             'color'          => $request->color,
-            'material'       => $request->material,
+            'material'       => $fabric->name,
+            'fabric_id'      => $fabric->id,
+            'total_price'    => $service->base_price + $fabric->price_addition,
             'description'    => $request->description,
             'address'        => $fullAddress,
             'province'       => $request->province,

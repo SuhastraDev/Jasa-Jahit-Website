@@ -68,13 +68,9 @@ class OrderController extends Controller
             'total_price' => 'nullable|numeric|min:1',
         ]);
 
+        // Harga sudah otomatis terisi saat pesanan dibuat (base_price service + biaya bahan).
+        // Field ini hanya untuk koreksi manual jika admin perlu menyesuaikan.
         $price = $request->total_price ? (int) $request->total_price : null;
-
-        if ($request->status === 'confirmed' && !$price && !$order->total_price) {
-            return back()
-                ->withErrors(['total_price' => 'Total harga harus diisi saat mengkonfirmasi pesanan.'])
-                ->withInput();
-        }
 
         $order->update([
             'status'      => $request->status,

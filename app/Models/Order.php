@@ -14,8 +14,10 @@ class Order extends Model
         'order_code',
         'description',
         'clothing_type',
+        'gender',
         'color',
         'material',
+        'fabric_id',
         'reference_image',
         'design_file',
         'design_notes',
@@ -126,6 +128,11 @@ class Order extends Model
     public function measurement()
     {
         return $this->belongsTo(Measurement::class);
+    }
+
+    public function fabric()
+    {
+        return $this->belongsTo(Fabric::class);
     }
 
     public function statuses()

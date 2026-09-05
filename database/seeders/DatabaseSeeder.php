@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminUserSeeder::class,
             Phase3Seeder::class,
+            ClothingTypeReferenceSeeder::class,
         ]);
     }
 }

@@ -28,14 +28,35 @@
         selectedService: {{ old('service_id') ? old('service_id') : 'null' }},
         serviceName: '{{ old('service_id') ? $services->find(old('service_id'))?->name : '' }}',
         serviceType: '{{ old('service_id') ? ($services->find(old('service_id'))?->type ?? 'custom') : 'custom' }}',
-        services: {{ Js::from($services->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'type' => $s->type])) }},
+        services: {{ Js::from($services->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'type' => $s->type, 'base_price' => (float) $s->base_price])) }},
         catalogs: {{ Js::from($catalogs) }},
+        fabrics: {{ Js::from($fabrics->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'price_addition' => (float) $f->price_addition])) }},
+        clothingTypes: {{ Js::from($clothingTypes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'gender' => $c->gender, 'image' => $c->reference_image ? \Illuminate\Support\Facades\Storage::url($c->reference_image) : null])) }},
         sizeMethod: '{{ old('measurement_id') ? 'cv' : (old('manual_chest') ? 'manual' : 'cv') }}',
         selectedMeasurementId: '{{ old('measurement_id', $measurements->first()?->id ?? '') }}',
+        gender: '{{ old('gender') }}',
+        selectedClothingType: '{{ old('clothing_type') }}',
+        selectedFabric: {{ old('fabric_id') ? old('fabric_id') : 'null' }},
 
         filteredCatalogs() {
             if (!this.selectedService) return [];
             return this.catalogs.filter(c => c.service_id == this.selectedService);
+        },
+        filteredClothingTypes() {
+            if (!this.gender) return [];
+            return this.clothingTypes.filter(c => c.gender === 'unisex' || c.gender === this.gender);
+        },
+        selectGender(g) {
+            this.gender = g;
+            this.selectedClothingType = '';
+        },
+        estimatedPrice() {
+            const svc = this.services.find(s => s.id == this.selectedService);
+            const fab = this.fabrics.find(f => f.id == this.selectedFabric);
+            return (svc ? svc.base_price : 0) + (fab ? fab.price_addition : 0);
+        },
+        formatRupiah(n) {
+            return new Intl.NumberFormat('id-ID').format(n);
         },
         isCustom() { return this.serviceType === 'custom'; },
         isDesign()  { return this.serviceType === 'design'; },
@@ -157,22 +178,43 @@
                             </select>
                         </div>
 
-                        {{-- Jenis Pakaian --}}
+                        {{-- Jenis Kelamin --}}
                         <div class="sm:col-span-2">
-                            <label for="clothing_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Jenis Pakaian <span class="text-red-500">*</span></label>
-                            <div class="flex flex-wrap gap-2 mb-2">
-                                @foreach(['Kemeja', 'Baju Dinas', 'Baju Sekolah', 'Baju Koko', 'Kebaya', 'Gamis', 'Celana Kain', 'Rok Kain'] as $type)
-                                <button type="button"
-                                        @click="$el.closest('.sm\\:col-span-2').querySelector('#clothing_type').value = '{{ $type }}'; $el.closest('.flex').querySelectorAll('button').forEach(b => b.classList.remove('bg-blue-600','text-white','border-blue-600')); $el.classList.add('bg-blue-600','text-white','border-blue-600');"
-                                        class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors {{ old('clothing_type') === $type ? 'bg-blue-600 text-white border-blue-600' : '' }}">
-                                    {{ $type }}
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jenis Kelamin <span class="text-red-500">*</span></label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button type="button" @click="selectGender('pria')"
+                                        :class="gender === 'pria' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                        class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
+                                    Pria
                                 </button>
-                                @endforeach
+                                <button type="button" @click="selectGender('wanita')"
+                                        :class="gender === 'wanita' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                        class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
+                                    Wanita
+                                </button>
                             </div>
-                            <input type="text" name="clothing_type" id="clothing_type"
-                                   value="{{ old('clothing_type') }}"
-                                   class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm @error('clothing_type') border-red-400 @enderror"
-                                   placeholder="Contoh: Baju Koko, Kebaya, Celana Kain...">
+                            <input type="hidden" name="gender" x-bind:value="gender">
+                            @error('gender')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        {{-- Jenis Pakaian --}}
+                        <div class="sm:col-span-2" x-show="gender" x-transition>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jenis Pakaian <span class="text-red-500">*</span></label>
+                            <p x-show="gender && filteredClothingTypes().length === 0" class="text-xs text-gray-400 mb-2">Belum ada jenis pakaian tersedia untuk pilihan ini.</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <template x-for="type in filteredClothingTypes()" :key="type.id">
+                                    <button type="button" @click="selectedClothingType = type.name"
+                                            :class="selectedClothingType === type.name ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                            class="rounded-xl border-2 p-2 text-center transition-all">
+                                        <div class="w-full h-16 rounded-lg bg-gray-100 overflow-hidden mb-1.5 flex items-center justify-center">
+                                            <img x-show="type.image" :src="type.image" :alt="type.name" class="w-full h-full object-cover">
+                                            <svg x-show="!type.image" class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        </div>
+                                        <span class="text-xs font-semibold text-gray-700" x-text="type.name"></span>
+                                    </button>
+                                </template>
+                            </div>
+                            <input type="hidden" name="clothing_type" x-bind:value="selectedClothingType">
                             @error('clothing_type')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 
@@ -201,20 +243,17 @@
 
                         {{-- Bahan --}}
                         <div>
-                            <label for="material" class="block text-sm font-semibold text-gray-700 mb-1.5">Bahan / Material</label>
-                            <input type="text" name="material" id="material"
-                                   value="{{ old('material') }}"
-                                   class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
-                                   placeholder="Misal: Katun, Linen, Silk, Brokat...">
-                            <div class="flex flex-wrap gap-1.5 mt-2">
-                                @foreach(['Katun','Linen','Silk','Sifon','Brokat','Jersey','Wool','Polyester'] as $mat)
-                                <button type="button"
-                                        @click="document.getElementById('material').value = '{{ $mat }}'"
-                                        class="px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
-                                    {{ $mat }}
-                                </button>
+                            <label for="fabric_id" class="block text-sm font-semibold text-gray-700 mb-1.5">Bahan / Material <span class="text-red-500">*</span></label>
+                            <select name="fabric_id" id="fabric_id" x-model="selectedFabric"
+                                    class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm @error('fabric_id') border-red-400 @enderror">
+                                <option value="">— Pilih Bahan —</option>
+                                @foreach($fabrics as $fabric)
+                                <option value="{{ $fabric->id }}" {{ old('fabric_id') == $fabric->id ? 'selected' : '' }}>
+                                    {{ $fabric->name }} (+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }})
+                                </option>
                                 @endforeach
-                            </div>
+                            </select>
+                            @error('fabric_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 
                         {{-- Catatan / Deskripsi --}}
@@ -600,6 +639,9 @@
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="text-sm text-gray-500">
                         <span class="font-semibold text-gray-700">Pastikan semua data sudah benar</span> sebelum mengirim pesanan.
+                        <div x-show="selectedService && selectedFabric" class="mt-1.5 text-base">
+                            Estimasi Harga: <span class="font-bold text-blue-600" x-text="'Rp ' + formatRupiah(estimatedPrice())"></span>
+                        </div>
                     </div>
                     <div class="flex gap-3 flex-shrink-0">
                         <a href="{{ route('user.orders.index') }}" class="px-5 py-2.5 text-sm text-gray-500 hover:text-gray-700 font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
