@@ -42,6 +42,18 @@
             </div>
 
             <div>
+                <label for="stock_meters" class="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Stok (meter) <span class="text-red-500">*</span>
+                </label>
+                <input type="number" id="stock_meters" name="stock_meters" value="{{ old('stock_meters', $fabric->stock_meters) }}" required min="0" step="0.5"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm @error('stock_meters') border-red-400 @enderror">
+                <p class="mt-1.5 text-xs text-gray-400">Sisa kain yang tersedia di gudang, dalam meter.</p>
+                @error('stock_meters')
+                    <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Status</label>
                 <div class="flex gap-3">
                     <label class="flex-1 flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">

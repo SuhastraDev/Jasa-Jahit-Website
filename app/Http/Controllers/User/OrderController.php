@@ -41,7 +41,7 @@ class OrderController extends Controller
         $services      = Service::whereRaw('is_active = true')->get();
         $catalogs      = Catalog::whereRaw('is_active = true')->with('service')->get();
         $measurements  = Measurement::where('user_id', auth()->id())->latest()->get();
-        $fabrics       = Fabric::where('is_active', true)->orderBy('name')->get();
+        $fabrics       = Fabric::where('is_active', true)->where('stock_meters', '>', 0)->orderBy('name')->get();
         $clothingTypes = ClothingTypeReference::where('is_active', true)->orderBy('name')->get();
 
         return view('user.orders.create', compact('services', 'catalogs', 'measurements', 'fabrics', 'clothingTypes'));

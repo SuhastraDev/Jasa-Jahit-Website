@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             Phase3Seeder::class,
             ClothingTypeReferenceSeeder::class,
+            FabricSeeder::class,
         ]);
     }
 }

@@ -249,7 +249,7 @@
                                 <option value="">— Pilih Bahan —</option>
                                 @foreach($fabrics as $fabric)
                                 <option value="{{ $fabric->id }}" {{ old('fabric_id') == $fabric->id ? 'selected' : '' }}>
-                                    {{ $fabric->name }} (+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }})
+                                    {{ $fabric->name }} (+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }}) — tersisa {{ number_format($fabric->stock_meters, 1, ',', '.') }}m
                                 </option>
                                 @endforeach
                             </select>

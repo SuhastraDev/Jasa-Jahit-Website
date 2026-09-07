@@ -30,6 +30,7 @@
                 <tr>
                     <th class="text-left px-5 py-3 font-semibold">Nama Bahan</th>
                     <th class="text-left px-5 py-3 font-semibold">Biaya Tambahan</th>
+                    <th class="text-left px-5 py-3 font-semibold">Stok</th>
                     <th class="text-left px-5 py-3 font-semibold">Status</th>
                     <th class="text-right px-5 py-3 font-semibold">Aksi</th>
                 </tr>
@@ -39,6 +40,14 @@
                 <tr class="hover:bg-gray-50/60">
                     <td class="px-5 py-3 font-semibold text-gray-900">{{ $fabric->name }}</td>
                     <td class="px-5 py-3 text-gray-600">+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }}</td>
+                    <td class="px-5 py-3">
+                        <span class="font-semibold {{ $fabric->stock_meters <= 5 ? 'text-red-600' : 'text-gray-700' }}">
+                            {{ number_format($fabric->stock_meters, 1, ',', '.') }} m
+                        </span>
+                        @if($fabric->stock_meters <= 5)
+                            <span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Menipis</span>
+                        @endif
+                    </td>
                     <td class="px-5 py-3">
                         <form action="{{ route('admin.fabrics.toggle', $fabric) }}" method="POST" class="inline">
                             @csrf

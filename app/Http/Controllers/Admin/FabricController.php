@@ -24,12 +24,14 @@ class FabricController extends Controller
         $request->validate([
             'name'            => 'required|string|max:255|unique:fabrics,name',
             'price_addition'  => 'required|numeric|min:0',
+            'stock_meters'    => 'required|numeric|min:0',
             'is_active'       => 'required|in:0,1',
         ]);
 
         Fabric::create([
             'name'           => $request->name,
             'price_addition' => $request->price_addition,
+            'stock_meters'   => $request->stock_meters,
             'is_active'      => (bool) $request->is_active,
         ]);
 
@@ -47,12 +49,14 @@ class FabricController extends Controller
         $request->validate([
             'name'            => 'required|string|max:255|unique:fabrics,name,' . $fabric->id,
             'price_addition'  => 'required|numeric|min:0',
+            'stock_meters'    => 'required|numeric|min:0',
             'is_active'       => 'required|in:0,1',
         ]);
 
         $fabric->update([
             'name'           => $request->name,
             'price_addition' => $request->price_addition,
+            'stock_meters'   => $request->stock_meters,
             'is_active'      => (bool) $request->is_active,
         ]);
 
