@@ -44,7 +44,7 @@ class OrderController extends Controller
     {
         $order->load([
             'user', 'service', 'catalog', 'measurement',
-            'statuses.changedBy', 'latestPayment', 'payments',
+            'statuses.changedBy', 'latestPayment', 'payments.paymentMethod',
             'shipment', 'buyerShipment'
         ]);
 

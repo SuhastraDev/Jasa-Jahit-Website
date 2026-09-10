@@ -256,6 +256,9 @@
                                     {{ $payment->status_label }}
                                 </span>
                                 <span class="text-xs text-gray-500">{{ $payment->payment_type === 'full' ? 'Lunas' : 'DP' }}</span>
+                                @if($payment->paymentMethod)
+                                <span class="text-xs text-gray-500">&bull; via {{ $payment->paymentMethod->name }}</span>
+                                @endif
                             </div>
                             <p class="text-xs text-gray-500">Diupload {{ $payment->created_at->format('d M Y, H:i') }}</p>
                             @if($payment->reject_reason)

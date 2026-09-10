@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             Phase3Seeder::class,
             ClothingTypeReferenceSeeder::class,
             FabricSeeder::class,
+            PaymentMethodSeeder::class,
         ]);
     }
 }

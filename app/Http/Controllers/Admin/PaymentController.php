@@ -17,7 +17,7 @@ class PaymentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Payment::with(['order.user', 'order.service', 'verifiedBy'])->latest();
+        $query = Payment::with(['order.user', 'order.service', 'verifiedBy', 'paymentMethod'])->latest();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);

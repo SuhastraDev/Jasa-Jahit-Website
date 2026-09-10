@@ -79,6 +79,9 @@
                             <span class="px-2 py-0.5 text-xs font-semibold rounded-full border {{ $payment->payment_type === 'full' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200' }}">
                                 {{ $payment->payment_type === 'full' ? 'Lunas' : 'DP' }}
                             </span>
+                            @if($payment->paymentMethod)
+                            <div class="text-[11px] text-gray-400 mt-1">{{ $payment->paymentMethod->name }}</div>
+                            @endif
                         </td>
                         <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div x-data="{ showModal: false }">

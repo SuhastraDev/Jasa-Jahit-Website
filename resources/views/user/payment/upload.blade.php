@@ -12,91 +12,117 @@
         <p class="text-sm text-gray-500 mt-1 font-mono">{{ $order->order_code }}</p>
     </div>
 
-    {{-- Info Transfer DANA --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
-        <h2 class="font-bold text-gray-900 mb-4">Transfer ke DANA</h2>
+    @if($paymentMethods->isEmpty())
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+            <p class="text-sm font-semibold text-amber-800">Belum ada metode pembayaran aktif</p>
+            <p class="text-xs text-amber-700 mt-1">Silakan hubungi admin untuk menambahkan metode pembayaran terlebih dahulu.</p>
+        </div>
+    @else
+    <div x-data="{ selectedMethod: {{ $paymentMethods->count() === 1 ? $paymentMethods->first()->id : 'null' }} }">
 
-        {{-- Card Gradien DANA --}}
-        <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 mb-5 text-white">
+        {{-- Pilih Metode Pembayaran --}}
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+            <h2 class="font-bold text-gray-900 mb-4">Pilih Metode Pembayaran</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                @foreach($paymentMethods as $method)
+                <button type="button" @click="selectedMethod = {{ $method->id }}"
+                        :class="selectedMethod === {{ $method->id }} ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                        class="rounded-xl border-2 p-3 text-center transition-all">
+                    <span class="text-sm font-semibold text-gray-700">{{ $method->name }}</span>
+                </button>
+                @endforeach
+            </div>
+        </div>
 
-            {{-- QR DANA (hanya jika admin upload QR resmi) + Info Nomor --}}
-            <div class="flex flex-col sm:flex-row items-center gap-5 mb-4">
-                @if($danaQrExists)
-                {{-- QR resmi dari admin --}}
-                <div class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-lg text-center">
-                    <img src="{{ asset('storage/dana/qr_code.png') }}?v={{ filemtime(storage_path('app/public/dana/qr_code.png')) }}"
-                         class="w-40 h-40 object-contain rounded-lg" alt="QR Code DANA">
-                    <p class="text-[10px] text-blue-600 font-semibold mt-1.5">Scan dengan aplikasi DANA</p>
-                </div>
-                @endif
+        {{-- Info Transfer per Metode Terpilih --}}
+        @foreach($paymentMethods as $method)
+        <div x-show="selectedMethod === {{ $method->id }}" x-cloak x-transition class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+            <h2 class="font-bold text-gray-900 mb-4">Transfer ke {{ $method->name }}</h2>
 
-                {{-- Info Nomor --}}
-                <div class="flex-1 text-center sm:text-left">
-                    <p class="text-blue-200 text-xs font-medium mb-1">Nomor DANA</p>
-                    <p class="text-2xl sm:text-3xl font-bold tracking-widest mb-1">{{ $danaNumber }}</p>
-                    <p class="text-blue-200 text-sm">a/n <strong class="text-white">{{ $danaName }}</strong></p>
-                    <button onclick="navigator.clipboard.writeText('{{ $danaNumber }}').then(()=>{ this.textContent='✓ Tersalin!'; setTimeout(()=>this.textContent='Salin Nomor',2000) })"
-                            class="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                        Salin Nomor
-                    </button>
-                    @if(!$danaQrExists)
-                    <p class="text-blue-200 text-xs mt-2">Transfer manual via nomor di atas atau buka DANA → Kirim Uang</p>
+            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 mb-5 text-white">
+                <div class="flex flex-col sm:flex-row items-center gap-5 mb-4">
+                    @if($method->qr_image)
+                    <div class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-lg text-center">
+                        <img src="{{ Storage::url($method->qr_image) }}"
+                             class="w-40 h-40 object-contain rounded-lg" alt="QR Code {{ $method->name }}">
+                        <p class="text-[10px] text-blue-600 font-semibold mt-1.5">Scan dengan aplikasi {{ $method->name }}</p>
+                    </div>
                     @endif
+
+                    <div class="flex-1 text-center sm:text-left">
+                        <p class="text-blue-200 text-xs font-medium mb-1">Nomor {{ $method->name }}</p>
+                        <p class="text-2xl sm:text-3xl font-bold tracking-widest mb-1">{{ $method->account_number }}</p>
+                        <p class="text-blue-200 text-sm">a/n <strong class="text-white">{{ $method->account_name }}</strong></p>
+                        <button onclick="navigator.clipboard.writeText('{{ $method->account_number }}').then(()=>{ this.textContent='✓ Tersalin!'; setTimeout(()=>this.textContent='Salin Nomor',2000) })"
+                                class="mt-3 inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            Salin Nomor
+                        </button>
+                        @if(!$method->qr_image)
+                        <p class="text-blue-200 text-xs mt-2">Transfer manual via nomor di atas atau buka aplikasi {{ $method->name }} → Kirim Uang</p>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4 mb-5">
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5">Total yang harus dibayar</p>
+                    <p class="text-2xl font-bold text-gray-900">Rp {{ number_format($order->total_price, 0, ',', '.') }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-400 mb-0.5">Kode Pesanan</p>
+                    <p class="font-mono font-bold text-gray-700">{{ $order->order_code }}</p>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <div class="text-sm text-amber-800">
+                        <p class="font-semibold mb-2">Petunjuk Pembayaran:</p>
+                        @if($method->instructions)
+                        <p class="text-amber-700 text-xs whitespace-pre-line">{{ $method->instructions }}</p>
+                        @else
+                        <ol class="list-decimal list-inside space-y-1 text-amber-700 text-xs">
+                            <li>Buka aplikasi {{ $method->name }} di HP Anda</li>
+                            <li>Tap <strong>Kirim Uang</strong> → masukkan nomor atau scan QR</li>
+                            <li>Masukkan nominal sesuai total pesanan</li>
+                            <li>Screenshot bukti transfer</li>
+                            <li>Upload bukti di form di bawah ini</li>
+                        </ol>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
+        @endforeach
 
-        {{-- Total & Kode --}}
-        <div class="flex items-center justify-between bg-gray-50 rounded-xl p-4 mb-5">
-            <div>
-                <p class="text-xs text-gray-400 mb-0.5">Total yang harus dibayar</p>
-                <p class="text-2xl font-bold text-gray-900">Rp {{ number_format($order->total_price, 0, ',', '.') }}</p>
-            </div>
-            <div class="text-right">
-                <p class="text-xs text-gray-400 mb-0.5">Kode Pesanan</p>
-                <p class="font-mono font-bold text-gray-700">{{ $order->order_code }}</p>
-            </div>
+        <div x-show="!selectedMethod" class="bg-gray-50 border border-gray-200 rounded-2xl p-6 mb-5 text-center">
+            <p class="text-sm text-gray-500">Pilih salah satu metode pembayaran di atas untuk melihat detail transfer.</p>
         </div>
 
-        {{-- Petunjuk --}}
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div class="flex items-start gap-3">
-                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+        {{-- Form Upload Bukti --}}
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h2 class="font-bold text-gray-900 mb-5">Form Upload Bukti</h2>
+
+            @if($errors->any())
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5">
+                    <ul class="list-disc list-inside text-sm space-y-0.5">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
                 </div>
-                <div class="text-sm text-amber-800">
-                    <p class="font-semibold mb-2">Petunjuk Pembayaran:</p>
-                    <ol class="list-decimal list-inside space-y-1 text-amber-700 text-xs">
-                        <li>Buka aplikasi DANA di HP Anda</li>
-                        <li>Tap <strong>Kirim Uang</strong> → masukkan nomor atau scan QR</li>
-                        <li>Masukkan nominal sesuai total pesanan</li>
-                        <li>Screenshot bukti transfer</li>
-                        <li>Upload bukti di form di bawah ini</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-    </div>
+            @endif
 
-    {{-- Form Upload Bukti --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h2 class="font-bold text-gray-900 mb-5">Form Upload Bukti</h2>
+            <form action="{{ route('user.payment.store', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-5">
+                @csrf
+                <input type="hidden" name="payment_method_id" x-bind:value="selectedMethod">
 
-        @if($errors->any())
-            <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-5">
-                <ul class="list-disc list-inside text-sm space-y-0.5">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <form action="{{ route('user.payment.store', $order) }}" method="POST" enctype="multipart/form-data" class="space-y-5">
-            @csrf
-
-            <div>
+                <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jumlah Dibayar (Rp) <span class="text-red-500">*</span></label>
                 <input type="number" name="amount" value="{{ old('amount', $order->total_price) }}"
                        class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
@@ -150,7 +176,9 @@
                 </button>
             </div>
         </form>
+        </div>
     </div>
+    @endif
 
 </div>
 @endsection

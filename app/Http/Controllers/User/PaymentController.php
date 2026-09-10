@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\PaymentMethod;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
@@ -37,11 +38,9 @@ class PaymentController extends Controller
                 ->with('info', 'Harga pesanan belum ditentukan oleh admin. Silakan tunggu.');
         }
 
-        $danaNumber   = \App\Models\Setting::get('dana_number');
-        $danaName     = \App\Models\Setting::get('dana_name');
-        $danaQrExists = \Illuminate\Support\Facades\Storage::disk('public')->exists('dana/qr_code.png');
+        $paymentMethods = PaymentMethod::where('is_active', true)->orderBy('name')->get();
 
-        return view('user.payment.upload', compact('order', 'danaNumber', 'danaName', 'danaQrExists'));
+        return view('user.payment.upload', compact('order', 'paymentMethods'));
     }
 
     /**
@@ -54,6 +53,7 @@ class PaymentController extends Controller
         }
 
         $request->validate([
+            'payment_method_id' => 'required|exists:payment_methods,id',
             'amount' => 'required|numeric|min:1000',
             'proof_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
@@ -63,6 +63,7 @@ class PaymentController extends Controller
 
         Payment::create([
             'order_id' => $order->id,
+            'payment_method_id' => $request->payment_method_id,
             'amount' => $request->amount,
             'payment_type' => 'full',
             'proof_image' => $proofPath,

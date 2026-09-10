@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\CatalogController;
 use App\Http\Controllers\Admin\FabricController;
 use App\Http\Controllers\Admin\ClothingTypeController;
+use App\Http\Controllers\Admin\PaymentMethodController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\User\OrderController as UserOrderController;
@@ -20,7 +21,6 @@ use App\Http\Controllers\User\BuyerShipmentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ShipmentController as AdminShipmentController;
 use App\Http\Controllers\Admin\ChatController as AdminChatController;
-use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'index'])->name('landing');
@@ -146,6 +146,16 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         'destroy' => 'admin.clothing-types.destroy',
     ])->except(['show']);
 
+    Route::patch('admin/payment-methods/{paymentMethod}/toggle', [PaymentMethodController::class, 'toggle'])->name('admin.payment-methods.toggle');
+    Route::resource('admin/payment-methods', PaymentMethodController::class)->names([
+        'index' => 'admin.payment-methods.index',
+        'create' => 'admin.payment-methods.create',
+        'store' => 'admin.payment-methods.store',
+        'edit' => 'admin.payment-methods.edit',
+        'update' => 'admin.payment-methods.update',
+        'destroy' => 'admin.payment-methods.destroy',
+    ])->except(['show']);
+
     // === Pesanan Admin ===
     Route::get('/admin/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');
     Route::get('/admin/orders/{order}', [AdminOrderController::class, 'show'])->name('admin.orders.show');
@@ -168,11 +178,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::post('/admin/chat/message/{message}/delete', [AdminChatController::class, 'destroyMessage'])->name('admin.chat.message.destroy');
     Route::post('/admin/chat/{chat}/messages/delete', [AdminChatController::class, 'destroyMessages'])->name('admin.chat.messages.destroy');
 
-    // === Pengaturan Admin ===
-    Route::get('/admin/settings', [AdminSettingController::class, 'index'])->name('admin.settings.index');
-    Route::post('/admin/settings/dana', [AdminSettingController::class, 'saveDana'])->name('admin.settings.saveDana');
-    Route::post('/admin/settings/upload-qr', [AdminSettingController::class, 'uploadQr'])->name('admin.settings.uploadQr');
-    Route::delete('/admin/settings/delete-qr', [AdminSettingController::class, 'deleteQr'])->name('admin.settings.deleteQr');
+    // === Pengaturan Admin (lama, digantikan oleh Metode Pembayaran) ===
+    Route::get('/admin/settings', fn () => redirect()->route('admin.payment-methods.index'))->name('admin.settings.index');
 });
 
 Route::middleware('auth')->group(function () {
