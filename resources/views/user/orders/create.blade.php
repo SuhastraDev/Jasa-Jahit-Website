@@ -220,9 +220,10 @@
                             <p x-show="gender && filteredClothingTypes().length === 0" class="text-xs text-gray-400 mb-2">Belum ada jenis pakaian tersedia untuk pilihan ini.</p>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <template x-for="type in filteredClothingTypes()" :key="type.id">
-                                    <button type="button" @click="selectedClothingType = type.name"
+                                    <div @click="selectedClothingType = type.name" role="button" tabindex="0"
+                                            @keydown.enter="selectedClothingType = type.name"
                                             :class="selectedClothingType === type.name ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
-                                            class="rounded-xl border-2 p-2 text-center transition-all">
+                                            class="rounded-xl border-2 p-2 text-center transition-all cursor-pointer">
                                         <div class="relative w-full h-16 rounded-lg bg-gray-100 overflow-hidden mb-1.5 flex items-center justify-center">
                                             <img x-show="type.image" :src="type.image" :alt="type.name" class="w-full h-full object-cover">
                                             <svg x-show="!type.image" class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -234,7 +235,7 @@
                                             </button>
                                         </div>
                                         <span class="text-xs font-semibold text-gray-700" x-text="type.name"></span>
-                                    </button>
+                                    </div>
                                 </template>
                             </div>
                             <input type="hidden" name="clothing_type" x-bind:value="selectedClothingType">
