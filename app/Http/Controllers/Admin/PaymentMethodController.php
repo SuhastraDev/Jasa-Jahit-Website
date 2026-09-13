@@ -24,6 +24,7 @@ class PaymentMethodController extends Controller
     {
         $request->validate([
             'name'           => 'required|string|max:255',
+            'logo'           => 'nullable|image|max:1024',
             'account_number' => 'required|string|max:50',
             'account_name'   => 'required|string|max:255',
             'qr_image'       => 'nullable|image|max:2048',
@@ -35,8 +36,13 @@ class PaymentMethodController extends Controller
             ? $request->file('qr_image')->store('payment-methods', 'public')
             : null;
 
+        $logoPath = $request->hasFile('logo')
+            ? $request->file('logo')->store('payment-methods/logos', 'public')
+            : null;
+
         PaymentMethod::create([
             'name'           => $request->name,
+            'logo'           => $logoPath,
             'account_number' => $request->account_number,
             'account_name'   => $request->account_name,
             'qr_image'       => $qrPath,
@@ -57,6 +63,7 @@ class PaymentMethodController extends Controller
     {
         $request->validate([
             'name'           => 'required|string|max:255',
+            'logo'           => 'nullable|image|max:1024',
             'account_number' => 'required|string|max:50',
             'account_name'   => 'required|string|max:255',
             'qr_image'       => 'nullable|image|max:2048',
@@ -71,6 +78,13 @@ class PaymentMethodController extends Controller
             'instructions'   => $request->instructions,
             'is_active'      => (bool) $request->is_active,
         ];
+
+        if ($request->hasFile('logo')) {
+            if ($paymentMethod->logo && Storage::disk('public')->exists($paymentMethod->logo)) {
+                Storage::disk('public')->delete($paymentMethod->logo);
+            }
+            $data['logo'] = $request->file('logo')->store('payment-methods/logos', 'public');
+        }
 
         if ($request->hasFile('qr_image')) {
             if ($paymentMethod->qr_image && Storage::disk('public')->exists($paymentMethod->qr_image)) {
@@ -87,6 +101,9 @@ class PaymentMethodController extends Controller
 
     public function destroy(PaymentMethod $paymentMethod)
     {
+        if ($paymentMethod->logo && Storage::disk('public')->exists($paymentMethod->logo)) {
+            Storage::disk('public')->delete($paymentMethod->logo);
+        }
         if ($paymentMethod->qr_image && Storage::disk('public')->exists($paymentMethod->qr_image)) {
             Storage::disk('public')->delete($paymentMethod->qr_image);
         }

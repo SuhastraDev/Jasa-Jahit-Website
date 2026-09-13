@@ -8,6 +8,7 @@ class PaymentMethod extends Model
 {
     protected $fillable = [
         'name',
+        'logo',
         'account_number',
         'account_name',
         'qr_image',

@@ -36,7 +36,13 @@
                 @endif
             </div>
             <div class="p-4 flex-1 flex flex-col">
-                <h4 class="font-semibold text-gray-900 text-sm mb-1">{{ $method->name }}</h4>
+                <div class="flex items-center gap-2 mb-1">
+                    @if($method->logo)
+                        <img src="{{ Storage::url($method->logo) }}" alt="Logo {{ $method->name }}"
+                             class="w-6 h-6 rounded-md object-contain border border-gray-100 flex-shrink-0">
+                    @endif
+                    <h4 class="font-semibold text-gray-900 text-sm">{{ $method->name }}</h4>
+                </div>
                 <p class="text-xs text-gray-500 font-mono">{{ $method->account_number }}</p>
                 <p class="text-xs text-gray-400 mb-3">a/n {{ $method->account_name }}</p>
 

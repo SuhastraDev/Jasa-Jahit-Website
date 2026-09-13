@@ -30,6 +30,37 @@
                 @enderror
             </div>
 
+            <div x-data="{ preview: '{{ $paymentMethod->logo ? Storage::url($paymentMethod->logo) : '' }}', fileName: '' }">
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Logo <span class="text-gray-400 font-normal text-xs">(opsional)</span>
+                </label>
+                <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-colors cursor-pointer flex items-center gap-4"
+                     @click="$refs.logoInput.click()"
+                     :class="preview ? 'border-blue-300 bg-blue-50/20' : 'bg-gray-50 hover:bg-blue-50/10'">
+                    <div class="w-14 h-14 rounded-xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img x-show="preview" :src="preview" class="w-full h-full object-contain">
+                        <svg x-show="!preview" class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-700" x-text="preview ? (fileName || 'Logo saat ini') : 'Klik untuk upload logo'"></p>
+                        <p class="text-xs text-gray-400 mt-0.5">Ditampilkan di pilihan metode saat pelanggan bayar. PNG/JPG, maks 1MB.</p>
+                    </div>
+                    <input type="file" x-ref="logoInput" name="logo" accept="image/*" class="hidden"
+                           @change="
+                               const file = $event.target.files[0];
+                               if (file) {
+                                   fileName = file.name;
+                                   const reader = new FileReader();
+                                   reader.onload = e => preview = e.target.result;
+                                   reader.readAsDataURL(file);
+                               }
+                           ">
+                </div>
+                @error('logo')
+                    <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
             <div>
                 <label for="account_number" class="block text-sm font-semibold text-gray-700 mb-1.5">
                     Nomor Rekening / E-wallet <span class="text-red-500">*</span>

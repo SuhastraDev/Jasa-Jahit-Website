@@ -28,6 +28,10 @@
                 <button type="button" @click="selectedMethod = {{ $method->id }}"
                         :class="selectedMethod === {{ $method->id }} ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
                         class="rounded-xl border-2 p-3 text-center transition-all">
+                    @if($method->logo)
+                        <img src="{{ Storage::url($method->logo) }}" alt="Logo {{ $method->name }}"
+                             class="w-8 h-8 object-contain mx-auto mb-1.5">
+                    @endif
                     <span class="text-sm font-semibold text-gray-700">{{ $method->name }}</span>
                 </button>
                 @endforeach

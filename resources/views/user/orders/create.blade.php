@@ -37,6 +37,8 @@
         gender: '{{ old('gender') }}',
         selectedClothingType: '{{ old('clothing_type') }}',
         selectedFabric: {{ old('fabric_id') ? old('fabric_id') : 'null' }},
+        previewImage: null,
+        previewImageLabel: '',
 
         filteredCatalogs() {
             if (!this.selectedService) return [];
@@ -72,6 +74,21 @@
             });
         }
     }">
+        {{-- Modal preview foto referensi --}}
+        <div x-show="previewImage" x-cloak x-transition.opacity
+             class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4"
+             @click.self="previewImage = null"
+             @keydown.escape.window="previewImage && (previewImage = null)">
+            <div class="relative max-w-lg w-full">
+                <button type="button" @click="previewImage = null"
+                        class="absolute -top-10 right-0 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                        aria-label="Tutup preview">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <img :src="previewImage" :alt="previewImageLabel" class="w-full max-h-[80vh] rounded-2xl object-contain bg-white shadow-2xl">
+                <p class="mt-3 text-center text-sm font-semibold text-white" x-text="previewImageLabel"></p>
+            </div>
+        </div>
 
         {{-- ── STEP 1: Pilih Layanan ── --}}
         <div class="mb-6">
@@ -206,9 +223,15 @@
                                     <button type="button" @click="selectedClothingType = type.name"
                                             :class="selectedClothingType === type.name ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
                                             class="rounded-xl border-2 p-2 text-center transition-all">
-                                        <div class="w-full h-16 rounded-lg bg-gray-100 overflow-hidden mb-1.5 flex items-center justify-center">
+                                        <div class="relative w-full h-16 rounded-lg bg-gray-100 overflow-hidden mb-1.5 flex items-center justify-center">
                                             <img x-show="type.image" :src="type.image" :alt="type.name" class="w-full h-full object-cover">
                                             <svg x-show="!type.image" class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                            <button type="button" x-show="type.image"
+                                                    @click.stop="previewImage = type.image; previewImageLabel = type.name"
+                                                    class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors"
+                                                    :aria-label="'Lihat foto ' + type.name">
+                                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                            </button>
                                         </div>
                                         <span class="text-xs font-semibold text-gray-700" x-text="type.name"></span>
                                     </button>
