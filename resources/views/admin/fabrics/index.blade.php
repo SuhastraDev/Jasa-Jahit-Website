@@ -29,6 +29,7 @@
             <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
                 <tr>
                     <th class="text-left px-5 py-3 font-semibold">Nama Bahan</th>
+                    <th class="text-left px-5 py-3 font-semibold">Kategori</th>
                     <th class="text-left px-5 py-3 font-semibold">Biaya Tambahan</th>
                     <th class="text-left px-5 py-3 font-semibold">Stok</th>
                     <th class="text-left px-5 py-3 font-semibold">Status</th>
@@ -39,6 +40,9 @@
                 @foreach($fabrics as $fabric)
                 <tr class="hover:bg-gray-50/60">
                     <td class="px-5 py-3 font-semibold text-gray-900">{{ $fabric->name }}</td>
+                    <td class="px-5 py-3">
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{{ $fabric->category }}</span>
+                    </td>
                     <td class="px-5 py-3 text-gray-600">+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }}</td>
                     <td class="px-5 py-3">
                         <span class="font-semibold {{ $fabric->stock_meters <= 5 ? 'text-red-600' : 'text-gray-700' }}">

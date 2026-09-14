@@ -31,6 +31,24 @@
             </div>
 
             <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Kategori <span class="text-red-500">*</span>
+                </label>
+                <div class="grid grid-cols-3 gap-3">
+                    @foreach(['baju' => 'Baju', 'celana' => 'Celana', 'rok' => 'Rok'] as $value => $label)
+                    <label class="flex items-center justify-center gap-2 border border-gray-200 rounded-xl px-3 py-3 cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="category" value="{{ $value }}" {{ old('category', 'baju') === $value ? 'checked' : '' }} class="text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm font-semibold text-gray-800">{{ $label }}</span>
+                    </label>
+                    @endforeach
+                </div>
+                <p class="mt-1.5 text-xs text-gray-400">Menentukan bahan ini akan muncul untuk jenis pakaian kategori apa saat pelanggan checkout.</p>
+                @error('category')
+                    <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
                 <label for="price_addition" class="block text-sm font-semibold text-gray-700 mb-1.5">
                     Biaya Tambahan (Rp) <span class="text-red-500">*</span>
                 </label>

@@ -22,7 +22,8 @@ class FabricController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'            => 'required|string|max:255|unique:fabrics,name',
+            'name'            => 'required|string|max:255|unique:fabrics,name,NULL,id,category,' . $request->category,
+            'category'        => 'required|in:baju,celana,rok',
             'price_addition'  => 'required|numeric|min:0',
             'stock_meters'    => 'required|numeric|min:0',
             'is_active'       => 'required|in:0,1',
@@ -30,6 +31,7 @@ class FabricController extends Controller
 
         Fabric::create([
             'name'           => $request->name,
+            'category'       => $request->category,
             'price_addition' => $request->price_addition,
             'stock_meters'   => $request->stock_meters,
             'is_active'      => (bool) $request->is_active,
@@ -47,7 +49,8 @@ class FabricController extends Controller
     public function update(Request $request, Fabric $fabric)
     {
         $request->validate([
-            'name'            => 'required|string|max:255|unique:fabrics,name,' . $fabric->id,
+            'name'            => 'required|string|max:255|unique:fabrics,name,' . $fabric->id . ',id,category,' . $request->category,
+            'category'        => 'required|in:baju,celana,rok',
             'price_addition'  => 'required|numeric|min:0',
             'stock_meters'    => 'required|numeric|min:0',
             'is_active'       => 'required|in:0,1',
@@ -55,6 +58,7 @@ class FabricController extends Controller
 
         $fabric->update([
             'name'           => $request->name,
+            'category'       => $request->category,
             'price_addition' => $request->price_addition,
             'stock_meters'   => $request->stock_meters,
             'is_active'      => (bool) $request->is_active,

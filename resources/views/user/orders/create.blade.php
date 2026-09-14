@@ -30,8 +30,8 @@
         serviceType: '{{ old('service_id') ? ($services->find(old('service_id'))?->type ?? 'custom') : 'custom' }}',
         services: {{ Js::from($services->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'type' => $s->type, 'base_price' => (float) $s->base_price])) }},
         catalogs: {{ Js::from($catalogs) }},
-        fabrics: {{ Js::from($fabrics->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'price_addition' => (float) $f->price_addition])) }},
-        clothingTypes: {{ Js::from($clothingTypes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'gender' => $c->gender, 'image' => $c->reference_image ? \Illuminate\Support\Facades\Storage::url($c->reference_image) : null])) }},
+        fabrics: {{ Js::from($fabrics->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'category' => $f->category, 'price_addition' => (float) $f->price_addition, 'stock_meters' => (float) $f->stock_meters])) }},
+        clothingTypes: {{ Js::from($clothingTypes->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'gender' => $c->gender, 'category' => $c->category, 'image' => $c->reference_image ? \Illuminate\Support\Facades\Storage::url($c->reference_image) : null])) }},
         sizeMethod: '{{ old('measurement_id') ? 'cv' : (old('manual_chest') ? 'manual' : 'cv') }}',
         selectedMeasurementId: '{{ old('measurement_id', $measurements->first()?->id ?? '') }}',
         gender: '{{ old('gender') }}',
@@ -48,9 +48,20 @@
             if (!this.gender) return [];
             return this.clothingTypes.filter(c => c.gender === 'unisex' || c.gender === this.gender);
         },
+        filteredFabrics() {
+            if (!this.selectedClothingType) return [];
+            const type = this.clothingTypes.find(c => c.name === this.selectedClothingType);
+            if (!type) return [];
+            return this.fabrics.filter(f => f.category === type.category);
+        },
         selectGender(g) {
             this.gender = g;
             this.selectedClothingType = '';
+            this.selectedFabric = null;
+        },
+        selectClothingType(name) {
+            this.selectedClothingType = name;
+            this.selectedFabric = null;
         },
         estimatedPrice() {
             const svc = this.services.find(s => s.id == this.selectedService);
@@ -220,8 +231,8 @@
                             <p x-show="gender && filteredClothingTypes().length === 0" class="text-xs text-gray-400 mb-2">Belum ada jenis pakaian tersedia untuk pilihan ini.</p>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <template x-for="type in filteredClothingTypes()" :key="type.id">
-                                    <div @click="selectedClothingType = type.name" role="button" tabindex="0"
-                                            @keydown.enter="selectedClothingType = type.name"
+                                    <div @click="selectClothingType(type.name)" role="button" tabindex="0"
+                                            @keydown.enter="selectClothingType(type.name)"
                                             :class="selectedClothingType === type.name ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
                                             class="rounded-xl border-2 p-2 text-center transition-all cursor-pointer">
                                         <div class="relative w-full h-16 rounded-lg bg-gray-100 overflow-hidden mb-1.5 flex items-center justify-center">
@@ -268,15 +279,15 @@
                         {{-- Bahan --}}
                         <div>
                             <label for="fabric_id" class="block text-sm font-semibold text-gray-700 mb-1.5">Bahan / Material <span class="text-red-500">*</span></label>
-                            <select name="fabric_id" id="fabric_id" x-model="selectedFabric"
-                                    class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm @error('fabric_id') border-red-400 @enderror">
+                            <select name="fabric_id" id="fabric_id" x-model="selectedFabric" :disabled="!selectedClothingType"
+                                    class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm disabled:bg-gray-50 disabled:text-gray-400 @error('fabric_id') border-red-400 @enderror">
                                 <option value="">— Pilih Bahan —</option>
-                                @foreach($fabrics as $fabric)
-                                <option value="{{ $fabric->id }}" {{ old('fabric_id') == $fabric->id ? 'selected' : '' }}>
-                                    {{ $fabric->name }} (+Rp {{ number_format($fabric->price_addition, 0, ',', '.') }}) — tersisa {{ number_format($fabric->stock_meters, 1, ',', '.') }}m
-                                </option>
-                                @endforeach
+                                <template x-for="fabric in filteredFabrics()" :key="fabric.id">
+                                    <option :value="fabric.id" x-text="fabric.name + ' (+Rp ' + formatRupiah(fabric.price_addition) + ') — tersisa ' + fabric.stock_meters + 'm'"></option>
+                                </template>
                             </select>
+                            <p x-show="!selectedClothingType" class="text-xs text-gray-400 mt-1">Pilih jenis pakaian dulu untuk melihat pilihan bahan.</p>
+                            <p x-show="selectedClothingType && filteredFabrics().length === 0" class="text-xs text-gray-400 mt-1">Belum ada bahan tersedia untuk jenis pakaian ini.</p>
                             @error('fabric_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 

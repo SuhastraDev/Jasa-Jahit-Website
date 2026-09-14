@@ -8,6 +8,7 @@ class Fabric extends Model
 {
     protected $fillable = [
         'name',
+        'category',
         'price_addition',
         'stock_meters',
         'is_active',

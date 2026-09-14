@@ -25,6 +25,7 @@ class ClothingTypeController extends Controller
         $request->validate([
             'name'      => 'required|string|max:255|unique:clothing_type_references,name',
             'gender'    => 'required|in:pria,wanita,unisex',
+            'category'  => 'required|in:baju,celana,rok',
             'image'     => 'nullable|image|max:10240',
             'is_active' => 'required|in:0,1',
         ]);
@@ -36,6 +37,7 @@ class ClothingTypeController extends Controller
         ClothingTypeReference::create([
             'name'            => $request->name,
             'gender'          => $request->gender,
+            'category'        => $request->category,
             'reference_image' => $imagePath,
             'is_active'       => (bool) $request->is_active,
         ]);
@@ -54,6 +56,7 @@ class ClothingTypeController extends Controller
         $request->validate([
             'name'      => 'required|string|max:255|unique:clothing_type_references,name,' . $clothingType->id,
             'gender'    => 'required|in:pria,wanita,unisex',
+            'category'  => 'required|in:baju,celana,rok',
             'image'     => 'nullable|image|max:10240',
             'is_active' => 'required|in:0,1',
         ]);
@@ -61,6 +64,7 @@ class ClothingTypeController extends Controller
         $data = [
             'name'      => $request->name,
             'gender'    => $request->gender,
+            'category'  => $request->category,
             'is_active' => (bool) $request->is_active,
         ];
 

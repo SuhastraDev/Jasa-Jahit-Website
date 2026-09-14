@@ -9,6 +9,7 @@ class ClothingTypeReference extends Model
     protected $fillable = [
         'name',
         'gender',
+        'category',
         'reference_image',
         'is_active',
     ];
