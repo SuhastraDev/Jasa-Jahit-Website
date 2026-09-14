@@ -312,7 +312,7 @@
                                     class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm disabled:bg-gray-50 disabled:text-gray-400 @error('fabric_id') border-red-400 @enderror">
                                 <option value="">— Pilih Bahan —</option>
                                 <template x-for="fabric in filteredFabrics()" :key="fabric.id">
-                                    <option :value="fabric.id" x-text="fabric.name + ' (+Rp ' + formatRupiah(fabric.price_addition) + ') — tersisa ' + fabric.stock_meters + 'm'"></option>
+                                    <option :value="fabric.id" x-text="fabric.name + ' — tersisa ' + fabric.stock_meters + 'm'"></option>
                                 </template>
                             </select>
                             <p x-show="!clothingCategory" class="text-xs text-gray-400 mt-1">Pilih kategori pakaian dulu untuk melihat pilihan bahan.</p>
@@ -704,7 +704,7 @@
                     <div class="text-sm text-gray-500">
                         <span class="font-semibold text-gray-700">Pastikan semua data sudah benar</span> sebelum mengirim pesanan.
                         <div x-show="selectedService && selectedFabric" class="mt-1.5 text-base">
-                            Estimasi Harga: <span class="font-bold text-blue-600" x-text="'Rp ' + formatRupiah(estimatedPrice())"></span>
+                            Total Harga: <span class="font-bold text-blue-600 text-lg" x-text="'Rp ' + formatRupiah(estimatedPrice())"></span>
                         </div>
                     </div>
                     <div class="flex gap-3 flex-shrink-0">
