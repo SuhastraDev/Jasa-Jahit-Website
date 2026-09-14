@@ -35,6 +35,7 @@
         sizeMethod: '{{ old('measurement_id') ? 'cv' : (old('manual_chest') ? 'manual' : 'cv') }}',
         selectedMeasurementId: '{{ old('measurement_id', $measurements->first()?->id ?? '') }}',
         gender: '{{ old('gender') }}',
+        clothingCategory: '{{ old('clothing_category') }}',
         selectedClothingType: '{{ old('clothing_type') }}',
         selectedFabric: {{ old('fabric_id') ? old('fabric_id') : 'null' }},
         previewImage: null,
@@ -45,17 +46,21 @@
             return this.catalogs.filter(c => c.service_id == this.selectedService);
         },
         filteredClothingTypes() {
-            if (!this.gender) return [];
-            return this.clothingTypes.filter(c => c.gender === 'unisex' || c.gender === this.gender);
+            if (!this.gender || !this.clothingCategory) return [];
+            return this.clothingTypes.filter(c => (c.gender === 'unisex' || c.gender === this.gender) && c.category === this.clothingCategory);
         },
         filteredFabrics() {
-            if (!this.selectedClothingType) return [];
-            const type = this.clothingTypes.find(c => c.name === this.selectedClothingType);
-            if (!type) return [];
-            return this.fabrics.filter(f => f.category === type.category);
+            if (!this.clothingCategory) return [];
+            return this.fabrics.filter(f => f.category === this.clothingCategory);
         },
         selectGender(g) {
             this.gender = g;
+            this.clothingCategory = '';
+            this.selectedClothingType = '';
+            this.selectedFabric = null;
+        },
+        selectClothingCategory(cat) {
+            this.clothingCategory = cat;
             this.selectedClothingType = '';
             this.selectedFabric = null;
         },
@@ -225,10 +230,34 @@
                             @error('gender')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 
-                        {{-- Jenis Pakaian --}}
+                        {{-- Kategori Pakaian --}}
                         <div class="sm:col-span-2" x-show="gender" x-transition>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Kategori Pakaian <span class="text-red-500">*</span></label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <button type="button" @click="selectClothingCategory('baju')"
+                                        :class="clothingCategory === 'baju' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                        class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
+                                    Baju
+                                </button>
+                                <button type="button" @click="selectClothingCategory('celana')"
+                                        :class="clothingCategory === 'celana' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                        class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
+                                    Celana
+                                </button>
+                                <button type="button" @click="selectClothingCategory('rok')"
+                                        :class="clothingCategory === 'rok' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                        class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
+                                    Rok
+                                </button>
+                            </div>
+                            <input type="hidden" name="clothing_category" x-bind:value="clothingCategory">
+                            @error('clothing_category')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        {{-- Jenis Pakaian --}}
+                        <div class="sm:col-span-2" x-show="gender && clothingCategory" x-transition>
                             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Jenis Pakaian <span class="text-red-500">*</span></label>
-                            <p x-show="gender && filteredClothingTypes().length === 0" class="text-xs text-gray-400 mb-2">Belum ada jenis pakaian tersedia untuk pilihan ini.</p>
+                            <p x-show="clothingCategory && filteredClothingTypes().length === 0" class="text-xs text-gray-400 mb-2">Belum ada jenis pakaian tersedia untuk pilihan ini.</p>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <template x-for="type in filteredClothingTypes()" :key="type.id">
                                     <div @click="selectClothingType(type.name)" role="button" tabindex="0"
@@ -279,15 +308,15 @@
                         {{-- Bahan --}}
                         <div>
                             <label for="fabric_id" class="block text-sm font-semibold text-gray-700 mb-1.5">Bahan / Material <span class="text-red-500">*</span></label>
-                            <select name="fabric_id" id="fabric_id" x-model="selectedFabric" :disabled="!selectedClothingType"
+                            <select name="fabric_id" id="fabric_id" x-model="selectedFabric" :disabled="!clothingCategory"
                                     class="w-full rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 text-sm disabled:bg-gray-50 disabled:text-gray-400 @error('fabric_id') border-red-400 @enderror">
                                 <option value="">— Pilih Bahan —</option>
                                 <template x-for="fabric in filteredFabrics()" :key="fabric.id">
                                     <option :value="fabric.id" x-text="fabric.name + ' (+Rp ' + formatRupiah(fabric.price_addition) + ') — tersisa ' + fabric.stock_meters + 'm'"></option>
                                 </template>
                             </select>
-                            <p x-show="!selectedClothingType" class="text-xs text-gray-400 mt-1">Pilih jenis pakaian dulu untuk melihat pilihan bahan.</p>
-                            <p x-show="selectedClothingType && filteredFabrics().length === 0" class="text-xs text-gray-400 mt-1">Belum ada bahan tersedia untuk jenis pakaian ini.</p>
+                            <p x-show="!clothingCategory" class="text-xs text-gray-400 mt-1">Pilih kategori pakaian dulu untuk melihat pilihan bahan.</p>
+                            <p x-show="clothingCategory && filteredFabrics().length === 0" class="text-xs text-gray-400 mt-1">Belum ada bahan tersedia untuk kategori ini.</p>
                             @error('fabric_id')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
                         </div>
 

@@ -61,6 +61,7 @@ class OrderController extends Controller
         $request->validate([
             'service_id'        => 'required|exists:services,id',
             'gender'            => 'required|in:pria,wanita',
+            'clothing_category' => 'required|in:baju,celana,rok',
             'clothing_type'     => ['required', 'string', 'max:100', Rule::in($allowedClothingTypes)],
             'color'             => 'nullable|string|max:100',
             'fabric_id'         => 'required|exists:fabrics,id',
