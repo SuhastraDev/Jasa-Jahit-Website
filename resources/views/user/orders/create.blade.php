@@ -250,8 +250,8 @@
                                         class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
                                     Celana
                                 </button>
-                                <button type="button" x-show="gender !== 'pria'" @click="selectClothingCategory('rok')"
-                                        :class="clothingCategory === 'rok' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
+                                <button type="button" @click="selectClothingCategory('rok')"
+                                        :class="(gender === 'pria' ? 'hidden ' : '') + (clothingCategory === 'rok' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300')"
                                         class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
                                     Rok
                                 </button>
