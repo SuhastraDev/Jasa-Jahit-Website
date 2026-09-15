@@ -68,9 +68,15 @@
             this.selectedClothingType = name;
             this.selectedFabric = null;
         },
+        getSelectedService() {
+            return this.services.find(s => s.id == this.selectedService) || null;
+        },
+        getSelectedFabric() {
+            return this.fabrics.find(f => f.id == this.selectedFabric) || null;
+        },
         estimatedPrice() {
-            const svc = this.services.find(s => s.id == this.selectedService);
-            const fab = this.fabrics.find(f => f.id == this.selectedFabric);
+            const svc = this.getSelectedService();
+            const fab = this.getSelectedFabric();
             return (svc ? svc.base_price : 0) + (fab ? fab.price_addition : 0);
         },
         formatRupiah(n) {
@@ -233,7 +239,7 @@
                         {{-- Kategori Pakaian --}}
                         <div class="sm:col-span-2" x-show="gender" x-transition>
                             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Kategori Pakaian <span class="text-red-500">*</span></label>
-                            <div class="grid grid-cols-3 gap-3">
+                            <div :class="gender === 'pria' ? 'grid-cols-2' : 'grid-cols-3'" class="grid gap-3">
                                 <button type="button" @click="selectClothingCategory('baju')"
                                         :class="clothingCategory === 'baju' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
                                         class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
@@ -244,7 +250,7 @@
                                         class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
                                     Celana
                                 </button>
-                                <button type="button" @click="selectClothingCategory('rok')"
+                                <button type="button" x-show="gender !== 'pria'" @click="selectClothingCategory('rok')"
                                         :class="clothingCategory === 'rok' ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'"
                                         class="rounded-xl border-2 px-4 py-3 text-sm font-semibold text-gray-700 transition-all">
                                     Rok
@@ -699,13 +705,29 @@
                     </div>
                 </div>
 
+                {{-- ── Rincian Harga ── --}}
+                <div x-show="selectedService && selectedFabric" x-transition class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <h3 class="text-sm font-bold text-gray-900 mb-3">Rincian Harga</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500" x-text="'Harga Dasar (' + (getSelectedService()?.name || '-') + ')'"></span>
+                            <span class="font-semibold text-gray-700" x-text="'Rp ' + formatRupiah(getSelectedService()?.base_price || 0)"></span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500" x-text="'Biaya Bahan (' + (getSelectedFabric()?.name || '-') + ')'"></span>
+                            <span class="font-semibold text-gray-700" x-text="'Rp ' + formatRupiah(getSelectedFabric()?.price_addition || 0)"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <span class="font-semibold text-gray-700">Total Harga</span>
+                        <span class="font-bold text-blue-600 text-lg" x-text="'Rp ' + formatRupiah(estimatedPrice())"></span>
+                    </div>
+                </div>
+
                 {{-- ── Submit ── --}}
                 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="text-sm text-gray-500">
                         <span class="font-semibold text-gray-700">Pastikan semua data sudah benar</span> sebelum mengirim pesanan.
-                        <div x-show="selectedService && selectedFabric" class="mt-1.5 text-base">
-                            Total Harga: <span class="font-bold text-blue-600 text-lg" x-text="'Rp ' + formatRupiah(estimatedPrice())"></span>
-                        </div>
                     </div>
                     <div class="flex gap-3 flex-shrink-0">
                         <a href="{{ route('user.orders.index') }}" class="px-5 py-2.5 text-sm text-gray-500 hover:text-gray-700 font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
